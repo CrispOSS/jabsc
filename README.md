@@ -3,8 +3,8 @@ ABS Compiler for Java
 
 # Quick Start
 
-. Ensure you have `bnfc` tool on your `PATH`
-. Run `clean.sh`
-. Run `build.sh`
-. The build should pass
+1. Ensure you have `bnfc` tool on your `PATH`
+2. Run `clean.sh`
+3. Run `build.sh`
+4. The build should pass
 
