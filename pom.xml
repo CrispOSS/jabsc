@@ -5,43 +5,23 @@
 	<modelVersion>4.0.0</modelVersion>
 
 	<groupId>com.github.crisposs</groupId>
-	<name>ABS Compiler for Java</name>
 	<artifactId>jabsc</artifactId>
 	<version>1.0.0-SNAPSHOT</version>
 	<packaging>jar</packaging>
+	<name>ABS Compiler for Java</name>
 
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-		<benchmark.jar.name>prime-sieves-bench</benchmark.jar.name>
-		<version.abs-api>0.9.0-SNAPSHOT</version.abs-api>
+		<version.abs-api>0.8.4</version.abs-api>
 		<version.junit>4.12</version.junit>
 		<version.jflex>1.6.1</version.jflex>
 		<version.cup>2015.03.26</version.cup>
+		<version.javapoet>1.1.0</version.javapoet>
+		<version.javawriter>2.5.1</version.javawriter>
 	</properties>
 
 	<build>
 		<plugins>
-			<!--
-			<plugin>
-	        <groupId>net.sourceforge.czt.dev</groupId>
-	        <artifactId>cup-maven-plugin</artifactId>
-	        <version>1.6-SNAPSHOT</version>
-	        <configuration>
-	        	<expectedConflicts>1000</expectedConflicts>
-	        	<outputDirectory>src/main/java</outputDirectory>
-	        	<sourceDirectory>src/main/java/bnfc/abs</sourceDirectory>
-	        </configuration>
-	        <executions>
-	        		<execution>
-	        			<id>default</id>
-	        			<phase>generate-sources</phase>
-	        			<goals>
-	        				<goal>generate</goal>
-	        			</goals>
-	        		</execution>
-	        </executions>
-	      </plugin>
-	   	-->
 			<plugin>
 				<artifactId>maven-compiler-plugin</artifactId>
 				<version>3.3</version>
@@ -71,23 +51,36 @@
 			<version>${version.jflex}</version>
 		</dependency>
 		<dependency>
-		    <groupId>nz.ac.waikato.cms.weka.thirdparty</groupId>
-		    <artifactId>java-cup-11b-runtime</artifactId>
-		    <version>${version.cup}</version>
+			<groupId>nz.ac.waikato.cms.weka.thirdparty</groupId>
+			<artifactId>java-cup-11b-runtime</artifactId>
+			<version>${version.cup}</version>
 		</dependency>
 		<dependency>
-		    <groupId>nz.ac.waikato.cms.weka.thirdparty</groupId>
-		    <artifactId>java-cup-11b</artifactId>
-		    <version>${version.cup}</version>
+			<groupId>nz.ac.waikato.cms.weka.thirdparty</groupId>
+			<artifactId>java-cup-11b</artifactId>
+			<version>${version.cup}</version>
+		</dependency>
+		<dependency>
+			<groupId>com.squareup</groupId>
+			<artifactId>javapoet</artifactId>
+			<version>${version.javapoet}</version>
+		</dependency>
+		<dependency>
+			<groupId>com.squareup</groupId>
+			<artifactId>javawriter</artifactId>
+			<version>${version.javawriter}</version>
 		</dependency>
 	</dependencies>
 
-	<pluginRepositories>
-		<pluginRepository>
-			<id>sonatype</id>
-			<url>https://oss.sonatype.org/content/groups/public/</url>
-		</pluginRepository>
-	</pluginRepositories>
+	<scm>
+		<connection>https://github.com/CrispOSS/jabsc.git</connection>
+		<developerConnection>git@github.com:CrispOSS/jabsc.git</developerConnection>
+	</scm>
+
+	<issueManagement>
+		<system>GitHub</system>
+		<url>https://github.com/CrispOSS/jabsc/issues</url>
+	</issueManagement>
 
 </project>
 
