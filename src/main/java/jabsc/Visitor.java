@@ -1,18 +1,23 @@
 package jabsc;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import javax.lang.model.element.Modifier;
 
 import com.squareup.javawriter.JavaWriter;
 
 import bnfc.abs.AbstractVisitor;
+import bnfc.abs.Absyn.AnyImport;
+import bnfc.abs.Absyn.Decl;
+import bnfc.abs.Absyn.Import;
 import bnfc.abs.Absyn.InterfDecl;
 import bnfc.abs.Absyn.MethSig;
+import bnfc.abs.Absyn.Modul;
+import bnfc.abs.Absyn.Module;
 import bnfc.abs.Absyn.Par;
 import bnfc.abs.Absyn.Param;
 import bnfc.abs.Absyn.Prog;
@@ -38,10 +43,41 @@ public class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   }
 
   @Override
+  public Prog visit(Prog p, JavaWriter w) {
+    for (Module module : ((Prog) p).listmodule_) {
+      module.accept(this, w);
+    }
+    return prog;
+  }
+
+  @Override
+  public Prog visit(Modul m, JavaWriter w) {
+    try {
+      String moduleName = getQTypeName(m.qtype_);
+      w.emitPackage(moduleName);
+      for (Import imprt : m.listimport_) {
+        imprt.accept(this, w);
+      }
+      for (Decl decl : m.listdecl_) {
+        decl.accept(this, w);
+      }
+      return prog;
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  @Override
+  public Prog visit(AnyImport p, JavaWriter w) {
+    return prog;
+  }
+
+  @Override
   public Prog visit(InterfDecl id, JavaWriter w) {
     try {
       w.beginType(id.uident_, "interface", DEFAULT_MODIFIERS);
       id.listmethsignat_.forEach(sig -> visit((MethSig) sig, w));
+      w.endType();
       return prog;
     } catch (IOException e) {
       throw new RuntimeException(e);
@@ -51,36 +87,41 @@ public class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   @Override
   public Prog visit(MethSig ms, JavaWriter w) {
     try {
-      String returnType = getSimpleTypeName(ms.type_);
+      String returnType = getTypeName(ms.type_);
       String name = ms.lident_;
-      List<String> parameters =
-          ms.listparam_.stream().map(this::getParameter).collect(Collectors.toList());
+      List<String> parameters = new ArrayList<>();
+      for (Param param : ms.listparam_) {
+        Par p = (Par) param;
+        parameters.add(getTypeName(p.type_));
+        parameters.add(p.lident_);
+      }
       w.beginMethod(returnType, name, DEFAULT_MODIFIERS, parameters, Collections.emptyList());
+      w.endMethod();
       return prog;
     } catch (IOException e) {
       throw new RuntimeException(e);
     }
   }
 
-  private String getSimpleTypeName(Type type) {
+  private String getTypeName(Type type) {
     if (type instanceof TSimple) {
       TSimple ts = (TSimple) type;
       QType qtype_ = ts.qtype_;
-      if (qtype_ instanceof QTyp) {
-        QTyp qtyp = (QTyp) qtype_;
-        QTypeSegment qtypesegment_ = qtyp.listqtypesegment_.iterator().next();
-        if (qtypesegment_ instanceof QTypeSegmen) {
-          QTypeSegmen qTypeSegmen = (QTypeSegmen) qtypesegment_;
-          return qTypeSegmen.uident_;
-        }
-      }
+      return getQTypeName(qtype_);
     }
     return null;
   }
 
-  private String getParameter(Param p) {
-    Par par = (Par) p;
-    return getSimpleTypeName(par.type_) + " " + par.lident_;
+  private String getQTypeName(QType qtype) {
+    if (qtype instanceof QTyp) {
+      QTyp qtyp = (QTyp) qtype;
+      QTypeSegment qtypesegment_ = qtyp.listqtypesegment_.iterator().next();
+      if (qtypesegment_ instanceof QTypeSegmen) {
+        QTypeSegmen qTypeSegmen = (QTypeSegmen) qtypesegment_;
+        return qTypeSegmen.uident_;
+      }
+    }
+    return null;
   }
 
 }

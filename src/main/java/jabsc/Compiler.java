@@ -71,7 +71,7 @@ public class Compiler implements Runnable {
   protected Path generateSource(Program program, Path source, Path outputDirectory)
       throws IOException {
     final Path sourcePath = createSourcePath(source, outputDirectory);
-    try (final Writer writer = Files.newBufferedWriter(sourcePath, StandardOpenOption.CREATE_NEW)) {
+    try (final Writer writer = Files.newBufferedWriter(sourcePath, StandardOpenOption.CREATE)) {
       JavaWriter jw = new JavaWriter(writer);
       Prog prog = (Prog) program;
       Visitor visitor = new Visitor(prog);

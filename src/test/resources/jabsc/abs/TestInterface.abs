@@ -1,0 +1,9 @@
+module TestInterface;
+
+interface Computer {
+	Int compute(Int a);
+}
+
+{
+// What the hell is this?
+}
