@@ -32,7 +32,7 @@ import bnfc.abs.Absyn.Type;
  * The visitor for all possible nodes in the AST of an ABS
  * program.
  */
-public class Visitor extends AbstractVisitor<Prog, JavaWriter> {
+class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 
   private static final Set<Modifier> DEFAULT_MODIFIERS = Collections.singleton(Modifier.PUBLIC);
 
@@ -44,8 +44,13 @@ public class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 
   @Override
   public Prog visit(Prog p, JavaWriter w) {
-    for (Module module : ((Prog) p).listmodule_) {
-      module.accept(this, w);
+    try {
+      for (Module module : ((Prog) p).listmodule_) {
+        module.accept(this, w);
+        w.emitEmptyLine();
+      }
+    } catch (IOException e) {
+      throw new RuntimeException(e);
     }
     return prog;
   }
@@ -76,6 +81,7 @@ public class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   public Prog visit(InterfDecl id, JavaWriter w) {
     try {
       w.beginType(id.uident_, "interface", DEFAULT_MODIFIERS);
+      w.emitEmptyLine();
       id.listmethsignat_.forEach(sig -> visit((MethSig) sig, w));
       w.endType();
       return prog;
@@ -97,12 +103,13 @@ public class Visitor extends AbstractVisitor<Prog, JavaWriter> {
       }
       w.beginMethod(returnType, name, DEFAULT_MODIFIERS, parameters, Collections.emptyList());
       w.endMethod();
+      w.emitEmptyLine();
       return prog;
     } catch (IOException e) {
       throw new RuntimeException(e);
     }
   }
-
+  
   private String getTypeName(Type type) {
     if (type instanceof TSimple) {
       TSimple ts = (TSimple) type;
@@ -112,7 +119,7 @@ public class Visitor extends AbstractVisitor<Prog, JavaWriter> {
     return null;
   }
 
-  private String getQTypeName(QType qtype) {
+  protected String getQTypeName(QType qtype) {
     if (qtype instanceof QTyp) {
       QTyp qtyp = (QTyp) qtype;
       QTypeSegment qtypesegment_ = qtyp.listqtypesegment_.iterator().next();

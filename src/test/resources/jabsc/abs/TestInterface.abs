@@ -1,6 +1,6 @@
 module TestInterface;
 
-interface Computer {
+interface TestInterface {
 	Int compute(Int a);
 }
 
