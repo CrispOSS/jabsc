@@ -107,8 +107,9 @@
 	</distributionManagement>
 
 	<scm>
-		<connection>https://github.com/CrispOSS/jabsc.git</connection>
-		<developerConnection>git@github.com:CrispOSS/jabsc.git</developerConnection>
+		<url>https://github.com/CrispOSS/jabsc.git</url>
+		<connection>scm:git:https://github.com/CrispOSS/jabsc.git</connection>
+		<developerConnection>scm:git:git@github.com:CrispOSS/jabsc.git</developerConnection>
 	</scm>
 
 	<issueManagement>
@@ -140,7 +141,6 @@
 						<artifactId>maven-javadoc-plugin</artifactId>
 						<version>2.10.3</version>
 						<configuration>
-							<outputDirectory>${project.docs.directory}/apidocs</outputDirectory>
 							<tags>
 								<tag>
 									<name>implSpec</name>
