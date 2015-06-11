@@ -12,12 +12,14 @@ public class CompilerTest {
 
   private URL uri = getClass().getResource("abs/TestInterface.abs");
   private Path outputDirectory = Paths.get("./target").resolve("generated");
+  private Path tmpDirectory = Paths.get("java.io.tmpdir");
 
   @Test
   public void resolveOutputDirectory() throws Exception {
     Compiler compiler = new Compiler(Paths.get(uri.toURI()), outputDirectory);
-    Path result = compiler.resolveOutputDirectory("a.b.c", Paths.get("\\tmp"));
-    Assert.assertEquals("D:\\tmp\\a\\b\\c", result.toAbsolutePath().toString());
+    Path p1 = compiler.resolveOutputDirectory("a.b.c", tmpDirectory);
+    Path p2 = tmpDirectory.resolve("a").resolve("b").resolve("c");
+    Assert.assertEquals(p2.toAbsolutePath(), p1.toAbsolutePath());
   }
 
   @Test

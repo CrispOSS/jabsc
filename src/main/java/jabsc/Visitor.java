@@ -8,13 +8,10 @@ import java.util.Set;
 
 import javax.lang.model.element.Modifier;
 
-import org.apache.tools.ant.types.resources.selectors.InstanceOf;
-
 import com.squareup.javawriter.JavaWriter;
 
 import bnfc.abs.AbstractVisitor;
 import bnfc.abs.Absyn.AnyImport;
-import bnfc.abs.Absyn.Bloc;
 import bnfc.abs.Absyn.ClassBody;
 import bnfc.abs.Absyn.ClassDecl;
 import bnfc.abs.Absyn.ClassImplements;
@@ -89,7 +86,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   @Override
   public Prog visit(InterfDecl id, JavaWriter w) {
     try {
-      w.beginType(id.uident_, "interface", DEFAULT_MODIFIERS, "Actor");
+      w.beginType(id.uident_, "interface", DEFAULT_MODIFIERS, "abs.api.Actor");
       w.emitEmptyLine();
       id.listmethsignat_.forEach(sig -> visit((MethSig) sig, w));
       w.endType();
