@@ -8,13 +8,22 @@ import java.util.Set;
 
 import javax.lang.model.element.Modifier;
 
+import org.apache.tools.ant.types.resources.selectors.InstanceOf;
+
 import com.squareup.javawriter.JavaWriter;
 
 import bnfc.abs.AbstractVisitor;
 import bnfc.abs.Absyn.AnyImport;
+import bnfc.abs.Absyn.Bloc;
+import bnfc.abs.Absyn.ClassBody;
+import bnfc.abs.Absyn.ClassDecl;
+import bnfc.abs.Absyn.ClassImplements;
 import bnfc.abs.Absyn.Decl;
+import bnfc.abs.Absyn.FieldAssignClassBody;
+import bnfc.abs.Absyn.FieldClassBody;
 import bnfc.abs.Absyn.Import;
 import bnfc.abs.Absyn.InterfDecl;
+import bnfc.abs.Absyn.MethClassBody;
 import bnfc.abs.Absyn.MethSig;
 import bnfc.abs.Absyn.Modul;
 import bnfc.abs.Absyn.Module;
@@ -80,7 +89,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   @Override
   public Prog visit(InterfDecl id, JavaWriter w) {
     try {
-      w.beginType(id.uident_, "interface", DEFAULT_MODIFIERS);
+      w.beginType(id.uident_, "interface", DEFAULT_MODIFIERS, "Actor");
       w.emitEmptyLine();
       id.listmethsignat_.forEach(sig -> visit((MethSig) sig, w));
       w.endType();
@@ -109,7 +118,95 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
       throw new RuntimeException(e);
     }
   }
-  
+
+  @Override
+  public Prog visit(ClassDecl p, JavaWriter w) {
+    try {
+      w.beginType(p.uident_, "class", DEFAULT_MODIFIERS);
+      w.emitEmptyLine();
+
+      for (ClassBody cb : p.listclassbody_1) {
+        cb.accept(this, w);
+      }
+      for (ClassBody cb : p.listclassbody_2) {
+        cb.accept(this, w);
+      }
+      w.endType();
+      return prog;
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  @Override
+  public Prog visit(ClassImplements p, JavaWriter w) {
+    try {
+      w.beginType(p.uident_, "class", DEFAULT_MODIFIERS, "TODO:visit Qtype");
+      w.emitEmptyLine();
+
+      for (ClassBody cb : p.listclassbody_1) {
+        cb.accept(this, w);
+      }
+      for (ClassBody cb : p.listclassbody_2) {
+        cb.accept(this, w);
+      }
+      w.endType();
+      return prog;
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  @Override
+  public Prog visit(FieldClassBody p, JavaWriter w) {
+    try {
+      String fType = getTypeName(p.type_);
+      w.emitField(fType, p.lident_);
+      w.emitEmptyLine();
+      return prog;
+    } catch (IOException e) {
+      // TODO Auto-generated catch block
+      throw new RuntimeException(e);
+    }
+
+  }
+
+  @Override
+  public Prog visit(FieldAssignClassBody p, JavaWriter w) {
+    try {
+      String fType = getTypeName(p.type_);
+      w.emitField(fType, p.lident_, DEFAULT_MODIFIERS, "TODO:visit PureExpresion");
+      w.emitEmptyLine();
+      return prog;
+    } catch (IOException e) {
+      // TODO Auto-generated catch block
+      throw new RuntimeException(e);
+    }
+  }
+
+  @Override
+  public Prog visit(MethClassBody p, JavaWriter w) {
+    try {
+      String returnType = getTypeName(p.type_);
+      String name = p.lident_;
+      List<String> parameters = new ArrayList<>();
+      for (Param param : p.listparam_) {
+        Par p1 = (Par) param;
+        parameters.add(getTypeName(p1.type_));
+        parameters.add(p1.lident_);
+      }
+      w.beginMethod(returnType, name, DEFAULT_MODIFIERS, parameters, Collections.emptyList());
+      p.block_.accept(this, w);
+      w.endMethod();
+      w.emitEmptyLine();
+      return prog;
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+
+
   private String getTypeName(Type type) {
     if (type instanceof TSimple) {
       TSimple ts = (TSimple) type;

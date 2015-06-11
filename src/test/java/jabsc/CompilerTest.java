@@ -16,8 +16,8 @@ public class CompilerTest {
   @Test
   public void resolveOutputDirectory() throws Exception {
     Compiler compiler = new Compiler(Paths.get(uri.toURI()), outputDirectory);
-    Path result = compiler.resolveOutputDirectory("a.b.c", Paths.get("/tmp"));
-    Assert.assertEquals("/tmp/a/b/c", result.toAbsolutePath().toString());
+    Path result = compiler.resolveOutputDirectory("a.b.c", Paths.get("\\tmp"));
+    Assert.assertEquals("D:\\tmp\\a\\b\\c", result.toAbsolutePath().toString());
   }
 
   @Test
