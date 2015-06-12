@@ -16,10 +16,12 @@ import bnfc.abs.Absyn.ClassBody;
 import bnfc.abs.Absyn.ClassDecl;
 import bnfc.abs.Absyn.ClassImplements;
 import bnfc.abs.Absyn.Decl;
+import bnfc.abs.Absyn.ExtendsDecl;
 import bnfc.abs.Absyn.FieldAssignClassBody;
 import bnfc.abs.Absyn.FieldClassBody;
 import bnfc.abs.Absyn.Import;
 import bnfc.abs.Absyn.InterfDecl;
+import bnfc.abs.Absyn.ListQType;
 import bnfc.abs.Absyn.MethClassBody;
 import bnfc.abs.Absyn.MethSig;
 import bnfc.abs.Absyn.Modul;
@@ -95,6 +97,25 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
       throw new RuntimeException(e);
     }
   }
+  
+  @Override
+  public Prog visit(ExtendsDecl ed, JavaWriter w) {
+    try {
+      
+      /*for (QType impl : ed.listqtype_) {
+        impl.accept(this, w);
+      }
+      */
+      
+      w.beginType(ed.uident_, "interface", DEFAULT_MODIFIERS, "abs.api.Actor, "+getQTypeList(ed.listqtype_));
+      w.emitEmptyLine();
+      ed.listmethsignat_.forEach(sig -> visit((MethSig) sig, w));
+      w.endType();
+      return prog;
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }   
+  }
 
   @Override
   public Prog visit(MethSig ms, JavaWriter w) {
@@ -119,7 +140,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   @Override
   public Prog visit(ClassDecl p, JavaWriter w) {
     try {
-      w.beginType(p.uident_, "class", DEFAULT_MODIFIERS);
+      w.beginType(p.uident_, "class", DEFAULT_MODIFIERS, "abs.api.Actor");
       w.emitEmptyLine();
 
       for (ClassBody cb : p.listclassbody_1) {
@@ -138,7 +159,14 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   @Override
   public Prog visit(ClassImplements p, JavaWriter w) {
     try {
-      w.beginType(p.uident_, "class", DEFAULT_MODIFIERS, "TODO:visit Qtype");
+      
+      /*
+      for (QType impl : p.listqtype_) {
+        impl.accept(this, w);
+      }
+      */
+      
+      w.beginType(p.uident_, "class", DEFAULT_MODIFIERS, getQTypeList(p.listqtype_));
       w.emitEmptyLine();
 
       for (ClassBody cb : p.listclassbody_1) {
@@ -172,6 +200,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   public Prog visit(FieldAssignClassBody p, JavaWriter w) {
     try {
       String fType = getTypeName(p.type_);
+      p.pureexp_.accept(this, w);
       w.emitField(fType, p.lident_, DEFAULT_MODIFIERS, "TODO:visit PureExpresion");
       w.emitEmptyLine();
       return prog;
@@ -202,6 +231,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
     }
   }
 
+  
 
 
   private String getTypeName(Type type) {
@@ -224,5 +254,16 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
     }
     return null;
   }
+  
+  protected String getQTypeList(ListQType lqtype) {
+    StringBuilder s= new StringBuilder("");
+    
+    for (QType qtype : lqtype) {
+      s.append(getQTypeName(qtype)+", ");      
+    }
+    s.deleteCharAt(s.length()-1);
+    return s.toString();
+  }
+  
 
 }
