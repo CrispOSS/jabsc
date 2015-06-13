@@ -10,6 +10,7 @@ import javax.lang.model.element.Modifier;
 
 import com.squareup.javawriter.JavaWriter;
 
+import abs.api.Actor;
 import bnfc.abs.AbstractVisitor;
 import bnfc.abs.Absyn.AnyImport;
 import bnfc.abs.Absyn.ClassBody;
@@ -42,6 +43,8 @@ import bnfc.abs.Absyn.Type;
  */
 class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 
+  private static final String ABS_API_ACTOR_CLASS = Actor.class.getName();
+  private static final String COMMA = ",";
   private static final Set<Modifier> DEFAULT_MODIFIERS = Collections.singleton(Modifier.PUBLIC);
 
   private final Prog prog;
@@ -73,6 +76,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
       }
       for (Decl decl : m.listdecl_) {
         decl.accept(this, w);
+        w.emitEmptyLine();
       }
       return prog;
     } catch (IOException e) {
@@ -88,7 +92,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   @Override
   public Prog visit(InterfDecl id, JavaWriter w) {
     try {
-      w.beginType(id.uident_, "interface", DEFAULT_MODIFIERS, "abs.api.Actor");
+      w.beginType(id.uident_, "interface", DEFAULT_MODIFIERS, ABS_API_ACTOR_CLASS);
       w.emitEmptyLine();
       id.listmethsignat_.forEach(sig -> visit((MethSig) sig, w));
       w.endType();
@@ -97,24 +101,20 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
       throw new RuntimeException(e);
     }
   }
-  
+
   @Override
   public Prog visit(ExtendsDecl ed, JavaWriter w) {
     try {
-      
-      /*for (QType impl : ed.listqtype_) {
-        impl.accept(this, w);
-      }
-      */
-      
-      w.beginType(ed.uident_, "interface", DEFAULT_MODIFIERS, "abs.api.Actor, "+getQTypeList(ed.listqtype_));
+      String extendingInterfaces = toString(ed.listqtype_, COMMA);
+      w.beginType(ed.uident_, "interface", DEFAULT_MODIFIERS,
+          ABS_API_ACTOR_CLASS + COMMA + extendingInterfaces);
       w.emitEmptyLine();
-      ed.listmethsignat_.forEach(sig -> visit((MethSig) sig, w));
+      ed.listmethsignat_.forEach(sig -> sig.accept(this, w));
       w.endType();
       return prog;
     } catch (IOException e) {
       throw new RuntimeException(e);
-    }   
+    }
   }
 
   @Override
@@ -140,9 +140,8 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   @Override
   public Prog visit(ClassDecl p, JavaWriter w) {
     try {
-      w.beginType(p.uident_, "class", DEFAULT_MODIFIERS, "abs.api.Actor");
+      w.beginType(p.uident_, "class", DEFAULT_MODIFIERS, ABS_API_ACTOR_CLASS);
       w.emitEmptyLine();
-
       for (ClassBody cb : p.listclassbody_1) {
         cb.accept(this, w);
       }
@@ -159,16 +158,8 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   @Override
   public Prog visit(ClassImplements p, JavaWriter w) {
     try {
-      
-      /*
-      for (QType impl : p.listqtype_) {
-        impl.accept(this, w);
-      }
-      */
-      
-      w.beginType(p.uident_, "class", DEFAULT_MODIFIERS, getQTypeList(p.listqtype_));
+      w.beginType(p.uident_, "class", DEFAULT_MODIFIERS, toString(p.listqtype_, COMMA));
       w.emitEmptyLine();
-
       for (ClassBody cb : p.listclassbody_1) {
         cb.accept(this, w);
       }
@@ -190,7 +181,6 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
       w.emitEmptyLine();
       return prog;
     } catch (IOException e) {
-      // TODO Auto-generated catch block
       throw new RuntimeException(e);
     }
 
@@ -205,7 +195,6 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
       w.emitEmptyLine();
       return prog;
     } catch (IOException e) {
-      // TODO Auto-generated catch block
       throw new RuntimeException(e);
     }
   }
@@ -231,9 +220,6 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
     }
   }
 
-  
-
-
   private String getTypeName(Type type) {
     if (type instanceof TSimple) {
       TSimple ts = (TSimple) type;
@@ -254,16 +240,20 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
     }
     return null;
   }
-  
-  protected String getQTypeList(ListQType lqtype) {
-    StringBuilder s= new StringBuilder("");
-    
-    for (QType qtype : lqtype) {
-      s.append(getQTypeName(qtype)+", ");      
+
+  /**
+   * @param qtypes
+   * @param delimiter
+   * @return a delimited string over the list of {@link QType}s
+   */
+  protected String toString(ListQType qtypes, String delimiter) {
+    StringBuilder s = new StringBuilder();
+    for (QType qtype : qtypes) {
+      s.append(getQTypeName(qtype)).append(delimiter);
     }
-    s.deleteCharAt(s.length()-1);
+    s.deleteCharAt(s.length() - 1);
     return s.toString();
   }
-  
+
 
 }

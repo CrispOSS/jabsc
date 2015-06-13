@@ -1,0 +1,8 @@
+module Prime;
+
+interface Prime {
+	Unit divide(Int n);
+}
+
+class PrimeImpl implements Prime {
+}
