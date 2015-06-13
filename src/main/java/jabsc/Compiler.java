@@ -8,7 +8,9 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import com.squareup.javawriter.JavaWriter;
 
@@ -37,10 +39,7 @@ public class Compiler implements Runnable {
   }
 
   public Compiler(List<Path> sources, Path outputDirectory) {
-    if (sources == null || sources.isEmpty()) {
-      throw new IllegalArgumentException("No source provided to compile.");
-    }
-    this.sources = sources;
+    this.sources = createSources(sources);
     this.outputDirectory = outputDirectory;
   }
 
@@ -93,7 +92,8 @@ public class Compiler implements Runnable {
     final Path sourcePath = createSourcePath(packageName, source, outputDirectory);
     final Visitor visitor = new Visitor(prog);
     Files.createDirectories(sourcePath.getParent());
-    try (final Writer writer = Files.newBufferedWriter(sourcePath, StandardOpenOption.CREATE)) {
+    try (final Writer writer =
+        Files.newBufferedWriter(sourcePath, StandardOpenOption.CREATE, StandardOpenOption.WRITE)) {
       JavaWriter jw = new JavaWriter(writer);
       prog.accept(visitor, jw);
       return sourcePath;
@@ -149,6 +149,34 @@ public class Compiler implements Runnable {
       outputDirectory = outputDirectory.resolve(packagePart);
     }
     return outputDirectory;
+  }
+
+  /**
+   * Traverses the source paths and collects all possible ABS
+   * source files.
+   * 
+   * @param sources
+   * @return
+   */
+  protected List<Path> createSources(List<Path> sources) {
+    Set<Path> result = new HashSet<>();
+    if (sources == null || sources.isEmpty()) {
+      return new ArrayList<>();
+    }
+    for (Path source : sources) {
+      if (Files.isDirectory(source)) {
+        try {
+          for (Path p : Files.newDirectoryStream(source, "*.abs")) {
+            result.add(p.toAbsolutePath());
+          }
+        } catch (IOException e) {
+          throw new IllegalArgumentException("Source directory is not valid: " + source);
+        }
+      } else if (Files.isRegularFile(source)) {
+        result.add(source.toAbsolutePath());
+      }
+    }
+    return new ArrayList<>(result);
   }
 
 }

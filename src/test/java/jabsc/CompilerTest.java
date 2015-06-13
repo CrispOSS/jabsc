@@ -10,7 +10,7 @@ import org.junit.Test;
 
 public class CompilerTest {
 
-  private URL uri = getClass().getResource("abs/TestInterface.abs");
+  private URL uri = getClass().getResource("abs/Prime.abs");
   private Path outputDirectory = Paths.get("./target").resolve("generated");
   private Path tmpDirectory = Paths.get("java.io.tmpdir");
 
@@ -23,9 +23,9 @@ public class CompilerTest {
   }
 
   @Test
-  public void compileInterface() throws Exception {
+  public void compileTestABSSources() throws Exception {
     Files.createDirectories(outputDirectory);
-    Compiler compiler = new Compiler(Paths.get(uri.toURI()), outputDirectory);
+    Compiler compiler = new Compiler(Paths.get(uri.toURI()).getParent(), outputDirectory);
     compiler.compile();
     Assert.assertTrue(Files.list(outputDirectory).count() > 0);
   }
