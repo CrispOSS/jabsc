@@ -12,8 +12,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-import com.squareup.javawriter.JavaWriter;
-
 import bnfc.abs.Yylex;
 import bnfc.abs.parser;
 import bnfc.abs.Absyn.Modul;

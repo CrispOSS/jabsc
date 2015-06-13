@@ -8,8 +8,6 @@ import java.util.Set;
 
 import javax.lang.model.element.Modifier;
 
-import com.squareup.javawriter.JavaWriter;
-
 import abs.api.Actor;
 import bnfc.abs.AbstractVisitor;
 import bnfc.abs.Absyn.AnyImport;
@@ -17,6 +15,8 @@ import bnfc.abs.Absyn.ClassBody;
 import bnfc.abs.Absyn.ClassDecl;
 import bnfc.abs.Absyn.ClassImplements;
 import bnfc.abs.Absyn.Decl;
+import bnfc.abs.Absyn.EAnd;
+import bnfc.abs.Absyn.EEq;
 import bnfc.abs.Absyn.ExtendsDecl;
 import bnfc.abs.Absyn.FieldAssignClassBody;
 import bnfc.abs.Absyn.FieldClassBody;
@@ -217,6 +217,30 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
       return prog;
     } catch (IOException e) {
       throw new RuntimeException(e);
+    }
+  }
+
+  @Override
+  public Prog visit(EAnd e, JavaWriter w) {
+    try {
+      e.pureexp_1.accept(this, w);
+      w.emit(" && ");
+      e.pureexp_2.accept(this, w);
+      return prog;
+    } catch (IOException x) {
+      throw new RuntimeException(x);
+    }
+  }
+
+  @Override
+  public Prog visit(EEq e, JavaWriter w) {
+    try {
+      e.pureexp_1.accept(this, w);
+      w.emit(" == ");
+      e.pureexp_2.accept(this, w);
+      return prog;
+    } catch (IOException x) {
+      throw new RuntimeException(x);
     }
   }
 
