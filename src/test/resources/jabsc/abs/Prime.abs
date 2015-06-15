@@ -1,8 +1,14 @@
 module Prime;
 
-interface Prime {
-	Unit divide(Int n);
+interface IPrime {
+	Unit divide (Int n);
 }
 
-class PrimeImpl implements Prime {
+class Sieve(Int bound) {
+
 }
+
+class Prime (Int p) implements IPrime {
+
+}
+

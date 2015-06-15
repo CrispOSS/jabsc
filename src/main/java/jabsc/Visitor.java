@@ -14,6 +14,8 @@ import bnfc.abs.Absyn.AnyImport;
 import bnfc.abs.Absyn.ClassBody;
 import bnfc.abs.Absyn.ClassDecl;
 import bnfc.abs.Absyn.ClassImplements;
+import bnfc.abs.Absyn.ClassParamDecl;
+import bnfc.abs.Absyn.ClassParamImplements;
 import bnfc.abs.Absyn.Decl;
 import bnfc.abs.Absyn.EAnd;
 import bnfc.abs.Absyn.EEq;
@@ -106,31 +108,11 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   public Prog visit(ExtendsDecl ed, JavaWriter w) {
     try {
       String extendingInterfaces = toString(ed.listqtype_, COMMA);
-      w.beginType(ed.uident_, "interface", DEFAULT_MODIFIERS,
-          ABS_API_ACTOR_CLASS + COMMA + extendingInterfaces);
+      w.beginType(ed.uident_, "interface", DEFAULT_MODIFIERS, ABS_API_ACTOR_CLASS + COMMA
+          + extendingInterfaces);
       w.emitEmptyLine();
       ed.listmethsignat_.forEach(sig -> sig.accept(this, w));
       w.endType();
-      return prog;
-    } catch (IOException e) {
-      throw new RuntimeException(e);
-    }
-  }
-
-  @Override
-  public Prog visit(MethSig ms, JavaWriter w) {
-    try {
-      String returnType = getTypeName(ms.type_);
-      String name = ms.lident_;
-      List<String> parameters = new ArrayList<>();
-      for (Param param : ms.listparam_) {
-        Par p = (Par) param;
-        parameters.add(getTypeName(p.type_));
-        parameters.add(p.lident_);
-      }
-      w.beginMethod(returnType, name, DEFAULT_MODIFIERS, parameters, Collections.emptyList());
-      w.endMethod();
-      w.emitEmptyLine();
       return prog;
     } catch (IOException e) {
       throw new RuntimeException(e);
@@ -158,7 +140,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   @Override
   public Prog visit(ClassImplements p, JavaWriter w) {
     try {
-      w.beginType(p.uident_, "class", DEFAULT_MODIFIERS, toString(p.listqtype_, COMMA));
+      w.beginType(p.uident_, "class", DEFAULT_MODIFIERS, null, toString(p.listqtype_, COMMA));
       w.emitEmptyLine();
       for (ClassBody cb : p.listclassbody_1) {
         cb.accept(this, w);
@@ -172,6 +154,93 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
       throw new RuntimeException(e);
     }
   }
+
+  @Override
+  public Prog visit(ClassParamDecl cpd, JavaWriter w) {
+    
+    
+    try {
+      w.beginType(cpd.uident_, "class", DEFAULT_MODIFIERS, ABS_API_ACTOR_CLASS);
+      w.emitEmptyLine();
+      List<String> parameters = new ArrayList<>();
+      for (Param param : cpd.listparam_) {
+        Par p = (Par) param;
+        parameters.add(getTypeName(p.type_));
+        parameters.add(p.lident_);
+        w.emitField(getTypeName(p.type_), p.lident_);
+      }
+      w.beginConstructor(DEFAULT_MODIFIERS, parameters, null);
+
+      for (Param param : cpd.listparam_) {
+        Par p = (Par) param;
+        w.emitStatement("this." + p.lident_ + " = " + p.lident_);
+      }
+      w.endConstructor();
+      for (ClassBody cb : cpd.listclassbody_1) {
+        cb.accept(this, w);
+      }
+      for (ClassBody cb : cpd.listclassbody_2) {
+        cb.accept(this, w);
+      }
+      w.endType();
+      return prog;
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  @Override
+  public Prog visit(ClassParamImplements cpi, JavaWriter w) {
+    try {
+      w.beginType(cpi.uident_, "class", DEFAULT_MODIFIERS, null, toString(cpi.listqtype_, COMMA));
+      w.emitEmptyLine();
+      List<String> parameters = new ArrayList<>();
+      for (Param param : cpi.listparam_) {
+        Par p = (Par) param;
+        parameters.add(getTypeName(p.type_));
+        parameters.add(p.lident_);
+        w.emitField(getTypeName(p.type_), p.lident_);
+      }
+      w.beginConstructor(DEFAULT_MODIFIERS, parameters, null);
+
+      for (Param param : cpi.listparam_) {
+        Par p = (Par) param;
+        w.emitStatement("this." + p.lident_ + " = " + p.lident_);
+      }
+      w.endConstructor();
+      for (ClassBody cb : cpi.listclassbody_1) {
+        cb.accept(this, w);
+      }
+      for (ClassBody cb : cpi.listclassbody_2) {
+        cb.accept(this, w);
+      }
+      w.endType();
+      return prog;
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  @Override
+  public Prog visit(MethSig ms, JavaWriter w) {
+    try {
+      String returnType = getTypeName(ms.type_);
+      String name = ms.lident_;
+      List<String> parameters = new ArrayList<>();
+      for (Param param : ms.listparam_) {
+        Par p = (Par) param;
+        parameters.add(getTypeName(p.type_));
+        parameters.add(p.lident_);
+      }
+      w.beginMethod(returnType, name, DEFAULT_MODIFIERS, parameters, Collections.emptyList());
+      w.endMethod();
+      w.emitEmptyLine();
+      return prog;
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
+  }
+
 
   @Override
   public Prog visit(FieldClassBody p, JavaWriter w) {
@@ -252,6 +321,8 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
     }
     return null;
   }
+
+
 
   protected String getQTypeName(QType qtype) {
     if (qtype instanceof QTyp) {
