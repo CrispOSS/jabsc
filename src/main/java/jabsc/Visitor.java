@@ -2,10 +2,14 @@ package jabsc;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
+import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.Modifier;
 
 import abs.api.Actor;
@@ -46,7 +50,6 @@ import bnfc.abs.Absyn.Type;
 class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 
   private static final String ABS_API_ACTOR_CLASS = Actor.class.getName();
-  private static final String COMMA = ",";
   private static final Set<Modifier> DEFAULT_MODIFIERS = Collections.singleton(Modifier.PUBLIC);
 
   private final Prog prog;
@@ -94,7 +97,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   @Override
   public Prog visit(InterfDecl id, JavaWriter w) {
     try {
-      w.beginType(id.uident_, "interface", DEFAULT_MODIFIERS, ABS_API_ACTOR_CLASS);
+      beginElementKind(w, ElementKind.INTERFACE, id.uident_, DEFAULT_MODIFIERS, null, null);
       w.emitEmptyLine();
       id.listmethsignat_.forEach(sig -> visit((MethSig) sig, w));
       w.endType();
@@ -107,9 +110,8 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   @Override
   public Prog visit(ExtendsDecl ed, JavaWriter w) {
     try {
-      String extendingInterfaces = toString(ed.listqtype_, COMMA);
-      w.beginType(ed.uident_, "interface", DEFAULT_MODIFIERS, ABS_API_ACTOR_CLASS + COMMA
-          + extendingInterfaces);
+      beginElementKind(w, ElementKind.INTERFACE, ed.uident_, DEFAULT_MODIFIERS, null,
+          toList(ed.listqtype_));
       w.emitEmptyLine();
       ed.listmethsignat_.forEach(sig -> sig.accept(this, w));
       w.endType();
@@ -122,7 +124,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   @Override
   public Prog visit(ClassDecl p, JavaWriter w) {
     try {
-      w.beginType(p.uident_, "class", DEFAULT_MODIFIERS, ABS_API_ACTOR_CLASS);
+      beginElementKind(w, ElementKind.CLASS, p.uident_, DEFAULT_MODIFIERS, null, null);
       w.emitEmptyLine();
       for (ClassBody cb : p.listclassbody_1) {
         cb.accept(this, w);
@@ -140,7 +142,8 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   @Override
   public Prog visit(ClassImplements p, JavaWriter w) {
     try {
-      w.beginType(p.uident_, "class", DEFAULT_MODIFIERS, null, toString(p.listqtype_, COMMA));
+      beginElementKind(w, ElementKind.CLASS, p.uident_, DEFAULT_MODIFIERS, null,
+          toList(p.listqtype_));
       w.emitEmptyLine();
       for (ClassBody cb : p.listclassbody_1) {
         cb.accept(this, w);
@@ -157,10 +160,8 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 
   @Override
   public Prog visit(ClassParamDecl cpd, JavaWriter w) {
-    
-    
     try {
-      w.beginType(cpd.uident_, "class", DEFAULT_MODIFIERS, ABS_API_ACTOR_CLASS);
+      beginElementKind(w, ElementKind.CLASS, cpd.uident_, DEFAULT_MODIFIERS, null, null);
       w.emitEmptyLine();
       List<String> parameters = new ArrayList<>();
       for (Param param : cpd.listparam_) {
@@ -192,7 +193,8 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   @Override
   public Prog visit(ClassParamImplements cpi, JavaWriter w) {
     try {
-      w.beginType(cpi.uident_, "class", DEFAULT_MODIFIERS, null, toString(cpi.listqtype_, COMMA));
+      beginElementKind(w, ElementKind.CLASS, cpi.uident_, DEFAULT_MODIFIERS, null,
+          toList(cpi.listqtype_));
       w.emitEmptyLine();
       List<String> parameters = new ArrayList<>();
       for (Param param : cpi.listparam_) {
@@ -338,17 +340,47 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 
   /**
    * @param qtypes
-   * @param delimiter
-   * @return a delimited string over the list of {@link QType}s
+   * @return
    */
-  protected String toString(ListQType qtypes, String delimiter) {
-    StringBuilder s = new StringBuilder();
-    for (QType qtype : qtypes) {
-      s.append(getQTypeName(qtype)).append(delimiter);
-    }
-    s.deleteCharAt(s.length() - 1);
-    return s.toString();
+  protected List<String> toList(ListQType qtypes) {
+    return qtypes.stream().map(qtype -> getQTypeName(qtype)).collect(Collectors.toList());
   }
 
+  /**
+   * Begin a Java type.
+   * 
+   * @param w
+   * @param kind See {@link ElementKind}
+   * @param identifier the Java identifier of the type
+   * @param modifiers the set of {@link Modifier}s
+   * @param classParentType the extending type that can be
+   *        <code>null</code>
+   * @param implementingInterfaces the implementing interface
+   *        that can be <code>null</code>
+   * @throws IOException Exception from {@link JavaWriter}
+   * @throws IllegalArgumentException if kind other than "class"
+   *         or "interface" is requested
+   */
+  protected void beginElementKind(JavaWriter w, ElementKind kind, String identifier,
+      Set<Modifier> modifiers, String classParentType, Collection<String> implementingInterfaces)
+          throws IOException {
+    switch (kind) {
+      case CLASS:
+        Set<String> implementsTypes = new HashSet<>();
+        implementsTypes.add(ABS_API_ACTOR_CLASS);
+        if (implementingInterfaces != null && !implementingInterfaces.isEmpty()) {
+          implementsTypes.addAll(implementingInterfaces);
+        }
+        w.beginType(identifier, kind.name().toLowerCase(), modifiers, classParentType,
+            implementsTypes.toArray(new String[0]));
+        return;
+      case INTERFACE:
+        w.beginType(identifier, kind.name().toLowerCase(), modifiers, ABS_API_ACTOR_CLASS,
+            new String[0]);
+        return;
+      default:
+        throw new IllegalArgumentException("Unsupported Java element kind: " + kind);
+    }
+  }
 
 }
