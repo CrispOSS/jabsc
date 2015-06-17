@@ -10,7 +10,7 @@ import org.junit.Test;
 
 public class CompilerTest {
 
-  private URL uri = getClass().getResource("abs/Prime.abs");
+  private URL uri = getClass().getResource("abs/IPrime.abs");
   private Path outputDirectory = Paths.get("./target").resolve("generated");
   private Path tmpDirectory = Paths.get("java.io.tmpdir");
 

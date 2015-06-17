@@ -1,6 +1,7 @@
 package jabsc;
 
 import java.io.BufferedReader;
+import java.io.BufferedWriter;
 import java.io.IOException;
 import java.io.Writer;
 import java.nio.file.Files;
@@ -88,10 +89,10 @@ public class Compiler implements Runnable {
     final Prog prog = (Prog) program;
     final String packageName = getPackageName(prog);
     final Path sourcePath = createSourcePath(packageName, source, outputDirectory);
-    final Visitor visitor = new Visitor(prog);
+    final Visitor visitor = new Visitor(packageName, prog,
+        new DefaultJavaWriterSupplier(this, packageName, outputDirectory));
     Files.createDirectories(sourcePath.getParent());
-    try (final Writer writer =
-        Files.newBufferedWriter(sourcePath, StandardOpenOption.CREATE, StandardOpenOption.WRITE)) {
+    try (final Writer writer = createWriter(sourcePath)) {
       JavaWriter jw = new JavaWriter(writer);
       prog.accept(visitor, jw);
       return sourcePath;
@@ -113,6 +114,15 @@ public class Compiler implements Runnable {
   }
 
   /**
+   * @param sourcePath
+   * @return
+   * @throws IOException
+   */
+  protected BufferedWriter createWriter(final Path sourcePath) throws IOException {
+    return Files.newBufferedWriter(sourcePath, StandardOpenOption.CREATE, StandardOpenOption.WRITE);
+  }
+
+  /**
    * @param reader
    * @return
    * @throws Exception
@@ -129,7 +139,7 @@ public class Compiler implements Runnable {
    */
   protected String getPackageName(final Prog prog) {
     Module module = prog.listmodule_.iterator().next();
-    Visitor v = new Visitor(prog);
+    Visitor v = new Visitor(null, prog, null);
     return v.getQTypeName(((Modul) module).qtype_);
   }
 

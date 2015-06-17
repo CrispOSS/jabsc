@@ -2,6 +2,7 @@ package jabsc;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
@@ -51,17 +52,34 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 
   private static final String ABS_API_ACTOR_CLASS = Actor.class.getName();
   private static final Set<Modifier> DEFAULT_MODIFIERS = Collections.singleton(Modifier.PUBLIC);
+  private static final Set<Modifier> DEFAULT_FIELD_MODIFIERS =
+      new HashSet<>(Arrays.asList(Modifier.PRIVATE, Modifier.FINAL));
 
+  private final Set<String> moduleNames;
   private final Prog prog;
+  private final JavaWriterSupplier javaWriterSupplier;
+  private final String packageName;
 
-  public Visitor(Prog prog) {
+  /**
+   * Ctor.
+   * 
+   * @param packageName the package spec of the program
+   * @param prog the parsed {@link Prog} AST node
+   * @param javaWriterSupplier the {@link JavaWriterSupplier}
+   *        for each top-level element
+   */
+  public Visitor(String packageName, Prog prog, JavaWriterSupplier javaWriterSupplier) {
+    this.packageName = packageName;
     this.prog = prog;
+    this.javaWriterSupplier = javaWriterSupplier;
+    this.moduleNames = new HashSet<>();
   }
 
   @Override
   public Prog visit(Prog p, JavaWriter w) {
     try {
       for (Module module : ((Prog) p).listmodule_) {
+        moduleNames.add(getQTypeName(((Modul) module).qtype_));
         module.accept(this, w);
         w.emitEmptyLine();
       }
@@ -74,14 +92,15 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   @Override
   public Prog visit(Modul m, JavaWriter w) {
     try {
-      String moduleName = getQTypeName(m.qtype_);
-      w.emitPackage(moduleName);
+      w.emitPackage(packageName);
       for (Import imprt : m.listimport_) {
         imprt.accept(this, w);
       }
       for (Decl decl : m.listdecl_) {
-        decl.accept(this, w);
-        w.emitEmptyLine();
+        JavaWriter jw = createJavaWriter(decl, w);
+        decl.accept(this, jw);
+        jw.emitEmptyLine();
+        close(jw, w);
       }
       return prog;
     } catch (IOException e) {
@@ -97,7 +116,8 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   @Override
   public Prog visit(InterfDecl id, JavaWriter w) {
     try {
-      beginElementKind(w, ElementKind.INTERFACE, id.uident_, DEFAULT_MODIFIERS, null, null);
+      final String identifier = id.uident_;
+      beginElementKind(w, ElementKind.INTERFACE, identifier, DEFAULT_MODIFIERS, null, null);
       w.emitEmptyLine();
       id.listmethsignat_.forEach(sig -> visit((MethSig) sig, w));
       w.endType();
@@ -110,7 +130,8 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   @Override
   public Prog visit(ExtendsDecl ed, JavaWriter w) {
     try {
-      beginElementKind(w, ElementKind.INTERFACE, ed.uident_, DEFAULT_MODIFIERS, null,
+      final String identifier = ed.uident_;
+      beginElementKind(w, ElementKind.INTERFACE, identifier, DEFAULT_MODIFIERS, null,
           toList(ed.listqtype_));
       w.emitEmptyLine();
       ed.listmethsignat_.forEach(sig -> sig.accept(this, w));
@@ -124,7 +145,8 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   @Override
   public Prog visit(ClassDecl p, JavaWriter w) {
     try {
-      beginElementKind(w, ElementKind.CLASS, p.uident_, DEFAULT_MODIFIERS, null, null);
+      final String identifier = p.uident_;
+      beginElementKind(w, ElementKind.CLASS, identifier, DEFAULT_MODIFIERS, null, null);
       w.emitEmptyLine();
       for (ClassBody cb : p.listclassbody_1) {
         cb.accept(this, w);
@@ -142,7 +164,8 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   @Override
   public Prog visit(ClassImplements p, JavaWriter w) {
     try {
-      beginElementKind(w, ElementKind.CLASS, p.uident_, DEFAULT_MODIFIERS, null,
+      final String identifier = p.uident_;
+      beginElementKind(w, ElementKind.CLASS, identifier, DEFAULT_MODIFIERS, null,
           toList(p.listqtype_));
       w.emitEmptyLine();
       for (ClassBody cb : p.listclassbody_1) {
@@ -161,17 +184,18 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   @Override
   public Prog visit(ClassParamDecl cpd, JavaWriter w) {
     try {
-      beginElementKind(w, ElementKind.CLASS, cpd.uident_, DEFAULT_MODIFIERS, null, null);
+      final String identifier = cpd.uident_;
+      beginElementKind(w, ElementKind.CLASS, identifier, DEFAULT_MODIFIERS, null, null);
       w.emitEmptyLine();
       List<String> parameters = new ArrayList<>();
       for (Param param : cpd.listparam_) {
         Par p = (Par) param;
         parameters.add(getTypeName(p.type_));
         parameters.add(p.lident_);
-        w.emitField(getTypeName(p.type_), p.lident_);
+        w.emitField(getTypeName(p.type_), p.lident_, DEFAULT_FIELD_MODIFIERS);
       }
+      w.emitEmptyLine();
       w.beginConstructor(DEFAULT_MODIFIERS, parameters, null);
-
       for (Param param : cpd.listparam_) {
         Par p = (Par) param;
         w.emitStatement("this." + p.lident_ + " = " + p.lident_);
@@ -193,7 +217,8 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   @Override
   public Prog visit(ClassParamImplements cpi, JavaWriter w) {
     try {
-      beginElementKind(w, ElementKind.CLASS, cpi.uident_, DEFAULT_MODIFIERS, null,
+      final String identifier = cpi.uident_;
+      beginElementKind(w, ElementKind.CLASS, identifier, DEFAULT_MODIFIERS, null,
           toList(cpi.listqtype_));
       w.emitEmptyLine();
       List<String> parameters = new ArrayList<>();
@@ -201,10 +226,10 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
         Par p = (Par) param;
         parameters.add(getTypeName(p.type_));
         parameters.add(p.lident_);
-        w.emitField(getTypeName(p.type_), p.lident_);
+        w.emitField(getTypeName(p.type_), p.lident_, DEFAULT_FIELD_MODIFIERS);
       }
+      w.emitEmptyLine();
       w.beginConstructor(DEFAULT_MODIFIERS, parameters, null);
-
       for (Param param : cpi.listparam_) {
         Par p = (Par) param;
         w.emitStatement("this." + p.lident_ + " = " + p.lident_);
@@ -315,17 +340,10 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
     }
   }
 
-  private String getTypeName(Type type) {
-    if (type instanceof TSimple) {
-      TSimple ts = (TSimple) type;
-      QType qtype_ = ts.qtype_;
-      return getQTypeName(qtype_);
-    }
-    return null;
-  }
-
-
-
+  /**
+   * @param qtype
+   * @return
+   */
   protected String getQTypeName(QType qtype) {
     if (qtype instanceof QTyp) {
       QTyp qtyp = (QTyp) qtype;
@@ -349,7 +367,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   /**
    * Begin a Java type.
    * 
-   * @param w
+   * @param w the Java writer
    * @param kind See {@link ElementKind}
    * @param identifier the Java identifier of the type
    * @param modifiers the set of {@link Modifier}s
@@ -381,6 +399,82 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
       default:
         throw new IllegalArgumentException("Unsupported Java element kind: " + kind);
     }
+  }
+
+  /**
+   * @param decl
+   * @param w
+   * @return
+   * @throws IOException
+   */
+  protected JavaWriter createJavaWriter(Decl decl, JavaWriter w) throws IOException {
+    if (isTopLevel(decl)) {
+      String identifier = getTopLevelDeclIdentifier(decl);
+      if (packageName.equalsIgnoreCase(identifier) || moduleNames.contains(identifier)) {
+        return w;
+      }
+      JavaWriter jw = javaWriterSupplier.apply(identifier);
+      jw.emitPackage(packageName);
+      return jw;
+    } else {
+      return w;
+    }
+  }
+
+  /**
+   * @param childWriter
+   * @param parentWriter
+   * @throws IOException
+   */
+  protected void close(JavaWriter childWriter, JavaWriter parentWriter) throws IOException {
+    if (childWriter != parentWriter) {
+      childWriter.close();
+    }
+  }
+
+  /**
+   * @param decl
+   * @return
+   */
+  protected boolean isTopLevel(Decl decl) {
+    return decl instanceof ClassDecl || decl instanceof ClassImplements
+        || decl instanceof ClassParamDecl || decl instanceof ClassParamImplements
+        || decl instanceof ExtendsDecl || decl instanceof InterfDecl;
+  }
+
+  /**
+   * @param decl
+   * @return
+   */
+  protected <C extends Decl> String getTopLevelDeclIdentifier(Decl decl) {
+    if (decl instanceof ClassDecl) {
+      return ((ClassDecl) decl).uident_;
+    }
+    if (decl instanceof ClassImplements) {
+      return ((ClassImplements) decl).uident_;
+    }
+    if (decl instanceof ClassParamDecl) {
+      return ((ClassParamDecl) decl).uident_;
+    }
+    if (decl instanceof ClassParamImplements) {
+      return ((ClassParamImplements) decl).uident_;
+    }
+    if (decl instanceof ExtendsDecl) {
+      return ((ExtendsDecl) decl).uident_;
+    }
+    if (decl instanceof InterfDecl) {
+      return ((InterfDecl) decl).uident_;
+    }
+    throw new IllegalArgumentException("Unknown top level type: " + decl);
+  }
+
+  private String getTypeName(Type type) {
+    if (type instanceof TSimple) {
+      TSimple ts = (TSimple) type;
+      QType qtype_ = ts.qtype_;
+      return getQTypeName(qtype_);
+    }
+    return null;
   }
 
 }

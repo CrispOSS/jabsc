@@ -1,7 +1,11 @@
-module Prime;
+module IPrime;
 
 interface IPrime {
 	Unit divide (Int n);
+}
+
+interface ISieve {
+	Unit sieve();
 }
 
 class Sieve(Int bound) {
