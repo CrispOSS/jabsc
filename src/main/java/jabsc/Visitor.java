@@ -89,6 +89,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   private final Prog prog;
   private final JavaWriterSupplier javaWriterSupplier;
   private final String packageName;
+  private final JavaTypeTranslator javaTypeTranslator;
 
   /**
    * Ctor.
@@ -97,11 +98,14 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
    * @param prog the parsed {@link Prog} AST node
    * @param javaWriterSupplier the {@link JavaWriterSupplier}
    *        for each top-level element
+   * @param javaTypeTranslator The ABS to Java type translator
    */
-  public Visitor(String packageName, Prog prog, JavaWriterSupplier javaWriterSupplier) {
+  public Visitor(String packageName, Prog prog, JavaWriterSupplier javaWriterSupplier,
+      JavaTypeTranslator javaTypeTranslator) {
     this.packageName = packageName;
     this.prog = prog;
     this.javaWriterSupplier = javaWriterSupplier;
+    this.javaTypeTranslator = javaTypeTranslator;
     this.moduleNames = new HashSet<>();
   }
 
@@ -701,7 +705,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
       QTypeSegment qtypesegment_ = qtyp.listqtypesegment_.iterator().next();
       if (qtypesegment_ instanceof QTypeSegmen) {
         QTypeSegmen qTypeSegmen = (QTypeSegmen) qtypesegment_;
-        return qTypeSegmen.uident_;
+        return javaTypeTranslator.apply(qTypeSegmen.uident_);
       }
     }
     return null;
