@@ -25,5 +25,8 @@ class Sieve(Int bound) {
 
 class Prime (Int p) implements IPrime {
 
+	Unit divide(Int n) {
+	}
+
 }
 
