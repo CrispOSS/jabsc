@@ -25,10 +25,20 @@ import bnfc.abs.Absyn.ClassImplements;
 import bnfc.abs.Absyn.ClassParamDecl;
 import bnfc.abs.Absyn.ClassParamImplements;
 import bnfc.abs.Absyn.Decl;
+import bnfc.abs.Absyn.EAdd;
 import bnfc.abs.Absyn.EAnd;
+import bnfc.abs.Absyn.EDiv;
 import bnfc.abs.Absyn.EEq;
+import bnfc.abs.Absyn.EGe;
+import bnfc.abs.Absyn.EGt;
+import bnfc.abs.Absyn.ELe;
 import bnfc.abs.Absyn.ELit;
 import bnfc.abs.Absyn.ELt;
+import bnfc.abs.Absyn.EMod;
+import bnfc.abs.Absyn.EMul;
+import bnfc.abs.Absyn.ENeq;
+import bnfc.abs.Absyn.EOr;
+import bnfc.abs.Absyn.ESub;
 import bnfc.abs.Absyn.EVar;
 import bnfc.abs.Absyn.ExpE;
 import bnfc.abs.Absyn.ExpP;
@@ -124,10 +134,10 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
     }
   }
 
-  @Override
+  /*@Override
   public Prog visit(AnyImport p, JavaWriter w) {
     return prog;
-  }
+  }*/
 
   @Override
   public Prog visit(InterfDecl id, JavaWriter w) {
@@ -137,7 +147,6 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
       w.emitEmptyLine();
       id.listmethsignat_.forEach(sig -> visit((MethSig) sig, w));
       w.endType();
-      System.out.println(w);
       return prog;
     } catch (IOException e) {
       throw new RuntimeException(e);
@@ -419,12 +428,142 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
     elit.literal_.accept(this, w);
     return prog;
   }
+  
+  @Override
+  public Prog visit(EAdd e, JavaWriter w) {
+    try {
+      e.pureexp_1.accept(this, w);
+      w.emit(" + ");
+      e.pureexp_2.accept(this, w);
+      return prog;
+    } catch (IOException x) {
+      throw new RuntimeException(x);
+    }
+  }
+  
+  @Override
+  public Prog visit(ESub e, JavaWriter w) {
+    try {
+      e.pureexp_1.accept(this, w);
+      w.emit(" - ");
+      e.pureexp_2.accept(this, w);
+    } catch (IOException x) {
+      throw new RuntimeException(x);
+    }
+    return prog;
+  }
+  
+  @Override
+  public Prog visit(EMul e, JavaWriter w) {
+    try {
+      e.pureexp_1.accept(this, w);
+      w.emit(" * ");
+      e.pureexp_2.accept(this, w);
+    } catch (IOException x) {
+      throw new RuntimeException(x);
+    }
+    return prog;
+  }
+  
+  @Override
+  public Prog visit(EDiv e, JavaWriter w) {
+    try {
+      e.pureexp_1.accept(this, w);
+      w.emit(" / ");
+      e.pureexp_2.accept(this, w);
+    } catch (IOException x) {
+      throw new RuntimeException(x);
+    }
+    return prog;
+  }
+  @Override
+  public Prog visit(EMod e, JavaWriter w) {
+    try {
+      e.pureexp_1.accept(this, w);
+      w.emit(" % ");
+      e.pureexp_2.accept(this, w);
+    } catch (IOException x) {
+      throw new RuntimeException(x);
+    }
+    return prog;
+  }
+  
+  @Override
+  public Prog visit(EGe e, JavaWriter w) {
+      try {
+        e.pureexp_1.accept(this, w);
+        w.emit(">=");
+        e.pureexp_2.accept(this, w);
+      } catch (IOException x) {
+        throw new RuntimeException(x);
+      }
+      return prog;
+    }
+  
+  @Override
+  public Prog visit(EGt e, JavaWriter w) {
+    try {
+      e.pureexp_1.accept(this, w);
+      w.emit(">");
+      e.pureexp_2.accept(this, w);
+    } catch (IOException x) {
+      throw new RuntimeException(x);
+    }
+    return prog;
+  }
+  
+  @Override
+  public Prog visit(ELe e, JavaWriter w) {
+    try {
+      e.pureexp_1.accept(this, w);
+      w.emit(" <= ");
+      e.pureexp_2.accept(this, w);
+      return prog;
+    } catch (IOException x) {
+      throw new RuntimeException(x);
+    }
+  }
+  
+  @Override
+  public Prog visit(ELt lt, JavaWriter w) {
+    try {
+      lt.pureexp_1.accept(this, w);
+      w.emit("<");
+      lt.pureexp_2.accept(this, w);
+    } catch (IOException x) {
+      throw new RuntimeException(x);
+    }
+    return prog;
+  }
 
   @Override
   public Prog visit(EAnd e, JavaWriter w) {
     try {
       e.pureexp_1.accept(this, w);
       w.emit(" && ");
+      e.pureexp_2.accept(this, w);
+      return prog;
+    } catch (IOException x) {
+      throw new RuntimeException(x);
+    }
+  }
+  
+  @Override
+  public Prog visit(EOr e, JavaWriter w) {
+    try {
+      e.pureexp_1.accept(this, w);
+      w.emit(" || ");
+      e.pureexp_2.accept(this, w);
+      return prog;
+    } catch (IOException x) {
+      throw new RuntimeException(x);
+    }
+  }
+  @Override
+  public Prog visit(ENeq e, JavaWriter w) {
+    try {
+      e.pureexp_1.accept(this, w);
+      w.emit(" != ");
       e.pureexp_2.accept(this, w);
       return prog;
     } catch (IOException x) {
@@ -444,19 +583,9 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
     }
   }
 
-  @Override
-  public Prog visit(ELt lt, JavaWriter w) {
-    try {
-      lt.pureexp_1.accept(this, w);
-      w.emit("<");
-      lt.pureexp_2.accept(this, w);
-    } catch (IOException x) {
-      throw new RuntimeException(x);
-    }
-    return prog;
-  }
-
-  @Override
+ 
+  
+   @Override
   public Prog visit(EVar v, JavaWriter w) {
     try {
       w.emit(v.lident_);
@@ -512,6 +641,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
     }
 
   }
+  
 
   /**
    * @param qtype

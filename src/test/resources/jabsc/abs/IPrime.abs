@@ -18,6 +18,7 @@ class Sieve(Int bound) {
 	Unit run() {
 		while (n < bound) {
 			two!divide(n) ;
+			n = n + 1;
 		}
 	}
 }
