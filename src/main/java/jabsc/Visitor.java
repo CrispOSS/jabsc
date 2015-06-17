@@ -1,6 +1,7 @@
 package jabsc;
 
 import java.io.IOException;
+import java.io.StringWriter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -16,6 +17,8 @@ import javax.lang.model.element.Modifier;
 import abs.api.Actor;
 import bnfc.abs.AbstractVisitor;
 import bnfc.abs.Absyn.AnyImport;
+import bnfc.abs.Absyn.AsyncMethCall;
+import bnfc.abs.Absyn.Bloc;
 import bnfc.abs.Absyn.ClassBody;
 import bnfc.abs.Absyn.ClassDecl;
 import bnfc.abs.Absyn.ClassImplements;
@@ -24,11 +27,17 @@ import bnfc.abs.Absyn.ClassParamImplements;
 import bnfc.abs.Absyn.Decl;
 import bnfc.abs.Absyn.EAnd;
 import bnfc.abs.Absyn.EEq;
+import bnfc.abs.Absyn.ELit;
+import bnfc.abs.Absyn.ELt;
+import bnfc.abs.Absyn.EVar;
+import bnfc.abs.Absyn.ExpE;
+import bnfc.abs.Absyn.ExpP;
 import bnfc.abs.Absyn.ExtendsDecl;
 import bnfc.abs.Absyn.FieldAssignClassBody;
 import bnfc.abs.Absyn.FieldClassBody;
 import bnfc.abs.Absyn.Import;
 import bnfc.abs.Absyn.InterfDecl;
+import bnfc.abs.Absyn.LInt;
 import bnfc.abs.Absyn.ListQType;
 import bnfc.abs.Absyn.MethClassBody;
 import bnfc.abs.Absyn.MethSig;
@@ -37,10 +46,17 @@ import bnfc.abs.Absyn.Module;
 import bnfc.abs.Absyn.Par;
 import bnfc.abs.Absyn.Param;
 import bnfc.abs.Absyn.Prog;
+import bnfc.abs.Absyn.PureExp;
 import bnfc.abs.Absyn.QTyp;
 import bnfc.abs.Absyn.QType;
 import bnfc.abs.Absyn.QTypeSegmen;
 import bnfc.abs.Absyn.QTypeSegment;
+import bnfc.abs.Absyn.SAss;
+import bnfc.abs.Absyn.SBlock;
+import bnfc.abs.Absyn.SDec;
+import bnfc.abs.Absyn.SDecAss;
+import bnfc.abs.Absyn.SExp;
+import bnfc.abs.Absyn.Stm;
 import bnfc.abs.Absyn.TSimple;
 import bnfc.abs.Absyn.Type;
 
@@ -52,8 +68,8 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 
   private static final String ABS_API_ACTOR_CLASS = Actor.class.getName();
   private static final Set<Modifier> DEFAULT_MODIFIERS = Collections.singleton(Modifier.PUBLIC);
-  private static final Set<Modifier> DEFAULT_FIELD_MODIFIERS =
-      new HashSet<>(Arrays.asList(Modifier.PRIVATE, Modifier.FINAL));
+  private static final Set<Modifier> DEFAULT_FIELD_MODIFIERS = new HashSet<>(Arrays.asList(
+      Modifier.PRIVATE, Modifier.FINAL));
 
   private final Set<String> moduleNames;
   private final Prog prog;
@@ -121,6 +137,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
       w.emitEmptyLine();
       id.listmethsignat_.forEach(sig -> visit((MethSig) sig, w));
       w.endType();
+      System.out.println(w);
       return prog;
     } catch (IOException e) {
       throw new RuntimeException(e);
@@ -286,8 +303,10 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   public Prog visit(FieldAssignClassBody p, JavaWriter w) {
     try {
       String fType = getTypeName(p.type_);
-      p.pureexp_.accept(this, w);
-      w.emitField(fType, p.lident_, DEFAULT_MODIFIERS, "TODO:visit PureExpresion");
+      StringWriter auxsw = new StringWriter();
+      JavaWriter auxw = new JavaWriter(auxsw);
+      p.pureexp_.accept(this, auxw);
+      w.emitField(fType, p.lident_, DEFAULT_MODIFIERS, auxsw.toString());
       w.emitEmptyLine();
       return prog;
     } catch (IOException e) {
@@ -317,6 +336,91 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   }
 
   @Override
+  public Prog visit(Bloc b, JavaWriter w) {
+    for (Stm stm : b.liststm_) {
+      stm.accept(this, w);
+    }
+    return prog;
+  }
+
+  @Override
+  public Prog visit(SBlock sb, JavaWriter w) {
+    for (Stm stm : sb.liststm_) {
+      stm.accept(this, w);
+    }
+    return prog;
+  }
+
+
+  @Override
+  public Prog visit(bnfc.abs.Absyn.SWhile sw, JavaWriter w) {
+    try {
+      StringWriter auxsw = new StringWriter();
+      JavaWriter auxw = new JavaWriter(auxsw);
+      sw.pureexp_.accept(this, auxw);
+      w.beginControlFlow("while(" + auxsw.toString() + ")");
+      sw.stm_.accept(this, w);
+      w.endControlFlow();
+      return prog;
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  @Override
+  public Prog visit(SDec p, JavaWriter w) {
+    try {
+      String fType = getTypeName(p.type_);
+      w.emitField(fType, p.lident_);
+      w.emitEmptyLine();
+      return prog;
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  @Override
+  public Prog visit(SDecAss p, JavaWriter w) {
+    try {
+      String fType = getTypeName(p.type_);
+      StringWriter auxsw = new StringWriter();
+      JavaWriter auxw = new JavaWriter(auxsw);
+      p.exp_.accept(this, auxw);
+      w.emitField(fType, p.lident_, DEFAULT_MODIFIERS, auxsw.toString());
+      w.emitEmptyLine();
+      return prog;
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  @Override
+  public Prog visit(SAss ss, JavaWriter w) {
+    try {
+      StringWriter auxsw = new StringWriter();
+      JavaWriter auxw = new JavaWriter(auxsw);
+      ss.exp_.accept(this, auxw);
+      w.emitStatement(ss.lident_ + " = " + auxsw.toString());
+      return prog;
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  @Override
+  public Prog visit(SExp p, JavaWriter w) {
+    p.exp_.accept(this, w);
+    return prog;
+  }
+
+
+  @Override
+  public Prog visit(ELit elit, JavaWriter w) {
+    elit.literal_.accept(this, w);
+    return prog;
+  }
+
+  @Override
   public Prog visit(EAnd e, JavaWriter w) {
     try {
       e.pureexp_1.accept(this, w);
@@ -338,6 +442,75 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
     } catch (IOException x) {
       throw new RuntimeException(x);
     }
+  }
+
+  @Override
+  public Prog visit(ELt lt, JavaWriter w) {
+    try {
+      lt.pureexp_1.accept(this, w);
+      w.emit("<");
+      lt.pureexp_2.accept(this, w);
+    } catch (IOException x) {
+      throw new RuntimeException(x);
+    }
+    return prog;
+  }
+
+  @Override
+  public Prog visit(EVar v, JavaWriter w) {
+    try {
+      w.emit(v.lident_);
+    } catch (IOException x) {
+      throw new RuntimeException(x);
+    }
+    return prog;
+
+  }
+
+  @Override
+  public Prog visit(ExpE ee, JavaWriter w) {
+    ee.effexp_.accept(this, w);
+    return prog;
+  }
+
+  @Override
+  public Prog visit(ExpP ep, JavaWriter w) {
+    ep.pureexp_.accept(this, w);
+    return prog;
+  }
+
+  @Override
+  public Prog visit(AsyncMethCall amc, JavaWriter w) {
+    try {
+      StringWriter auxsw = new StringWriter();
+      JavaWriter auxw = new JavaWriter(auxsw);
+      amc.pureexp_.accept(this, auxw);
+      StringBuilder parameters = new StringBuilder();
+      for (PureExp par : amc.listpureexp_) {
+        StringWriter parSW = new StringWriter();
+        JavaWriter parameterWriter = new JavaWriter(parSW);
+        par.accept(this, parameterWriter);
+        parameters.append(parSW.toString());
+        parameters.append(", ");
+      }
+      parameters.delete(parameters.length() - 2, parameters.length());
+      w.emitStatement("send(" + auxsw.toString() + ", () -> " + amc.lident_ + "("
+          + parameters.toString() + "))");
+      return prog;
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  @Override
+  public Prog visit(LInt i, JavaWriter w) {
+    try {
+      w.emit(i.integer_.toString());
+      return prog;
+    } catch (IOException x) {
+      throw new RuntimeException(x);
+    }
+
   }
 
   /**
@@ -381,7 +554,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
    */
   protected void beginElementKind(JavaWriter w, ElementKind kind, String identifier,
       Set<Modifier> modifiers, String classParentType, Collection<String> implementingInterfaces)
-          throws IOException {
+      throws IOException {
     switch (kind) {
       case CLASS:
         Set<String> implementsTypes = new HashSet<>();

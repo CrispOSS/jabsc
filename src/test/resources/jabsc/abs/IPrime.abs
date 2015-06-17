@@ -9,7 +9,17 @@ interface ISieve {
 }
 
 class Sieve(Int bound) {
-
+	Int n = 0;
+	IPrime two;
+	{
+		two = new Prime(2);
+		n = 3;
+	}
+	Unit run() {
+		while (n < bound) {
+			two!divide(n) ;
+		}
+	}
 }
 
 class Prime (Int p) implements IPrime {
