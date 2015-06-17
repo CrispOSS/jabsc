@@ -676,8 +676,8 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
       }
       String parametersString = String.join(COMMA_SPACE, parameters);
       String receiverId = auxsw.toString();
-      w.emitStatement("send(" + receiverId + ", () -> " + receiverId + "." + amc.lident_ + "("
-          + parametersString + "))");
+      w.emitStatement("Runnable msg = () -> %s.%s(%s)", receiverId, amc.lident_, parametersString);
+      w.emitStatement("send(%s, msg)", receiverId);
       return prog;
     } catch (IOException e) {
       throw new RuntimeException(e);
