@@ -3,9 +3,9 @@ package jabsc;
 import java.io.IOException;
 import java.io.StringWriter;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -45,7 +45,9 @@ import bnfc.abs.Absyn.ExpP;
 import bnfc.abs.Absyn.ExtendsDecl;
 import bnfc.abs.Absyn.FieldAssignClassBody;
 import bnfc.abs.Absyn.FieldClassBody;
+import bnfc.abs.Absyn.ForeignImport;
 import bnfc.abs.Absyn.Import;
+import bnfc.abs.Absyn.ImportType;
 import bnfc.abs.Absyn.InterfDecl;
 import bnfc.abs.Absyn.LInt;
 import bnfc.abs.Absyn.ListQType;
@@ -68,6 +70,9 @@ import bnfc.abs.Absyn.SDecAss;
 import bnfc.abs.Absyn.SExp;
 import bnfc.abs.Absyn.Stm;
 import bnfc.abs.Absyn.TSimple;
+import bnfc.abs.Absyn.TTyp;
+import bnfc.abs.Absyn.TTypeSegmen;
+import bnfc.abs.Absyn.TTypeSegment;
 import bnfc.abs.Absyn.Type;
 
 /**
@@ -76,10 +81,9 @@ import bnfc.abs.Absyn.Type;
  */
 class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 
+  private static final String COMMA_SPACE = ", ";
   private static final String ABS_API_ACTOR_CLASS = Actor.class.getName();
   private static final Set<Modifier> DEFAULT_MODIFIERS = Collections.singleton(Modifier.PUBLIC);
-  private static final Set<Modifier> DEFAULT_FIELD_MODIFIERS = new HashSet<>(Arrays.asList(
-      Modifier.PRIVATE, Modifier.FINAL));
 
   private final Set<String> moduleNames;
   private final Prog prog;
@@ -134,10 +138,25 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
     }
   }
 
-  /*@Override
+  @Override
   public Prog visit(AnyImport p, JavaWriter w) {
+    ImportType importType = p.importtype_;
+    if (importType instanceof ForeignImport) {
+      throw new UnsupportedOperationException("ABS Foreign Import not supported.");
+    }
+    Collection<String> types = new HashSet<>();
+    for (TTypeSegment segment : ((TTyp) p.ttype_).listttypesegment_) {
+      TTypeSegmen segmen = (TTypeSegmen) segment;
+      types.add(segmen.uident_);
+    }
+    try {
+      w.emitImports(types);
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
     return prog;
-  }*/
+  }
+
 
   @Override
   public Prog visit(InterfDecl id, JavaWriter w) {
@@ -216,9 +235,10 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
       List<String> parameters = new ArrayList<>();
       for (Param param : cpd.listparam_) {
         Par p = (Par) param;
-        parameters.add(getTypeName(p.type_));
+        String fieldType = getTypeName(p.type_);
+        parameters.add(fieldType);
         parameters.add(p.lident_);
-        w.emitField(getTypeName(p.type_), p.lident_, DEFAULT_FIELD_MODIFIERS);
+        emitField(w, fieldType, p.lident_, null, true);
       }
       w.emitEmptyLine();
       w.beginConstructor(DEFAULT_MODIFIERS, parameters, null);
@@ -227,6 +247,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
         w.emitStatement("this." + p.lident_ + " = " + p.lident_);
       }
       w.endConstructor();
+      w.emitEmptyLine();
       for (ClassBody cb : cpd.listclassbody_1) {
         cb.accept(this, w);
       }
@@ -250,9 +271,10 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
       List<String> parameters = new ArrayList<>();
       for (Param param : cpi.listparam_) {
         Par p = (Par) param;
-        parameters.add(getTypeName(p.type_));
+        String fieldType = getTypeName(p.type_);
+        parameters.add(fieldType);
         parameters.add(p.lident_);
-        w.emitField(getTypeName(p.type_), p.lident_, DEFAULT_FIELD_MODIFIERS);
+        emitField(w, fieldType, p.lident_, null, true);
       }
       w.emitEmptyLine();
       w.beginConstructor(DEFAULT_MODIFIERS, parameters, null);
@@ -261,6 +283,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
         w.emitStatement("this." + p.lident_ + " = " + p.lident_);
       }
       w.endConstructor();
+      w.emitEmptyLine();
       for (ClassBody cb : cpi.listclassbody_1) {
         cb.accept(this, w);
       }
@@ -298,8 +321,8 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   @Override
   public Prog visit(FieldClassBody p, JavaWriter w) {
     try {
-      String fType = getTypeName(p.type_);
-      w.emitField(fType, p.lident_);
+      String fieldType = getTypeName(p.type_);
+      emitField(w, fieldType, p.lident_, null, false);
       w.emitEmptyLine();
       return prog;
     } catch (IOException e) {
@@ -311,11 +334,11 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   @Override
   public Prog visit(FieldAssignClassBody p, JavaWriter w) {
     try {
-      String fType = getTypeName(p.type_);
+      String fieldType = getTypeName(p.type_);
       StringWriter auxsw = new StringWriter();
       JavaWriter auxw = new JavaWriter(auxsw);
       p.pureexp_.accept(this, auxw);
-      w.emitField(fType, p.lident_, DEFAULT_MODIFIERS, auxsw.toString());
+      emitField(w, fieldType, p.lident_, auxsw.toString(), false);
       w.emitEmptyLine();
       return prog;
     } catch (IOException e) {
@@ -367,7 +390,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
       StringWriter auxsw = new StringWriter();
       JavaWriter auxw = new JavaWriter(auxsw);
       sw.pureexp_.accept(this, auxw);
-      w.beginControlFlow("while(" + auxsw.toString() + ")");
+      w.beginControlFlow("while (" + auxsw.toString() + ")");
       sw.stm_.accept(this, w);
       w.endControlFlow();
       return prog;
@@ -379,8 +402,8 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   @Override
   public Prog visit(SDec p, JavaWriter w) {
     try {
-      String fType = getTypeName(p.type_);
-      w.emitField(fType, p.lident_);
+      String fieldType = getTypeName(p.type_);
+      emitField(w, fieldType, p.lident_, null, false);
       w.emitEmptyLine();
       return prog;
     } catch (IOException e) {
@@ -391,11 +414,11 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   @Override
   public Prog visit(SDecAss p, JavaWriter w) {
     try {
-      String fType = getTypeName(p.type_);
+      String fieldType = getTypeName(p.type_);
       StringWriter auxsw = new StringWriter();
       JavaWriter auxw = new JavaWriter(auxsw);
       p.exp_.accept(this, auxw);
-      w.emitField(fType, p.lident_, DEFAULT_MODIFIERS, auxsw.toString());
+      emitField(w, fieldType, p.lident_, auxsw.toString(), false);
       w.emitEmptyLine();
       return prog;
     } catch (IOException e) {
@@ -428,108 +451,127 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
     elit.literal_.accept(this, w);
     return prog;
   }
-  
+
   @Override
   public Prog visit(EAdd e, JavaWriter w) {
     try {
+      w.beginExpressionGroup();
       e.pureexp_1.accept(this, w);
       w.emit(" + ");
       e.pureexp_2.accept(this, w);
+      w.endExpressionGroup();
       return prog;
     } catch (IOException x) {
       throw new RuntimeException(x);
     }
   }
-  
+
   @Override
   public Prog visit(ESub e, JavaWriter w) {
     try {
+      w.beginExpressionGroup();
       e.pureexp_1.accept(this, w);
       w.emit(" - ");
       e.pureexp_2.accept(this, w);
+      w.endExpressionGroup();
     } catch (IOException x) {
       throw new RuntimeException(x);
     }
     return prog;
   }
-  
+
   @Override
   public Prog visit(EMul e, JavaWriter w) {
     try {
+      w.beginExpressionGroup();
       e.pureexp_1.accept(this, w);
       w.emit(" * ");
       e.pureexp_2.accept(this, w);
+      w.endExpressionGroup();
     } catch (IOException x) {
       throw new RuntimeException(x);
     }
     return prog;
   }
-  
+
   @Override
   public Prog visit(EDiv e, JavaWriter w) {
     try {
+      w.beginExpressionGroup();
       e.pureexp_1.accept(this, w);
       w.emit(" / ");
       e.pureexp_2.accept(this, w);
+      w.endExpressionGroup();
     } catch (IOException x) {
       throw new RuntimeException(x);
     }
     return prog;
   }
+
   @Override
   public Prog visit(EMod e, JavaWriter w) {
     try {
+      w.beginExpressionGroup();
       e.pureexp_1.accept(this, w);
       w.emit(" % ");
       e.pureexp_2.accept(this, w);
+      w.endExpressionGroup();
     } catch (IOException x) {
       throw new RuntimeException(x);
     }
     return prog;
   }
-  
+
   @Override
   public Prog visit(EGe e, JavaWriter w) {
-      try {
-        e.pureexp_1.accept(this, w);
-        w.emit(">=");
-        e.pureexp_2.accept(this, w);
-      } catch (IOException x) {
-        throw new RuntimeException(x);
-      }
-      return prog;
+    try {
+      w.beginExpressionGroup();
+      e.pureexp_1.accept(this, w);
+      w.emit(" >= ");
+      e.pureexp_2.accept(this, w);
+      w.endExpressionGroup();
+    } catch (IOException x) {
+      throw new RuntimeException(x);
     }
-  
+    return prog;
+  }
+
   @Override
   public Prog visit(EGt e, JavaWriter w) {
     try {
+      w.beginExpressionGroup();
       e.pureexp_1.accept(this, w);
-      w.emit(">");
+      w.emit(" > ");
       e.pureexp_2.accept(this, w);
+      w.endExpressionGroup();
     } catch (IOException x) {
       throw new RuntimeException(x);
     }
     return prog;
   }
-  
+
   @Override
   public Prog visit(ELe e, JavaWriter w) {
     try {
+      w.beginExpressionGroup();
       e.pureexp_1.accept(this, w);
       w.emit(" <= ");
       e.pureexp_2.accept(this, w);
+      w.endExpressionGroup();
       return prog;
     } catch (IOException x) {
       throw new RuntimeException(x);
     }
   }
-  
+
   @Override
   public Prog visit(ELt lt, JavaWriter w) {
     try {
+      w.beginExpressionGroup();
       lt.pureexp_1.accept(this, w);
-      w.emit("<");
+      w.emit(" < ");
       lt.pureexp_2.accept(this, w);
+      w.endExpressionGroup();
     } catch (IOException x) {
       throw new RuntimeException(x);
     }
@@ -539,32 +581,39 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   @Override
   public Prog visit(EAnd e, JavaWriter w) {
     try {
+      w.beginExpressionGroup();
       e.pureexp_1.accept(this, w);
       w.emit(" && ");
       e.pureexp_2.accept(this, w);
+      w.endExpressionGroup();
       return prog;
     } catch (IOException x) {
       throw new RuntimeException(x);
     }
   }
-  
+
   @Override
   public Prog visit(EOr e, JavaWriter w) {
     try {
+      w.beginExpressionGroup();
       e.pureexp_1.accept(this, w);
       w.emit(" || ");
       e.pureexp_2.accept(this, w);
+      w.endExpressionGroup();
       return prog;
     } catch (IOException x) {
       throw new RuntimeException(x);
     }
   }
+
   @Override
   public Prog visit(ENeq e, JavaWriter w) {
     try {
+      w.beginExpressionGroup();
       e.pureexp_1.accept(this, w);
       w.emit(" != ");
       e.pureexp_2.accept(this, w);
+      w.endExpressionGroup();
       return prog;
     } catch (IOException x) {
       throw new RuntimeException(x);
@@ -574,18 +623,18 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   @Override
   public Prog visit(EEq e, JavaWriter w) {
     try {
+      w.beginExpressionGroup();
       e.pureexp_1.accept(this, w);
       w.emit(" == ");
       e.pureexp_2.accept(this, w);
+      w.endExpressionGroup();
       return prog;
     } catch (IOException x) {
       throw new RuntimeException(x);
     }
   }
 
- 
-  
-   @Override
+  @Override
   public Prog visit(EVar v, JavaWriter w) {
     try {
       w.emit(v.lident_);
@@ -614,17 +663,17 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
       StringWriter auxsw = new StringWriter();
       JavaWriter auxw = new JavaWriter(auxsw);
       amc.pureexp_.accept(this, auxw);
-      StringBuilder parameters = new StringBuilder();
+      List<String> parameters = new ArrayList<>();
       for (PureExp par : amc.listpureexp_) {
         StringWriter parSW = new StringWriter();
         JavaWriter parameterWriter = new JavaWriter(parSW);
         par.accept(this, parameterWriter);
-        parameters.append(parSW.toString());
-        parameters.append(", ");
+        parameters.add(parSW.toString());
       }
-      parameters.delete(parameters.length() - 2, parameters.length());
-      w.emitStatement("send(" + auxsw.toString() + ", () -> " + amc.lident_ + "("
-          + parameters.toString() + "))");
+      String parametersString = String.join(COMMA_SPACE, parameters);
+      String receiverId = auxsw.toString();
+      w.emitStatement("send(" + receiverId + ", () -> " + receiverId + "." + amc.lident_ + "("
+          + parametersString + "))");
       return prog;
     } catch (IOException e) {
       throw new RuntimeException(e);
@@ -634,14 +683,13 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   @Override
   public Prog visit(LInt i, JavaWriter w) {
     try {
-      w.emit(i.integer_.toString());
+      w.emit(Integer.toString(i.integer_));
       return prog;
     } catch (IOException x) {
       throw new RuntimeException(x);
     }
 
   }
-  
 
   /**
    * @param qtype
@@ -668,6 +716,28 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   }
 
   /**
+   * @param w
+   * @param fieldType
+   * @param fieldIdentifier
+   * @param initialValue
+   * @param isFinal
+   * @return
+   * @throws IOException
+   */
+  protected JavaWriter emitField(JavaWriter w, String fieldType, String fieldIdentifier,
+      String initialValue, final boolean isFinal) throws IOException {
+    EnumSet<Modifier> modifiers = EnumSet.of(Modifier.PRIVATE);
+    if (isFinal) {
+      modifiers.add(Modifier.FINAL);
+    }
+    if (initialValue != null) {
+      return w.emitField(fieldType, fieldIdentifier, modifiers, initialValue);
+    } else {
+      return w.emitField(fieldType, fieldIdentifier, modifiers);
+    }
+  }
+
+  /**
    * Begin a Java type.
    * 
    * @param w the Java writer
@@ -684,7 +754,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
    */
   protected void beginElementKind(JavaWriter w, ElementKind kind, String identifier,
       Set<Modifier> modifiers, String classParentType, Collection<String> implementingInterfaces)
-      throws IOException {
+          throws IOException {
     switch (kind) {
       case CLASS:
         Set<String> implementsTypes = new HashSet<>();

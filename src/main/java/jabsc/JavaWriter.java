@@ -785,6 +785,24 @@ class JavaWriter implements Closeable {
   }
 
   /**
+   * @return 
+   * @throws IOException 
+   */
+  protected JavaWriter beginExpressionGroup() throws IOException {
+    out.write("(");
+    return this;
+  }
+
+  /**
+   * @return 
+   * @throws IOException 
+   */
+  protected JavaWriter endExpressionGroup() throws IOException {
+    out.write(")");
+    return this;
+  }
+
+  /**
    * Returns the string literal representing {@code data}, including wrapping quotes.
    *
    * @deprecated use {@link StringLiteral} and its {@link StringLiteral#literal()} method instead.
@@ -879,4 +897,5 @@ class JavaWriter implements Closeable {
     ANNOTATION_ARRAY_VALUE,
     INITIALIZER
   }
+
 }
