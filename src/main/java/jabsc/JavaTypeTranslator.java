@@ -8,7 +8,7 @@ import java.util.function.Function;
  * Some ABS types have an equivalent proper Java type. This is
  * function to be able to translate those.
  */
-public class JavaTypeTranslator implements Function<String, String> {
+class JavaTypeTranslator implements Function<String, String> {
 
   private final Map<String, String> abs2java = new HashMap<>();
 
@@ -28,6 +28,7 @@ public class JavaTypeTranslator implements Function<String, String> {
 
   protected void fill(Map<String, String> types) {
     types.put("Int", Integer.class.getName());
+    types.put("Unit", "void");
   }
 
 }
