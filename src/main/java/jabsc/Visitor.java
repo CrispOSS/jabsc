@@ -705,7 +705,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
       QTypeSegment qtypesegment_ = qtyp.listqtypesegment_.iterator().next();
       if (qtypesegment_ instanceof QTypeSegmen) {
         QTypeSegmen qTypeSegmen = (QTypeSegmen) qtypesegment_;
-        return javaTypeTranslator.apply(qTypeSegmen.uident_);
+        return translate(qTypeSegmen.uident_);
       }
     }
     return null;
@@ -843,6 +843,17 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
       return ((InterfDecl) decl).uident_;
     }
     throw new IllegalArgumentException("Unknown top level type: " + decl);
+  }
+
+  /**
+   * @param type
+   * @return
+   */
+  protected String translate(String type) {
+    if (type == null) {
+      return null;
+    }
+    return javaTypeTranslator.apply(type);
   }
 
   private String getTypeName(Type type) {

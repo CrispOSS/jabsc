@@ -141,7 +141,7 @@ public class Compiler implements Runnable {
   protected String getPackageName(final Prog prog) {
     Module module = prog.listmodule_.iterator().next();
     Visitor v = new Visitor(null, prog, null, new JavaTypeTranslator());
-    return v.getQTypeName(((Modul) module).qtype_);
+    return v.getQTypeName(((Modul) module).qtype_).toLowerCase();
   }
 
   /**
