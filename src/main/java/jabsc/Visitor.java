@@ -3,6 +3,7 @@ package jabsc;
 import java.io.IOException;
 import java.io.StringWriter;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
@@ -90,6 +91,9 @@ import bnfc.abs.Absyn.Type;
  */
 class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 
+  private static final String LITERAL_THIS = "this";
+  private static final String LITERAL_NULL = "null";
+  private static final String MAIN_CLASS_NAME = "Main";
   private static final String COMMA_SPACE = ", ";
   private static final String ABS_API_ACTOR_CLASS = Actor.class.getName();
   private static final Set<Modifier> DEFAULT_MODIFIERS = Collections.singleton(Modifier.PUBLIC);
@@ -208,13 +212,9 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
       final String identifier = p.uident_;
       beginElementKind(w, ElementKind.CLASS, identifier, DEFAULT_MODIFIERS, null, null);
       w.emitEmptyLine();
-
       for (ClassBody cb : p.listclassbody_1) {
         cb.accept(this, w);
       }
-
-
-
       for (ClassBody cb : p.listclassbody_2) {
         cb.accept(this, w);
       }
@@ -797,7 +797,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   @Override
   public Prog visit(LNull n, JavaWriter w) {
     try {
-      w.emit("null");
+      w.emit(LITERAL_NULL);
       return prog;
     } catch (IOException x) {
       throw new RuntimeException(x);
@@ -807,7 +807,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   @Override
   public Prog visit(LStr s, JavaWriter w) {
     try {
-      w.emit(s.string_);
+      w.emit("\"" + s.string_ + "\"");
       return prog;
     } catch (IOException x) {
       throw new RuntimeException(x);
@@ -817,10 +817,31 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   @Override
   public Prog visit(LThis t, JavaWriter w) {
     try {
-      w.emit("this");
+      w.emit(LITERAL_THIS);
       return prog;
     } catch (IOException x) {
       throw new RuntimeException(x);
+    }
+  }
+
+  protected void visitMain(Modul m, JavaWriter w) {
+    try {
+      JavaWriter jw = createJavaWriter(null, w);
+      final String identifier = MAIN_CLASS_NAME;
+      EnumSet<Modifier> mainModifiers = EnumSet.of(Modifier.PUBLIC, Modifier.STATIC);
+      beginElementKind(jw, ElementKind.CLASS, identifier, DEFAULT_MODIFIERS, null, null);
+      jw.emitEmptyLine();
+      List<String> javaMainMethodParameters = Arrays.asList("String[]", "args");
+      jw.beginMethod("void", "main", mainModifiers, javaMainMethodParameters,
+          Collections.emptyList());
+      m.maybeblock_.accept(this, jw);
+      jw.emit(";");
+      jw.emitEmptyLine();
+      jw.endMethod();
+      jw.endType();
+      close(jw, w);
+    } catch (IOException e) {
+      throw new RuntimeException(e);
     }
   }
 
@@ -859,7 +880,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
    */
   protected JavaWriter emitField(JavaWriter w, String fieldType, String fieldIdentifier,
       String initialValue, final boolean isFinal) throws IOException {
-    EnumSet<Modifier> modifiers = EnumSet.of(Modifier.PRIVATE);
+    EnumSet<Modifier> modifiers = EnumSet.noneOf(Modifier.class);
     if (isFinal) {
       modifiers.add(Modifier.FINAL);
     }
@@ -887,7 +908,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
    */
   protected void beginElementKind(JavaWriter w, ElementKind kind, String identifier,
       Set<Modifier> modifiers, String classParentType, Collection<String> implementingInterfaces)
-      throws IOException {
+          throws IOException {
     switch (kind) {
       case CLASS:
         Set<String> implementsTypes = new HashSet<>();
@@ -971,30 +992,10 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
     if (decl instanceof InterfDecl) {
       return ((InterfDecl) decl).uident_;
     }
-    if (decl == null)
-      return "Main";
-    throw new IllegalArgumentException("Unknown top level type: " + decl);
-  }
-
-  protected void visitMain(Modul m, JavaWriter w) {
-    try {
-      JavaWriter jw = createJavaWriter(null, w);
-      final String identifier = "Main";
-      EnumSet<Modifier> mainModifiers = EnumSet.of(Modifier.PUBLIC);
-      mainModifiers.add(Modifier.STATIC);
-      beginElementKind(jw, ElementKind.CLASS, identifier, DEFAULT_MODIFIERS, null, null);
-      jw.emitEmptyLine();
-      List<String> parameters = new ArrayList<>();
-      parameters.add("String[]");
-      parameters.add("args");
-      jw.beginMethod("void", "main", mainModifiers, parameters, Collections.emptyList());
-      m.maybeblock_.accept(this, jw);
-      jw.endMethod();
-      jw.endType();
-      close(jw, w);
-    } catch (IOException e) {
-      throw new RuntimeException(e);
+    if (decl == null) {
+      return MAIN_CLASS_NAME;
     }
+    throw new IllegalArgumentException("Unknown top level type: " + decl);
   }
 
   /**

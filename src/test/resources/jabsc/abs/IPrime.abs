@@ -38,6 +38,7 @@ class Prime (Int p) implements IPrime {
 }
 
 {
+String testString = "test";
 Int bound = 100000;
 new Sieve(bound);
 }
