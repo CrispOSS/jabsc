@@ -24,9 +24,20 @@ class Sieve(Int bound) {
 }
 
 class Prime (Int p) implements IPrime {
-
-	Unit divide(Int n) {
+	IPrime next;
+	Unit divide (Int n) {
+		if ( (n % p) != 0) {
+			if (next != null) {
+				next!divide (n);
+			}
+			else {
+				next = new Prime(n);
+			}
+		}
 	}
-
 }
 
+{
+Int bound = 100000;
+new Sieve(bound);
+}

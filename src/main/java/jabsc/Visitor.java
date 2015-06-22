@@ -49,12 +49,18 @@ import bnfc.abs.Absyn.ForeignImport;
 import bnfc.abs.Absyn.Import;
 import bnfc.abs.Absyn.ImportType;
 import bnfc.abs.Absyn.InterfDecl;
+import bnfc.abs.Absyn.JustBlock;
 import bnfc.abs.Absyn.LInt;
+import bnfc.abs.Absyn.LNull;
+import bnfc.abs.Absyn.LStr;
+import bnfc.abs.Absyn.LThis;
 import bnfc.abs.Absyn.ListQType;
 import bnfc.abs.Absyn.MethClassBody;
 import bnfc.abs.Absyn.MethSig;
 import bnfc.abs.Absyn.Modul;
 import bnfc.abs.Absyn.Module;
+import bnfc.abs.Absyn.New;
+import bnfc.abs.Absyn.NoBlock;
 import bnfc.abs.Absyn.Par;
 import bnfc.abs.Absyn.Param;
 import bnfc.abs.Absyn.Prog;
@@ -68,6 +74,9 @@ import bnfc.abs.Absyn.SBlock;
 import bnfc.abs.Absyn.SDec;
 import bnfc.abs.Absyn.SDecAss;
 import bnfc.abs.Absyn.SExp;
+import bnfc.abs.Absyn.SIf;
+import bnfc.abs.Absyn.SIfElse;
+import bnfc.abs.Absyn.SWhile;
 import bnfc.abs.Absyn.Stm;
 import bnfc.abs.Absyn.TSimple;
 import bnfc.abs.Absyn.TTyp;
@@ -84,6 +93,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   private static final String COMMA_SPACE = ", ";
   private static final String ABS_API_ACTOR_CLASS = Actor.class.getName();
   private static final Set<Modifier> DEFAULT_MODIFIERS = Collections.singleton(Modifier.PUBLIC);
+
 
   private final Set<String> moduleNames;
   private final Prog prog;
@@ -136,6 +146,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
         jw.emitEmptyLine();
         close(jw, w);
       }
+      visitMain(m, w);
       return prog;
     } catch (IOException e) {
       throw new RuntimeException(e);
@@ -197,9 +208,13 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
       final String identifier = p.uident_;
       beginElementKind(w, ElementKind.CLASS, identifier, DEFAULT_MODIFIERS, null, null);
       w.emitEmptyLine();
+
       for (ClassBody cb : p.listclassbody_1) {
         cb.accept(this, w);
       }
+
+
+
       for (ClassBody cb : p.listclassbody_2) {
         cb.accept(this, w);
       }
@@ -211,16 +226,23 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   }
 
   @Override
-  public Prog visit(ClassImplements p, JavaWriter w) {
+  public Prog visit(ClassImplements ci, JavaWriter w) {
     try {
-      final String identifier = p.uident_;
+      final String identifier = ci.uident_;
       beginElementKind(w, ElementKind.CLASS, identifier, DEFAULT_MODIFIERS, null,
-          toList(p.listqtype_));
+          toList(ci.listqtype_));
       w.emitEmptyLine();
-      for (ClassBody cb : p.listclassbody_1) {
+      for (ClassBody cb : ci.listclassbody_1) {
         cb.accept(this, w);
       }
-      for (ClassBody cb : p.listclassbody_2) {
+
+      w.beginConstructor(DEFAULT_MODIFIERS, null, null);
+
+      ci.maybeblock_.accept(this, w);
+
+      w.endConstructor();
+
+      for (ClassBody cb : ci.listclassbody_2) {
         cb.accept(this, w);
       }
       w.endType();
@@ -245,16 +267,21 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
         emitField(w, fieldType, p.lident_, null, true);
       }
       w.emitEmptyLine();
+
+      for (ClassBody cb : cpd.listclassbody_1) {
+        cb.accept(this, w);
+      }
       w.beginConstructor(DEFAULT_MODIFIERS, parameters, null);
       for (Param param : cpd.listparam_) {
         Par p = (Par) param;
         w.emitStatement("this." + p.lident_ + " = " + p.lident_);
       }
+
+      cpd.maybeblock_.accept(this, w);
+
       w.endConstructor();
       w.emitEmptyLine();
-      for (ClassBody cb : cpd.listclassbody_1) {
-        cb.accept(this, w);
-      }
+
       for (ClassBody cb : cpd.listclassbody_2) {
         cb.accept(this, w);
       }
@@ -280,17 +307,23 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
         parameters.add(p.lident_);
         emitField(w, fieldType, p.lident_, null, true);
       }
+
       w.emitEmptyLine();
+
+      for (ClassBody cb : cpi.listclassbody_1) {
+        cb.accept(this, w);
+      }
+
+
       w.beginConstructor(DEFAULT_MODIFIERS, parameters, null);
       for (Param param : cpi.listparam_) {
         Par p = (Par) param;
         w.emitStatement("this." + p.lident_ + " = " + p.lident_);
       }
+      cpi.maybeblock_.accept(this, w);
+
       w.endConstructor();
       w.emitEmptyLine();
-      for (ClassBody cb : cpi.listclassbody_1) {
-        cb.accept(this, w);
-      }
       for (ClassBody cb : cpi.listclassbody_2) {
         cb.accept(this, w);
       }
@@ -300,6 +333,19 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
       throw new RuntimeException(e);
     }
   }
+
+  @Override
+  public Prog visit(JustBlock jb, JavaWriter w) {
+    jb.block_.accept(this, w);
+
+    return prog;
+  }
+
+  @Override
+  public Prog visit(NoBlock nb, JavaWriter w) {
+    return prog;
+  }
+
 
   @Override
   public Prog visit(MethSig ms, JavaWriter w) {
@@ -389,7 +435,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 
 
   @Override
-  public Prog visit(bnfc.abs.Absyn.SWhile sw, JavaWriter w) {
+  public Prog visit(SWhile sw, JavaWriter w) {
     try {
       StringWriter auxsw = new StringWriter();
       JavaWriter auxw = new JavaWriter(auxsw);
@@ -401,6 +447,40 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
     } catch (IOException e) {
       throw new RuntimeException(e);
     }
+  }
+
+  @Override
+  public Prog visit(SIf sif, JavaWriter w) {
+    try {
+      StringWriter auxsw = new StringWriter();
+      JavaWriter auxw = new JavaWriter(auxsw);
+      sif.pureexp_.accept(this, auxw);
+      w.beginControlFlow("if (" + auxsw.toString() + ")");
+      sif.stm_.accept(this, w);
+      w.endControlFlow();
+      return prog;
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  @Override
+  public Prog visit(SIfElse se, JavaWriter w) {
+    try {
+      StringWriter auxsw = new StringWriter();
+      JavaWriter auxw = new JavaWriter(auxsw);
+      se.pureexp_.accept(this, auxw);
+      w.beginControlFlow("if (" + auxsw.toString() + ")");
+      se.stm_1.accept(this, w);
+      w.endControlFlow();
+      w.beginControlFlow("else");
+      se.stm_2.accept(this, w);
+      w.endControlFlow();
+      return prog;
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
+
   }
 
   @Override
@@ -446,6 +526,18 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   @Override
   public Prog visit(SExp p, JavaWriter w) {
     p.exp_.accept(this, w);
+    return prog;
+  }
+
+  @Override
+  public Prog visit(ExpE ee, JavaWriter w) {
+    ee.effexp_.accept(this, w);
+    return prog;
+  }
+
+  @Override
+  public Prog visit(ExpP ep, JavaWriter w) {
+    ep.pureexp_.accept(this, w);
     return prog;
   }
 
@@ -517,7 +609,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
     try {
       w.beginExpressionGroup();
       e.pureexp_1.accept(this, w);
-      w.emit(" % ");
+      w.emit(" %% ");
       e.pureexp_2.accept(this, w);
       w.endExpressionGroup();
     } catch (IOException x) {
@@ -650,15 +742,22 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   }
 
   @Override
-  public Prog visit(ExpE ee, JavaWriter w) {
-    ee.effexp_.accept(this, w);
-    return prog;
-  }
-
-  @Override
-  public Prog visit(ExpP ep, JavaWriter w) {
-    ep.pureexp_.accept(this, w);
-    return prog;
+  public Prog visit(New n, JavaWriter w) {
+    try {
+      List<String> parameters = new ArrayList<>();
+      for (PureExp par : n.listpureexp_) {
+        StringWriter parSW = new StringWriter();
+        JavaWriter parameterWriter = new JavaWriter(parSW);
+        par.accept(this, parameterWriter);
+        parameters.add(parSW.toString());
+      }
+      String parametersString = String.join(COMMA_SPACE, parameters);
+      String oType = getTypeName(n.type_);
+      w.emit("new " + oType + "(" + parametersString + ")");
+      return prog;
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
   }
 
   @Override
@@ -693,6 +792,36 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
       throw new RuntimeException(x);
     }
 
+  }
+
+  @Override
+  public Prog visit(LNull n, JavaWriter w) {
+    try {
+      w.emit("null");
+      return prog;
+    } catch (IOException x) {
+      throw new RuntimeException(x);
+    }
+  }
+
+  @Override
+  public Prog visit(LStr s, JavaWriter w) {
+    try {
+      w.emit(s.string_);
+      return prog;
+    } catch (IOException x) {
+      throw new RuntimeException(x);
+    }
+  }
+
+  @Override
+  public Prog visit(LThis t, JavaWriter w) {
+    try {
+      w.emit("this");
+      return prog;
+    } catch (IOException x) {
+      throw new RuntimeException(x);
+    }
   }
 
   /**
@@ -758,7 +887,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
    */
   protected void beginElementKind(JavaWriter w, ElementKind kind, String identifier,
       Set<Modifier> modifiers, String classParentType, Collection<String> implementingInterfaces)
-          throws IOException {
+      throws IOException {
     switch (kind) {
       case CLASS:
         Set<String> implementsTypes = new HashSet<>();
@@ -816,7 +945,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   protected boolean isTopLevel(Decl decl) {
     return decl instanceof ClassDecl || decl instanceof ClassImplements
         || decl instanceof ClassParamDecl || decl instanceof ClassParamImplements
-        || decl instanceof ExtendsDecl || decl instanceof InterfDecl;
+        || decl instanceof ExtendsDecl || decl instanceof InterfDecl || decl == null;
   }
 
   /**
@@ -842,7 +971,30 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
     if (decl instanceof InterfDecl) {
       return ((InterfDecl) decl).uident_;
     }
+    if (decl == null)
+      return "Main";
     throw new IllegalArgumentException("Unknown top level type: " + decl);
+  }
+
+  protected void visitMain(Modul m, JavaWriter w) {
+    try {
+      JavaWriter jw = createJavaWriter(null, w);
+      final String identifier = "Main";
+      EnumSet<Modifier> mainModifiers = EnumSet.of(Modifier.PUBLIC);
+      mainModifiers.add(Modifier.STATIC);
+      beginElementKind(jw, ElementKind.CLASS, identifier, DEFAULT_MODIFIERS, null, null);
+      jw.emitEmptyLine();
+      List<String> parameters = new ArrayList<>();
+      parameters.add("String[]");
+      parameters.add("args");
+      jw.beginMethod("void", "main", mainModifiers, parameters, Collections.emptyList());
+      m.maybeblock_.accept(this, jw);
+      jw.endMethod();
+      jw.endType();
+      close(jw, w);
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
   }
 
   /**
