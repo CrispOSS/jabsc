@@ -71,12 +71,15 @@ import bnfc.abs.Absyn.QType;
 import bnfc.abs.Absyn.QTypeSegmen;
 import bnfc.abs.Absyn.QTypeSegment;
 import bnfc.abs.Absyn.SAss;
+import bnfc.abs.Absyn.SAwait;
 import bnfc.abs.Absyn.SBlock;
 import bnfc.abs.Absyn.SDec;
 import bnfc.abs.Absyn.SDecAss;
 import bnfc.abs.Absyn.SExp;
+import bnfc.abs.Absyn.SFieldAss;
 import bnfc.abs.Absyn.SIf;
 import bnfc.abs.Absyn.SIfElse;
+import bnfc.abs.Absyn.SReturn;
 import bnfc.abs.Absyn.SWhile;
 import bnfc.abs.Absyn.Stm;
 import bnfc.abs.Absyn.TSimple;
@@ -84,6 +87,7 @@ import bnfc.abs.Absyn.TTyp;
 import bnfc.abs.Absyn.TTypeSegmen;
 import bnfc.abs.Absyn.TTypeSegment;
 import bnfc.abs.Absyn.Type;
+import bnfc.abs.Absyn.VarGuard;
 
 /**
  * The visitor for all possible nodes in the AST of an ABS
@@ -419,18 +423,75 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 
   @Override
   public Prog visit(Bloc b, JavaWriter w) {
-    for (Stm stm : b.liststm_) {
-      stm.accept(this, w);
+    try {
+      for (Stm stm : b.liststm_) {
+        if (stm instanceof SAwait) {
+
+          SAwait sa = (SAwait) stm;
+          StringWriter auxsw = new StringWriter();
+          JavaWriter auxw = new JavaWriter(auxsw);
+          sa.guard_.accept(this, auxw);
+          w.beginControlFlow("if (%s.isDone)", auxsw.toString());
+          for (Stm aStm : b.liststm_) {
+            if (b.liststm_.indexOf(aStm) > b.liststm_.indexOf(stm))
+              aStm.accept(this, w);
+          }
+          w.endControlFlow();
+          w.beginControlFlow("else");
+          w.beginControlFlow("Runnable msg = () -> ");
+          for (Stm aStm : b.liststm_) {
+            if (b.liststm_.indexOf(aStm) > b.liststm_.indexOf(stm))
+              aStm.accept(this, w);
+          }
+          w.endControlFlow("");
+          w.emitStatement("send(%s, msg)", "this");
+          w.endControlFlow();
+          break;
+        } else {
+          stm.accept(this, w);
+        }
+      }
+      return prog;
+    } catch (IOException e) {
+      throw new RuntimeException(e);
     }
-    return prog;
+
   }
 
   @Override
-  public Prog visit(SBlock sb, JavaWriter w) {
-    for (Stm stm : sb.liststm_) {
-      stm.accept(this, w);
+  public Prog visit(SBlock b, JavaWriter w) {
+    try {
+      for (Stm stm : b.liststm_) {
+        if (stm instanceof SAwait) {
+
+          SAwait sa = (SAwait) stm;
+          StringWriter auxsw = new StringWriter();
+          JavaWriter auxw = new JavaWriter(auxsw);
+          sa.guard_.accept(this, auxw);
+          w.beginControlFlow("if (%s.isDone)", auxsw.toString());
+          for (Stm aStm : b.liststm_) {
+            if (b.liststm_.indexOf(aStm) > b.liststm_.indexOf(stm))
+              aStm.accept(this, w);
+          }
+          w.endControlFlow();
+          w.beginControlFlow("else");
+          w.beginControlFlow("Runnable msg = () -> ");
+          for (Stm aStm : b.liststm_) {
+            if (b.liststm_.indexOf(aStm) > b.liststm_.indexOf(stm))
+              aStm.accept(this, w);
+          }
+          w.endControlFlow("");
+          w.emitStatement("send(%s, msg)", "this");
+          w.endControlFlow();
+          break;
+        } else {
+          stm.accept(this, w);
+        }
+      }
+      return prog;
+    } catch (IOException e) {
+      throw new RuntimeException(e);
     }
-    return prog;
   }
 
 
@@ -511,6 +572,19 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   }
 
   @Override
+  public Prog visit(SFieldAss fa, JavaWriter w) {
+    try {
+      StringWriter auxsw = new StringWriter();
+      JavaWriter auxw = new JavaWriter(auxsw);
+      fa.exp_.accept(this, auxw);
+      w.emitStatement("%s = %s", fa.lident_, auxsw.toString());
+      return prog;
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  @Override
   public Prog visit(SAss ss, JavaWriter w) {
     try {
       StringWriter auxsw = new StringWriter();
@@ -521,6 +595,23 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
     } catch (IOException e) {
       throw new RuntimeException(e);
     }
+  }
+
+
+
+  @Override
+  public Prog visit(SReturn r, JavaWriter w) {
+    try {
+      StringWriter auxsw = new StringWriter();
+      JavaWriter auxw = new JavaWriter(auxsw);
+      r.exp_.accept(this, auxw);
+      w.emitStatement("return " + auxsw.toString());
+      return prog;
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
+
+
   }
 
   @Override
@@ -908,7 +999,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
    */
   protected void beginElementKind(JavaWriter w, ElementKind kind, String identifier,
       Set<Modifier> modifiers, String classParentType, Collection<String> implementingInterfaces)
-          throws IOException {
+      throws IOException {
     switch (kind) {
       case CLASS:
         Set<String> implementsTypes = new HashSet<>();
