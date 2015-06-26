@@ -47,6 +47,7 @@ import bnfc.abs.Absyn.ExtendsDecl;
 import bnfc.abs.Absyn.FieldAssignClassBody;
 import bnfc.abs.Absyn.FieldClassBody;
 import bnfc.abs.Absyn.ForeignImport;
+import bnfc.abs.Absyn.Get;
 import bnfc.abs.Absyn.Import;
 import bnfc.abs.Absyn.ImportType;
 import bnfc.abs.Absyn.InterfDecl;
@@ -82,6 +83,7 @@ import bnfc.abs.Absyn.SIfElse;
 import bnfc.abs.Absyn.SReturn;
 import bnfc.abs.Absyn.SWhile;
 import bnfc.abs.Absyn.Stm;
+import bnfc.abs.Absyn.TGen;
 import bnfc.abs.Absyn.TSimple;
 import bnfc.abs.Absyn.TTyp;
 import bnfc.abs.Absyn.TTypeSegmen;
@@ -850,6 +852,19 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
       throw new RuntimeException(e);
     }
   }
+  
+  @Override
+  public Prog visit(Get g, JavaWriter w) {
+    try {
+      StringWriter auxsw = new StringWriter();
+      JavaWriter auxw = new JavaWriter(auxsw);
+      g.pureexp_.accept(this, auxw);
+      w.emit(auxsw.toString()+".get()");
+      return prog;
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
+  }
 
   @Override
   public Prog visit(AsyncMethCall amc, JavaWriter w) {
@@ -866,8 +881,9 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
       }
       String parametersString = String.join(COMMA_SPACE, parameters);
       String receiverId = auxsw.toString();
-      w.emitStatement("Runnable msg = () -> %s.%s(%s)", receiverId, amc.lident_, parametersString);
-      w.emitStatement("send(%s, msg)", receiverId);
+      //w.emitStatement("Runnable msg = () -> %s.%s(%s)", receiverId, amc.lident_, parametersString);
+      //w.emitStatement("send(%s, () -> %s.%s(%s))", receiverId,amc.lident_, parametersString);
+      w.emit("send("+receiverId+ ", () -> "+receiverId+"."+amc.lident_+"("+parametersString+"))");
       return prog;
     } catch (IOException e) {
       throw new RuntimeException(e);
@@ -914,6 +930,18 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
       throw new RuntimeException(x);
     }
   }
+  
+  @Override
+  public Prog visit(VarGuard vg, JavaWriter w) {
+    try {
+      w.emit(vg.lident_);
+      return prog;
+    } catch (IOException x) {
+      throw new RuntimeException(x);
+    }
+  }
+  
+  
 
   protected void visitMain(Modul m, JavaWriter w) {
     try {
@@ -1105,6 +1133,18 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
       TSimple ts = (TSimple) type;
       QType qtype_ = ts.qtype_;
       return getQTypeName(qtype_);
+    }
+    if(type instanceof TGen) {
+      TGen tg = (TGen) type;
+      StringBuilder sQ = new StringBuilder(getQTypeName(tg.qtype_));
+      sQ.append("<");
+      List<String> gTypes = new ArrayList<String>();
+      for (Type t : tg.listtype_) {
+         gTypes.add(getTypeName(t));       
+      }
+      sQ.append(String.join(COMMA_SPACE, gTypes));
+      sQ.append(">");
+      return sQ.toString();
     }
     return null;
   }
