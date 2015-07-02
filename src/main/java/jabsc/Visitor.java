@@ -221,6 +221,13 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
       for (ClassBody cb : p.listclassbody_1) {
         cb.accept(this, w);
       }
+
+      w.beginConstructor(DEFAULT_MODIFIERS, null, null);
+
+      p.maybeblock_.accept(this, w);
+
+      w.endConstructor();
+
       for (ClassBody cb : p.listclassbody_2) {
         cb.accept(this, w);
       }
@@ -852,14 +859,14 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
       throw new RuntimeException(e);
     }
   }
-  
+
   @Override
   public Prog visit(Get g, JavaWriter w) {
     try {
       StringWriter auxsw = new StringWriter();
       JavaWriter auxw = new JavaWriter(auxsw);
       g.pureexp_.accept(this, auxw);
-      w.emit(auxsw.toString()+".get()");
+      w.emit(auxsw.toString() + ".get()");
       return prog;
     } catch (IOException e) {
       throw new RuntimeException(e);
@@ -881,9 +888,12 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
       }
       String parametersString = String.join(COMMA_SPACE, parameters);
       String receiverId = auxsw.toString();
-      //w.emitStatement("Runnable msg = () -> %s.%s(%s)", receiverId, amc.lident_, parametersString);
-      //w.emitStatement("send(%s, () -> %s.%s(%s))", receiverId,amc.lident_, parametersString);
-      w.emit("send("+receiverId+ ", () -> "+receiverId+"."+amc.lident_+"("+parametersString+"))");
+      // w.emitStatement("Runnable msg = () -> %s.%s(%s)",
+      // receiverId, amc.lident_, parametersString);
+      // w.emitStatement("send(%s, () -> %s.%s(%s))",
+      // receiverId,amc.lident_, parametersString);
+      w.emit("send(" + receiverId + ", () -> " + receiverId + "." + amc.lident_ + "("
+          + parametersString + "))");
       return prog;
     } catch (IOException e) {
       throw new RuntimeException(e);
@@ -930,7 +940,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
       throw new RuntimeException(x);
     }
   }
-  
+
   @Override
   public Prog visit(VarGuard vg, JavaWriter w) {
     try {
@@ -940,8 +950,8 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
       throw new RuntimeException(x);
     }
   }
-  
-  
+
+
 
   protected void visitMain(Modul m, JavaWriter w) {
     try {
@@ -1134,13 +1144,13 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
       QType qtype_ = ts.qtype_;
       return getQTypeName(qtype_);
     }
-    if(type instanceof TGen) {
+    if (type instanceof TGen) {
       TGen tg = (TGen) type;
       StringBuilder sQ = new StringBuilder(getQTypeName(tg.qtype_));
       sQ.append("<");
       List<String> gTypes = new ArrayList<String>();
       for (Type t : tg.listtype_) {
-         gTypes.add(getTypeName(t));       
+        gTypes.add(getTypeName(t));
       }
       sQ.append(String.join(COMMA_SPACE, gTypes));
       sQ.append(">");
