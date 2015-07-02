@@ -20,6 +20,8 @@ import bnfc.abs.AbstractVisitor;
 import bnfc.abs.Absyn.AnyImport;
 import bnfc.abs.Absyn.AsyncMethCall;
 import bnfc.abs.Absyn.Bloc;
+import bnfc.abs.Absyn.CatchBranc;
+import bnfc.abs.Absyn.CatchBranch;
 import bnfc.abs.Absyn.ClassBody;
 import bnfc.abs.Absyn.ClassDecl;
 import bnfc.abs.Absyn.ClassImplements;
@@ -32,14 +34,17 @@ import bnfc.abs.Absyn.EDiv;
 import bnfc.abs.Absyn.EEq;
 import bnfc.abs.Absyn.EGe;
 import bnfc.abs.Absyn.EGt;
+import bnfc.abs.Absyn.EIntNeg;
 import bnfc.abs.Absyn.ELe;
 import bnfc.abs.Absyn.ELit;
+import bnfc.abs.Absyn.ELogNeg;
 import bnfc.abs.Absyn.ELt;
 import bnfc.abs.Absyn.EMod;
 import bnfc.abs.Absyn.EMul;
 import bnfc.abs.Absyn.ENeq;
 import bnfc.abs.Absyn.EOr;
 import bnfc.abs.Absyn.ESub;
+import bnfc.abs.Absyn.EThis;
 import bnfc.abs.Absyn.EVar;
 import bnfc.abs.Absyn.ExpE;
 import bnfc.abs.Absyn.ExpP;
@@ -52,6 +57,7 @@ import bnfc.abs.Absyn.Import;
 import bnfc.abs.Absyn.ImportType;
 import bnfc.abs.Absyn.InterfDecl;
 import bnfc.abs.Absyn.JustBlock;
+import bnfc.abs.Absyn.JustFinally;
 import bnfc.abs.Absyn.LInt;
 import bnfc.abs.Absyn.LNull;
 import bnfc.abs.Absyn.LStr;
@@ -63,6 +69,7 @@ import bnfc.abs.Absyn.Modul;
 import bnfc.abs.Absyn.Module;
 import bnfc.abs.Absyn.New;
 import bnfc.abs.Absyn.NoBlock;
+import bnfc.abs.Absyn.NoFinally;
 import bnfc.abs.Absyn.Par;
 import bnfc.abs.Absyn.Param;
 import bnfc.abs.Absyn.Prog;
@@ -81,6 +88,10 @@ import bnfc.abs.Absyn.SFieldAss;
 import bnfc.abs.Absyn.SIf;
 import bnfc.abs.Absyn.SIfElse;
 import bnfc.abs.Absyn.SReturn;
+import bnfc.abs.Absyn.SSkip;
+import bnfc.abs.Absyn.SSuspend;
+import bnfc.abs.Absyn.SThrow;
+import bnfc.abs.Absyn.STryCatchFinally;
 import bnfc.abs.Absyn.SWhile;
 import bnfc.abs.Absyn.Stm;
 import bnfc.abs.Absyn.TGen;
@@ -622,13 +633,57 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 
 
   }
+  
+  @Override
+  public Prog visit(SSuspend ss, JavaWriter w) {
+    try {
+      w.emitStatement("Thread.yield()");
+      return prog;
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
+  }
+  
+  @Override
+  public Prog visit(SSkip sk, JavaWriter w) {
+    // TODO Auto-generated method stub
+    return prog;
+  }
 
   @Override
   public Prog visit(SExp p, JavaWriter w) {
     p.exp_.accept(this, w);
     return prog;
   }
+  
+  public Prog visit(SThrow st, JavaWriter w){
+    try {
+      StringWriter auxsw = new StringWriter();
+      JavaWriter auxw = new JavaWriter(auxsw);
+      st.pureexp_.accept(this, auxw);
+      w.emitStatement("throw "+auxsw.toString());
+      return prog;
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
+  }
 
+  @Override
+  public Prog visit(STryCatchFinally stcf, JavaWriter w) {
+    try {
+      w.beginControlFlow("try { ");
+      stcf.stm_.accept(this, w);
+      w.endControlFlow();
+      for (CatchBranch cb : stcf.listcatchbranch_) {
+        cb.accept(this, w);
+      }
+      stcf.maybefinally_.accept(this, w);
+      return prog;
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
+  }
+  
   @Override
   public Prog visit(ExpE ee, JavaWriter w) {
     ee.effexp_.accept(this, w);
@@ -815,6 +870,32 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
       throw new RuntimeException(x);
     }
   }
+  
+  @Override
+  public Prog visit(EIntNeg in, JavaWriter w) {
+    try {
+      w.beginExpressionGroup();
+      w.emit(" - ");
+      in.pureexp_.accept(this, w);
+      w.endExpressionGroup();
+      return prog;
+    } catch (IOException x) {
+      throw new RuntimeException(x);
+    }
+  }
+  
+  @Override
+  public Prog visit(ELogNeg ln, JavaWriter w) {
+    try {
+      w.beginExpressionGroup();
+      w.emit(" ! ");
+      ln.pureexp_.accept(this, w);
+      w.endExpressionGroup();
+      return prog;
+    } catch (IOException x) {
+      throw new RuntimeException(x);
+    }
+  }
 
   @Override
   public Prog visit(EEq e, JavaWriter w) {
@@ -839,6 +920,16 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
     }
     return prog;
 
+  }
+  
+  @Override
+  public Prog visit(EThis t, JavaWriter w) {
+      try {
+        w.emit("this."+t.lident_);
+      } catch (IOException x) {
+        throw new RuntimeException(x);
+      }
+      return prog;
   }
 
   @Override
@@ -899,6 +990,41 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
       throw new RuntimeException(e);
     }
   }
+  
+  @Override
+  public Prog visit(CatchBranc cb, JavaWriter w) {
+    try {
+      StringWriter auxsw = new StringWriter();
+      JavaWriter auxw = new JavaWriter(auxsw);
+      cb.pattern_.accept(this, auxw);
+      w.beginControlFlow("catch(%s)", auxsw.toString());
+      cb.stm_.accept(this, w);
+      w.endControlFlow();
+      w.emit(auxsw.toString() + ".get()");
+      return prog;
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
+  }
+  
+  @Override
+  public Prog visit(JustFinally jf, JavaWriter w) {
+    try {
+      
+      w.beginControlFlow("finally");
+      jf.stm_.accept(this, w);
+      w.endControlFlow();
+      return prog;
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
+    
+  }
+  
+  @Override
+  public Prog visit(NoFinally p, JavaWriter arg) {
+    return prog;
+  }
 
   @Override
   public Prog visit(LInt i, JavaWriter w) {
@@ -950,7 +1076,8 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
       throw new RuntimeException(x);
     }
   }
-
+  
+  
 
 
   protected void visitMain(Modul m, JavaWriter w) {

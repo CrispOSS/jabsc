@@ -10,24 +10,16 @@
 X	    public R visit(bnfc.abs.Absyn.FunDecl p, A arg);
 X	    public R visit(bnfc.abs.Absyn.FunParDecl p, A arg);
 	    
-	    	public R visit(bnfc.abs.Absyn.SSuspend p, A arg);
-		    public R visit(bnfc.abs.Absyn.SSkip p, A arg);
-		    public R visit(bnfc.abs.Absyn.SAssert p, A arg);
 		    public R visit(bnfc.abs.Absyn.SAwait p, A arg);
-		    public R visit(bnfc.abs.Absyn.SThrow p, A arg);
-		    public R visit(bnfc.abs.Absyn.STryCatchFinally p, A arg);
 		    public R visit(bnfc.abs.Absyn.SPrint p, A arg);
 		    	
-		    	public R visit(bnfc.abs.Absyn.CatchBranc p, A arg);	
-		       	public R visit(bnfc.abs.Absyn.ELogNeg p, A arg);
-			    public R visit(bnfc.abs.Absyn.EIntNeg p, A arg);
 X			    public R visit(bnfc.abs.Absyn.EFunCall p, A arg);
 X			    public R visit(bnfc.abs.Absyn.EQualFunCall p, A arg);
 X			    public R visit(bnfc.abs.Absyn.ENaryFunCall p, A arg);
 X			    public R visit(bnfc.abs.Absyn.ENaryQualFunCall p, A arg);
-			    public R visit(bnfc.abs.Absyn.EQualVar p, A arg);
-			    public R visit(bnfc.abs.Absyn.ESinglConstr p, A arg);
-			    public R visit(bnfc.abs.Absyn.EParamConstr p, A arg);
+X			    public R visit(bnfc.abs.Absyn.EQualVar p, A arg);
+X			    public R visit(bnfc.abs.Absyn.ESinglConstr p, A arg);
+X			    public R visit(bnfc.abs.Absyn.EParamConstr p, A arg);
 X			    public R visit(bnfc.abs.Absyn.Let p, A arg);
 X			    public R visit(bnfc.abs.Absyn.If p, A arg);
 X			    public R visit(bnfc.abs.Absyn.Case p, A arg);
