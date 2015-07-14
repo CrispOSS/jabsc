@@ -10,12 +10,14 @@ import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
 
 import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.Modifier;
 
 import abs.api.Actor;
+import abs.api.Response;
 import bnfc.abs.AbstractVisitor;
 import bnfc.abs.Absyn.AnyImport;
 import bnfc.abs.Absyn.AsyncMethCall;
@@ -62,6 +64,7 @@ import bnfc.abs.Absyn.LInt;
 import bnfc.abs.Absyn.LNull;
 import bnfc.abs.Absyn.LStr;
 import bnfc.abs.Absyn.LThis;
+import bnfc.abs.Absyn.ListImport;
 import bnfc.abs.Absyn.ListQType;
 import bnfc.abs.Absyn.MethClassBody;
 import bnfc.abs.Absyn.MethSig;
@@ -114,7 +117,11 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   private static final String COMMA_SPACE = ", ";
   private static final String ABS_API_ACTOR_CLASS = Actor.class.getName();
   private static final Set<Modifier> DEFAULT_MODIFIERS = Collections.singleton(Modifier.PUBLIC);
-
+  private static final String[] DEFAULT_IMPORTS =
+      new String[] {Collection.class.getPackage().getName() + ".*",
+          Callable.class.getPackage().getName() + ".*", Actor.class.getPackage().getName() + ".*"};
+  private static final String[] DEFAULT_STATIC_IMPORTS =
+      new String[] {/* "abs.api.Functional.*" */};
 
   private final Set<String> moduleNames;
   private final Prog prog;
@@ -158,11 +165,10 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   public Prog visit(Modul m, JavaWriter w) {
     try {
       w.emitPackage(packageName);
-      for (Import imprt : m.listimport_) {
-        imprt.accept(this, w);
-      }
+      final ListImport imports = m.listimport_;
       for (Decl decl : m.listdecl_) {
         JavaWriter jw = createJavaWriter(decl, w);
+        visitImports(imports, jw);
         decl.accept(this, jw);
         jw.emitEmptyLine();
         close(jw, w);
@@ -633,7 +639,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 
 
   }
-  
+
   @Override
   public Prog visit(SSuspend ss, JavaWriter w) {
     try {
@@ -643,7 +649,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
       throw new RuntimeException(e);
     }
   }
-  
+
   @Override
   public Prog visit(SSkip sk, JavaWriter w) {
     // TODO Auto-generated method stub
@@ -655,13 +661,13 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
     p.exp_.accept(this, w);
     return prog;
   }
-  
-  public Prog visit(SThrow st, JavaWriter w){
+
+  public Prog visit(SThrow st, JavaWriter w) {
     try {
       StringWriter auxsw = new StringWriter();
       JavaWriter auxw = new JavaWriter(auxsw);
       st.pureexp_.accept(this, auxw);
-      w.emitStatement("throw "+auxsw.toString());
+      w.emitStatement("throw " + auxsw.toString());
       return prog;
     } catch (IOException e) {
       throw new RuntimeException(e);
@@ -683,7 +689,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
       throw new RuntimeException(e);
     }
   }
-  
+
   @Override
   public Prog visit(ExpE ee, JavaWriter w) {
     ee.effexp_.accept(this, w);
@@ -870,7 +876,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
       throw new RuntimeException(x);
     }
   }
-  
+
   @Override
   public Prog visit(EIntNeg in, JavaWriter w) {
     try {
@@ -883,7 +889,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
       throw new RuntimeException(x);
     }
   }
-  
+
   @Override
   public Prog visit(ELogNeg ln, JavaWriter w) {
     try {
@@ -921,15 +927,15 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
     return prog;
 
   }
-  
+
   @Override
   public Prog visit(EThis t, JavaWriter w) {
-      try {
-        w.emit("this."+t.lident_);
-      } catch (IOException x) {
-        throw new RuntimeException(x);
-      }
-      return prog;
+    try {
+      w.emit("this." + t.lident_);
+    } catch (IOException x) {
+      throw new RuntimeException(x);
+    }
+    return prog;
   }
 
   @Override
@@ -977,20 +983,20 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
         par.accept(this, parameterWriter);
         parameters.add(parSW.toString());
       }
-      String parametersString = String.join(COMMA_SPACE, parameters);
       String receiverId = auxsw.toString();
-      // w.emitStatement("Runnable msg = () -> %s.%s(%s)",
-      // receiverId, amc.lident_, parametersString);
-      // w.emitStatement("send(%s, () -> %s.%s(%s))",
-      // receiverId,amc.lident_, parametersString);
-      w.emit("send(" + receiverId + ", () -> " + receiverId + "." + amc.lident_ + "("
-          + parametersString + "))");
+      String msgVarName = "msg_" + receiverId.hashCode();
+      String msgStatement = generateMessageStatement(msgVarName, null,
+          generateJavaMethodInvocation(receiverId, amc.lident_, parameters));
+      w.emitStatement(msgStatement);
+      String asyncStatement =
+          generateMessageInvocationStatement(receiverId, false, null, msgVarName);
+      w.emitStatement(asyncStatement);
       return prog;
     } catch (IOException e) {
       throw new RuntimeException(e);
     }
   }
-  
+
   @Override
   public Prog visit(CatchBranc cb, JavaWriter w) {
     try {
@@ -1006,11 +1012,11 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
       throw new RuntimeException(e);
     }
   }
-  
+
   @Override
   public Prog visit(JustFinally jf, JavaWriter w) {
     try {
-      
+
       w.beginControlFlow("finally");
       jf.stm_.accept(this, w);
       w.endControlFlow();
@@ -1018,9 +1024,9 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
     } catch (IOException e) {
       throw new RuntimeException(e);
     }
-    
+
   }
-  
+
   @Override
   public Prog visit(NoFinally p, JavaWriter arg) {
     return prog;
@@ -1076,9 +1082,6 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
       throw new RuntimeException(x);
     }
   }
-  
-  
-
 
   protected void visitMain(Modul m, JavaWriter w) {
     try {
@@ -1099,6 +1102,78 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
     } catch (IOException e) {
       throw new RuntimeException(e);
     }
+  }
+
+  protected void visitImports(final ListImport imports, JavaWriter w) throws IOException {
+    w.emitStaticImports(DEFAULT_STATIC_IMPORTS);
+    w.emitImports(DEFAULT_IMPORTS);
+    for (Import imprt : imports) {
+      imprt.accept(this, w);
+    }
+    w.emitEmptyLine();
+  }
+
+  /**
+   * Creates a Java method invocation:
+   * 
+   * <pre>
+   * myObj.myMethod(p1, p2, p3)
+   * </pre>
+   * 
+   * @param object the callee object
+   * @param method the method of the callee object
+   * @param parameters the parameters of the method that can be
+   *        empty string
+   * @return a string representing a Java method invocation
+   *         statement
+   */
+  protected String generateJavaMethodInvocation(String object, String method,
+      List<String> parameters) {
+    return String.format("%s.%s(%s)", object, method,
+        parameters == null || parameters.isEmpty() ? "" : String.join(COMMA_SPACE, parameters));
+  }
+
+  /**
+   * Create an asynchronous message in the context of ABS API
+   * which is either an instance of {@link Runnable} or a
+   * {@link Callable}.
+   * 
+   * @param msgVarName the variable name to use the created
+   *        message
+   * @param returnType the return type of the message; if
+   *        <code>null</code>, it means to use {@link Runnable}
+   * @param expression the Java expression to use for the body
+   *        of the lambda expression
+   * @return a string in Java representing a lambda expression
+   *         for a {@link Runnable} or a {@link Callable}
+   */
+  protected String generateMessageStatement(String msgVarName, String returnType,
+      String expression) {
+    final String returnTypeVar = returnType == null ? "Runnable" : "Callable<" + returnType + ">";
+    return String.format("%s %s = () -> %s", returnTypeVar, msgVarName, expression);
+  }
+
+  /**
+   * Create a Java statement when sending a message to an
+   * {@link Actor} in the ABS API.
+   * 
+   * @param target the receiver identifier of the message
+   * @param await if this is an await statement; If
+   *        <code>true</code>,
+   *        {@link Actor#await(Object, Object)} is generated
+   *        otherwise {@link Actor#send(Object, Object)}
+   * @param msgReturnType the expected return type of the
+   *        message; if <code>null</code>, the generated
+   *        {@link Response} will be over {@link Void}
+   * @param msgVarName the variable name of the message
+   * @return a Java statement string for such a call
+   */
+  protected String generateMessageInvocationStatement(String target, final boolean await,
+      String msgReturnType, String msgVarName) {
+    final String method = await ? "await" : "send";
+    final String returnType = msgReturnType == null ? "Void" : msgReturnType;
+    return String.format("Response<%s> %s = %s(%s, %s)", returnType, msgVarName + "_response",
+        method, target, msgVarName);
   }
 
   /**
@@ -1164,7 +1239,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
    */
   protected void beginElementKind(JavaWriter w, ElementKind kind, String identifier,
       Set<Modifier> modifiers, String classParentType, Collection<String> implementingInterfaces)
-      throws IOException {
+          throws IOException {
     switch (kind) {
       case CLASS:
         Set<String> implementsTypes = new HashSet<>();
