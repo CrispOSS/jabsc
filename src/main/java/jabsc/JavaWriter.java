@@ -774,31 +774,31 @@ class JavaWriter implements Closeable {
     return this;
   }
   
-  /**
-   * @param string
-   * @return
-   * @throws IOException
-   */
   protected JavaWriter emit(String string) throws IOException {
+    return emit(string, false);
+  }
+
+  protected JavaWriter emit(String string, final boolean indent) throws IOException {
+    if (indent) {
+      indent();
+    }
     out.write(string);
     return this;
   }
 
-  /**
-   * @return 
-   * @throws IOException 
-   */
   protected JavaWriter beginExpressionGroup() throws IOException {
     out.write("(");
     return this;
   }
 
-  /**
-   * @return 
-   * @throws IOException 
-   */
   protected JavaWriter endExpressionGroup() throws IOException {
     out.write(")");
+    return this;
+  }
+  
+  protected JavaWriter emitStatementEnd() throws IOException {
+    out.write(";");
+    out.write("\n");
     return this;
   }
 

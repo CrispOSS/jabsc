@@ -28,7 +28,8 @@ class Prime (Int p) implements IPrime {
 	Unit divide (Int n) {
 		if ( (n % p) != 0) {
 			if (next != null) {
-				next!divide (n);
+				Fut f = next!divide (n);
+				await f;
 			}
 			else {
 				next = new Prime(n);

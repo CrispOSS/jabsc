@@ -29,7 +29,7 @@ class JavaTypeTranslator implements Function<String, String> {
   protected void fill(Map<String, String> types) {
     types.put("Int", Integer.class.getName());
     types.put("Unit", "void");
-    types.put("Fut", "Future");
+    types.put("Fut", "Response");
   }
 
 }
