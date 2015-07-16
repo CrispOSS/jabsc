@@ -1,0 +1,38 @@
+#!/bin/bash
+
+# Java executable usually in $JAVA_HOME/bin/java
+JAVA=
+# The version of Java. Must be at least 1.8.
+JAVA_VERSION=
+
+function check_java
+{
+   if type -p java; then
+       JAVA=java
+   elif [[ -n "$JAVA_HOME" ]] && [[ -x "$JAVA_HOME/bin/java" ]];  then
+       JAVA="$JAVA_HOME/bin/java"
+   else
+       echo "No Java executable can be found."
+       exit 1;
+   fi
+}
+
+function check_java_version
+{
+   JAVA_VERSION=$("$JAVA" -version 2>&1 | awk -F '"' '/version/ {print $2}')
+   if [[ "$JAVA_VERSION" < "1.8.0" ]]; then
+      echo "Java 1.8 is required: ${JAVA_VERSION}"
+      exit 1;
+   fi
+   echo "Using Java $JAVA_VERSION"
+}
+
+check_java
+check_java_version
+
+BIN_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+BASE_DIR="$(dirname "${BIN_DIR}")"
+LIB_DIR="${BASE_DIR}/lib"
+JABSC_JAR="${LIB_DIR}/jabsc.jar"
+
+$JAVA -Xmx2048m -jar ${JABSC_JAR} "$@"

@@ -6,12 +6,18 @@ import java.io.IOException;
 import java.io.Writer;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.slf4j.bridge.SLF4JBridgeHandler;
 
 import bnfc.abs.Yylex;
 import bnfc.abs.parser;
@@ -25,13 +31,32 @@ import bnfc.abs.Absyn.Program;
  */
 public class Compiler implements Runnable {
 
+  public static final String DEFAULT_OUTPUT_DIRECTORY_NAME = "generated-sources/jabsc";
+
+  /**
+   * The version of JABSC Compiler.
+   */
+  private static final String VERSION;
+
+  static {
+    VERSION = Optional.ofNullable(Compiler.class.getPackage().getImplementationVersion())
+        .orElse("1.x-SNAPSHOT");
+    SLF4JBridgeHandler.install();
+  }
+
   /**
    * .java
    */
   private static final String JAVA_FILE_EXTENSION = ".java";
 
+  private final Logger logger = LoggerFactory.getLogger(getClass());
+
   private final List<Path> sources;
   private final Path outputDirectory;
+
+  public Compiler(String source, String outputDirectory) {
+    this(createPath(source), createOutputDirectoryPath(outputDirectory, createPath(source)));
+  }
 
   public Compiler(Path source, Path outputDirectory) {
     this(Collections.singletonList(source), outputDirectory);
@@ -39,7 +64,9 @@ public class Compiler implements Runnable {
 
   public Compiler(List<Path> sources, Path outputDirectory) {
     this.sources = createSources(sources);
-    this.outputDirectory = outputDirectory;
+    this.outputDirectory = outputDirectory.normalize().toAbsolutePath();
+    validate(sources, outputDirectory);
+    logger.info("JABSC Compiler {} initialized", VERSION);
   }
 
   /**
@@ -47,11 +74,17 @@ public class Compiler implements Runnable {
    * @throws Exception
    */
   public List<Path> compile() throws Exception {
+    logger.info("Compiling from {} to {}", sources, outputDirectory);
     final List<Path> compilations = new ArrayList<>();
     for (Path source : sources) {
+      if (Files.isDirectory(source) && Files.list(source).count() == 0) {
+        logger.info("Source directory {} is empty. Skipping.", source);
+        continue;
+      }
       Path compilation = compile(source, outputDirectory);
       compilations.add(compilation);
     }
+    logger.info("Compiled {} Java sources to: {}", compilations.size(), outputDirectory);
     return compilations;
   }
 
@@ -186,6 +219,39 @@ public class Compiler implements Runnable {
       }
     }
     return new ArrayList<>(result);
+  }
+
+  protected void validate(List<Path> sources, Path outputDirectory) {
+    if (!Files.exists(outputDirectory)) {
+      try {
+        Files.createDirectories(outputDirectory);
+      } catch (IOException e) {
+        throw new IllegalArgumentException(e);
+      }
+    }
+    if (!Files.isWritable(outputDirectory)) {
+      throw new IllegalArgumentException("Cannot write to output directory: " + outputDirectory);
+    }
+    for (Path p : sources) {
+      if (!Files.isReadable(p)) {
+        throw new IllegalArgumentException("Cannot read from source directory: " + p);
+      }
+    }
+  }
+
+  protected static Path createOutputDirectoryPath(String outputDirectory, Path source) {
+    final boolean isSourceDirectory = Files.isDirectory(source) && Files.isReadable(source);
+    if (outputDirectory != null) {
+      return createPath(outputDirectory);
+    } else {
+      return isSourceDirectory
+          ? source.getParent().resolve(DEFAULT_OUTPUT_DIRECTORY_NAME).toAbsolutePath()
+          : source.getParent().getParent().resolve(DEFAULT_OUTPUT_DIRECTORY_NAME).toAbsolutePath();
+    }
+  }
+
+  private static Path createPath(String source) {
+    return Paths.get(source).toAbsolutePath().normalize();
   }
 
 }

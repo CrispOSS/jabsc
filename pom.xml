@@ -25,12 +25,13 @@
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 		<version.abs-api>0.8.6</version.abs-api>
+		<version.airline>0.7</version.airline>
 		<version.jabsc-maven-plugin>0.1.0</version.jabsc-maven-plugin>
 		<version.junit>4.12</version.junit>
 		<version.jflex>1.6.1</version.jflex>
 		<version.cup>2015.03.26</version.cup>
-		<version.javapoet>1.1.0</version.javapoet>
 		<version.javawriter>2.5.1</version.javawriter>
+		<version.slf4j>1.7.12</version.slf4j>
 	</properties>
 
 	<build>
@@ -42,6 +43,37 @@
 					<source>1.8</source>
 					<target>1.8</target>
 				</configuration>
+			</plugin>
+			<plugin>
+				<artifactId>maven-jar-plugin</artifactId>
+				<version>2.6</version>
+				<configuration>
+					<archive>
+						<manifest>
+							<addDefaultImplementationEntries>true</addDefaultImplementationEntries>
+							<addClasspath>true</addClasspath>
+							<classpathPrefix>./</classpathPrefix>
+							<mainClass>jabsc.cli.Bootstrap</mainClass>
+						</manifest>
+					</archive>
+				</configuration>
+			</plugin>
+			<plugin>
+				<artifactId>maven-assembly-plugin</artifactId>
+				<version>2.5.5</version>
+				<configuration>
+					<descriptor>src/main/assembly/assembly-standalone.xml</descriptor>
+					<appendAssemblyId>false</appendAssemblyId>
+				</configuration>
+				<executions>
+					<execution>
+						<id>single</id>
+						<phase>package</phase>
+						<goals>
+							<goal>single</goal>
+						</goals>
+					</execution>
+				</executions>
 			</plugin>
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
@@ -96,13 +128,23 @@
 		</dependency>
 		<dependency>
 			<groupId>com.squareup</groupId>
-			<artifactId>javapoet</artifactId>
-			<version>${version.javapoet}</version>
-		</dependency>
-		<dependency>
-			<groupId>com.squareup</groupId>
 			<artifactId>javawriter</artifactId>
 			<version>${version.javawriter}</version>
+		</dependency>
+		<dependency>
+			<groupId>io.airlift</groupId>
+			<artifactId>airline</artifactId>
+			<version>${version.airline}</version>
+		</dependency>
+		<dependency>
+			<groupId>org.slf4j</groupId>
+			<artifactId>slf4j-simple</artifactId>
+			<version>${version.slf4j}</version>
+		</dependency>
+		<dependency>
+			<groupId>org.slf4j</groupId>
+			<artifactId>jul-to-slf4j</artifactId>
+			<version>${version.slf4j}</version>
 		</dependency>
 	</dependencies>
 
