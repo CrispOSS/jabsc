@@ -102,6 +102,7 @@ import bnfc.abs.Absyn.SThrow;
 import bnfc.abs.Absyn.STryCatchFinally;
 import bnfc.abs.Absyn.SWhile;
 import bnfc.abs.Absyn.Stm;
+import bnfc.abs.Absyn.SyncMethCall;
 import bnfc.abs.Absyn.TGen;
 import bnfc.abs.Absyn.TSimple;
 import bnfc.abs.Absyn.TTyp;
@@ -471,14 +472,11 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   @Override
   public Prog visit(SAwait p, JavaWriter w) {
     try {
-      final Guard g = p.guard_;
-      if (g instanceof ExpGuard) {
-        ExpGuard eg = (ExpGuard) g;
-        StringWriter auxsw = new StringWriter();
-        JavaWriter auxjw = new JavaWriter(auxsw);
-        eg.accept(this, auxjw);
-        w.emitStatement("%s.getValue()", auxsw.toString());
-      }
+      StringWriter auxsw = new StringWriter();
+      JavaWriter auxjw = new JavaWriter(auxsw);
+      p.guard_.accept(this, auxjw);
+      w.emitStatement("%s.getValue()", auxsw.toString());
+      
       return prog;
     } catch (IOException e) {
       throw new RuntimeException(e);
@@ -487,13 +485,28 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 
   @Override
   public Prog visit(FieldGuard p, JavaWriter w) {
-    throw new UnsupportedOperationException("Not implemented yet.");
+    try {
+      w.emit(p.lident_);
+    } catch (IOException x) {
+      throw new RuntimeException(x);
+    }
+    return prog;
   }
 
   @Override
   public Prog visit(ExpGuard p, JavaWriter w) {
     p.pureexp_.accept(this, w);
     return prog;
+  }
+  
+  @Override
+  public Prog visit(VarGuard vg, JavaWriter w) {
+    try {
+      w.emit(vg.lident_);
+      return prog;
+    } catch (IOException x) {
+      throw new RuntimeException(x);
+    }
   }
 
   @Override
@@ -560,10 +573,19 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   @Override
   public Prog visit(SFieldAss fa, JavaWriter w) {
     try {
-      StringWriter auxsw = new StringWriter();
-      JavaWriter auxw = new JavaWriter(auxsw);
-      fa.exp_.accept(this, auxw);
-      w.emitStatement("%s = %s", fa.lident_, auxsw.toString());
+      Exp exp = fa.exp_;
+      if (exp instanceof ExpE == false) {
+        visitStatementAssignmentExp(exp, fa.lident_, null, w);
+      } else if (exp instanceof ExpE) {
+        ExpE expe = (ExpE) exp;
+        EffExp effExp = expe.effexp_;
+        if (effExp instanceof AsyncMethCall == false) {
+          visitStatementAssignmentExp(exp, fa.lident_, null, w);
+        } else if (effExp instanceof AsyncMethCall) {
+          AsyncMethCall amc = (AsyncMethCall) effExp;
+          visitAsyncMethodCall(amc, fa.lident_, w,true);
+        }
+      }
       return prog;
     } catch (IOException e) {
       throw new RuntimeException(e);
@@ -583,7 +605,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
           visitStatementAssignmentExp(exp, ss.lident_, null, w);
         } else if (effExp instanceof AsyncMethCall) {
           AsyncMethCall amc = (AsyncMethCall) effExp;
-          visitAyncMethodCall(amc, ss.lident_, w);
+          visitAsyncMethodCall(amc, ss.lident_, w, false);
         }
       }
       return prog;
@@ -606,7 +628,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
           visitStatementAssignmentExp(exp, p.lident_, varType, w);
         } else if (effExp instanceof AsyncMethCall) {
           AsyncMethCall amc = (AsyncMethCall) effExp;
-          visitAyncMethodCall(amc, p.lident_, w);
+          visitAsyncMethodCall(amc, p.lident_, w, false);
         }
       }
       return prog;
@@ -615,33 +637,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
     }
   }
 
-  protected void visitAyncMethodCall(AsyncMethCall amc, String responseVarName, JavaWriter w)
-      throws IOException {
-    String calleeId = getCalleeId(amc);
-    List<String> params = getCalleeMethodParams(amc);
-    String msgVarName = "msg_" + calleeId.hashCode();
-    String msgStatement = generateMessageStatement(msgVarName, null,
-        generateJavaMethodInvocation(calleeId, amc.lident_, params));
-    w.emit(msgStatement, true);
-    w.emitStatementEnd();
-    String sendStm =
-        generateMessageInvocationStatement(calleeId, false, null, msgVarName, responseVarName);
-    w.emit(sendStm, true);
-    w.emitStatementEnd();
-  }
-
-  protected void visitStatementAssignmentExp(Exp exp, String varName, String varType, JavaWriter w)
-      throws IOException {
-    StringWriter auxsw = new StringWriter();
-    JavaWriter auxw = new JavaWriter(auxsw);
-    exp.accept(this, auxw);
-    if (varType == null) {
-      w.emitStatement("%s = %s", varName, auxsw.toString());
-    } else {
-      w.emitStatement("%s %s = %s", varType, varName, auxsw.toString());
-    }
-  }
-
+  
   @Override
   public Prog visit(SReturn r, JavaWriter w) {
     try {
@@ -990,7 +986,17 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   @Override
   public Prog visit(AsyncMethCall amc, JavaWriter w) {
     try {
-      visitAyncMethodCall(amc, null, w);
+      visitAsyncMethodCall(amc, null, w, false);
+      return prog;
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
+  }
+  
+  @Override
+  public Prog visit(SyncMethCall smc, JavaWriter w) {
+    try {
+      visitSyncMethodCall(smc, smc.lident_+"future", w);
       return prog;
     } catch (IOException e) {
       throw new RuntimeException(e);
@@ -1073,15 +1079,8 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
     }
   }
 
-  @Override
-  public Prog visit(VarGuard vg, JavaWriter w) {
-    try {
-      w.emit(vg.lident_);
-      return prog;
-    } catch (IOException x) {
-      throw new RuntimeException(x);
-    }
-  }
+  
+  
 
   protected void visitMain(Modul m, JavaWriter w) {
     try {
@@ -1112,6 +1111,51 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
     }
     w.emitEmptyLine();
   }
+  
+  protected void visitAsyncMethodCall(AsyncMethCall amc, String responseVarName, JavaWriter w, boolean responseIsField)
+      throws IOException {
+    String calleeId = getCalleeId(amc);
+    List<String> params = getCalleeMethodParams(amc);
+    String msgVarName = "msg_" + calleeId.hashCode();
+    String msgStatement = generateMessageStatement(msgVarName, null,
+        generateJavaMethodInvocation(calleeId, amc.lident_, params));
+    w.emit(msgStatement, true);
+    w.emitStatementEnd();
+    String sendStm =
+        generateMessageInvocationStatement(calleeId, false, null, msgVarName, responseVarName);
+    w.emit(sendStm, true);
+    w.emitStatementEnd();
+  }
+
+  protected void visitSyncMethodCall(SyncMethCall smc, String responseVarName, JavaWriter w)
+      throws IOException {
+    String calleeId = getCalleeId(smc);
+    List<String> params = getCalleeMethodParams(smc);
+    String msgVarName = "msg_" + calleeId.hashCode();
+    String msgStatement = generateMessageStatement(msgVarName, null,
+        generateJavaMethodInvocation(calleeId, smc.lident_, params));
+    w.emit(msgStatement, true);
+    w.emitStatementEnd();
+    String sendStm =
+        generateMessageInvocationStatement(calleeId, false, null, msgVarName, responseVarName);
+    w.emit(sendStm, true);
+    w.emitStatementEnd();
+    w.emitStatement("%s.getValue()", responseVarName);
+    
+  }
+  
+  protected void visitStatementAssignmentExp(Exp exp, String varName, String varType, JavaWriter w)
+      throws IOException {
+    StringWriter auxsw = new StringWriter();
+    JavaWriter auxw = new JavaWriter(auxsw);
+    exp.accept(this, auxw);
+    if (varType == null) {
+      w.emitStatement("%s = %s", varName, auxsw.toString());
+    } else {
+      w.emitStatement("%s %s = %s", varType, varName, auxsw.toString());
+    }
+  }
+
 
   protected List<String> getCalleeMethodParams(AsyncMethCall amc) {
     List<String> parameters = new ArrayList<>();
@@ -1124,10 +1168,29 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
     return parameters;
   }
 
+  protected List<String> getCalleeMethodParams(SyncMethCall smc) {
+    List<String> parameters = new ArrayList<>();
+    for (PureExp par : smc.listpureexp_) {
+      StringWriter parSW = new StringWriter();
+      JavaWriter parameterWriter = new JavaWriter(parSW);
+      par.accept(this, parameterWriter);
+      parameters.add(parSW.toString());
+    }
+    return parameters;
+  }
+  
   protected String getCalleeId(AsyncMethCall amc) {
     StringWriter auxsw = new StringWriter();
     JavaWriter auxw = new JavaWriter(auxsw);
     amc.pureexp_.accept(this, auxw);
+    String calleeId = auxsw.toString();
+    return calleeId;
+  }
+  
+  protected String getCalleeId(SyncMethCall smc) {
+    StringWriter auxsw = new StringWriter();
+    JavaWriter auxw = new JavaWriter(auxsw);
+    smc.pureexp_.accept(this, auxw);
     String calleeId = auxsw.toString();
     return calleeId;
   }
