@@ -1,7 +1,7 @@
 module IPrime;
 
 interface IPrime {
-	Unit divide (Int n);
+	Integer divide (Int n);
 }
 
 interface ISieve {
@@ -25,10 +25,10 @@ class Sieve(Int bound) {
 
 class Prime (Int p) implements IPrime {
 	IPrime next;
-	Unit divide (Int n) {
+	Int divide (Int n) {
 		if ( (n % p) != 0) {
 			if (next != null) {
-				Response<Void> f = next!divide (n);
+				Fut<Int> f = next!divide (n);
 				await f?;
 				this.divide(n);
 			}
@@ -36,6 +36,7 @@ class Prime (Int p) implements IPrime {
 				next = new Prime(n);
 			}
 		}
+		return -1;
 	}
 }
 

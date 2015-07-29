@@ -7,16 +7,23 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.Stack;
 import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
 
 import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.Modifier;
 
+import com.google.common.base.Supplier;
+import com.google.common.collect.Multimap;
+import com.google.common.collect.Multimaps;
+
 import abs.api.Actor;
+import abs.api.Functional;
 import abs.api.Response;
 import bnfc.abs.AbstractVisitor;
 import bnfc.abs.Absyn.AnyImport;
@@ -127,14 +134,31 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   private static final String[] DEFAULT_IMPORTS =
       new String[] {Collection.class.getPackage().getName() + ".*",
           Callable.class.getPackage().getName() + ".*", Actor.class.getPackage().getName() + ".*"};
-  private static final String[] DEFAULT_STATIC_IMPORTS =
-      new String[] {/* "abs.api.Functional.*" */};
+  private static final String[] DEFAULT_STATIC_IMPORTS = new String[] {
+      Functional.class.getPackage().getName() + "." + Functional.class.getSimpleName() + ".*"};
 
   private final Set<String> moduleNames;
   private final Prog prog;
   private final JavaWriterSupplier javaWriterSupplier;
   private final String packageName;
   private final JavaTypeTranslator javaTypeTranslator;
+
+  // Internal state
+  private static final Multimap<String, MethodDefinition> METHODS =
+      Multimaps.newSetMultimap(new HashMap<>(), new Supplier<Set<MethodDefinition>>() {
+        @Override
+        public Set<MethodDefinition> get() {
+          return new HashSet<>();
+        }
+      });
+  private static final Multimap<String, VarDefinition> VARIABLES =
+      Multimaps.newSetMultimap(new HashMap<>(), new Supplier<Set<VarDefinition>>() {
+        @Override
+        public Set<VarDefinition> get() {
+          return new HashSet<>();
+        }
+      });
+  private final Stack<Module> modules = new Stack<>();
 
   /**
    * Ctor.
@@ -159,7 +183,9 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
     try {
       for (Module module : ((Prog) p).listmodule_) {
         moduleNames.add(getQTypeName(((Modul) module).qtype_));
+        modules.push(module);
         module.accept(this, w);
+        modules.pop();
         w.emitEmptyLine();
       }
     } catch (IOException e) {
@@ -390,11 +416,15 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
       String returnType = getTypeName(ms.type_);
       String name = ms.lident_;
       List<String> parameters = new ArrayList<>();
+      List<String> parameterTypes = new ArrayList<>();
       for (Param param : ms.listparam_) {
         Par p = (Par) param;
-        parameters.add(getTypeName(p.type_));
+        String paramType = getTypeName(p.type_);
+        parameters.add(paramType);
         parameters.add(p.lident_);
+        parameterTypes.add(paramType);
       }
+      createMethodDefinition(returnType, name, parameterTypes);
       w.beginMethod(returnType, name, DEFAULT_MODIFIERS, parameters, Collections.emptyList());
       w.endMethod();
       w.emitEmptyLine();
@@ -404,12 +434,13 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
     }
   }
 
-
   @Override
   public Prog visit(FieldClassBody p, JavaWriter w) {
     try {
       String fieldType = getTypeName(p.type_);
-      emitField(w, fieldType, p.lident_, null, false);
+      String fieldName = p.lident_;
+      emitField(w, fieldType, fieldName, null, false);
+      createVarDefinition(fieldName, fieldType);
       w.emitEmptyLine();
       return prog;
     } catch (IOException e) {
@@ -422,10 +453,12 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   public Prog visit(FieldAssignClassBody p, JavaWriter w) {
     try {
       String fieldType = getTypeName(p.type_);
+      String fieldName = p.lident_;
       StringWriter auxsw = new StringWriter();
       JavaWriter auxw = new JavaWriter(auxsw);
       p.pureexp_.accept(this, auxw);
-      emitField(w, fieldType, p.lident_, auxsw.toString(), false);
+      emitField(w, fieldType, fieldName, auxsw.toString(), false);
+      createVarDefinition(fieldName, fieldType);
       w.emitEmptyLine();
       return prog;
     } catch (IOException e) {
@@ -434,18 +467,22 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   }
 
   @Override
-  public Prog visit(MethClassBody p, JavaWriter w) {
+  public Prog visit(MethClassBody mcb, JavaWriter w) {
     try {
-      String returnType = getTypeName(p.type_);
-      String name = p.lident_;
+      String returnType = getTypeName(mcb.type_);
+      String name = mcb.lident_;
       List<String> parameters = new ArrayList<>();
-      for (Param param : p.listparam_) {
-        Par p1 = (Par) param;
-        parameters.add(getTypeName(p1.type_));
-        parameters.add(p1.lident_);
+      List<String> parameterTypes = new ArrayList<>();
+      for (Param param : mcb.listparam_) {
+        Par p = (Par) param;
+        String paramType = getTypeName(p.type_);
+        parameters.add(paramType);
+        parameters.add(p.lident_);
+        parameterTypes.add(paramType);
       }
       w.beginMethod(returnType, name, DEFAULT_MODIFIERS, parameters, Collections.emptyList());
-      p.block_.accept(this, w);
+      createMethodDefinition(returnType, name, parameterTypes);
+      mcb.block_.accept(this, w);
       w.endMethod();
       w.emitEmptyLine();
       return prog;
@@ -563,7 +600,9 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   public Prog visit(SDec p, JavaWriter w) {
     try {
       String fieldType = getTypeName(p.type_);
-      emitField(w, fieldType, p.lident_, null, false);
+      String fieldName = p.lident_;
+      emitField(w, fieldType, fieldName, null, false);
+      createVarDefinition(fieldName, fieldType);
       w.emitEmptyLine();
       return prog;
     } catch (IOException e) {
@@ -584,7 +623,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
           visitStatementAssignmentExp(exp, fa.lident_, null, w);
         } else if (effExp instanceof AsyncMethCall) {
           AsyncMethCall amc = (AsyncMethCall) effExp;
-          visitAsyncMethodCall(amc, fa.lident_, w, true);
+          visitAsyncMethodCall(amc, fa.lident_, w);
         }
       }
       return prog;
@@ -606,7 +645,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
           visitStatementAssignmentExp(exp, ss.lident_, null, w);
         } else if (effExp instanceof AsyncMethCall) {
           AsyncMethCall amc = (AsyncMethCall) effExp;
-          visitAsyncMethodCall(amc, ss.lident_, w, false);
+          visitAsyncMethodCall(amc, ss.lident_, w);
         }
       }
       return prog;
@@ -629,7 +668,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
           visitStatementAssignmentExp(exp, p.lident_, varType, w);
         } else if (effExp instanceof AsyncMethCall) {
           AsyncMethCall amc = (AsyncMethCall) effExp;
-          visitAsyncMethodCall(amc, p.lident_, w, false);
+          visitAsyncMethodCall(amc, p.lident_, w);
         }
       }
       return prog;
@@ -987,7 +1026,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   @Override
   public Prog visit(AsyncMethCall amc, JavaWriter w) {
     try {
-      visitAsyncMethodCall(amc, null, w, false);
+      visitAsyncMethodCall(amc, null, w);
       return prog;
     } catch (IOException e) {
       throw new RuntimeException(e);
@@ -1009,7 +1048,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
     try {
       ELit lhs = new ELit(new LThis());
       AsyncMethCall amc = new AsyncMethCall(lhs, p.lident_, p.listpureexp_);
-      visitAsyncMethodCall(amc, null, w, false);
+      visitAsyncMethodCall(amc, null, w);
       return prog;
     } catch (IOException e) {
       throw new RuntimeException(e);
@@ -1136,17 +1175,20 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
     w.emitEmptyLine();
   }
 
-  protected void visitAsyncMethodCall(AsyncMethCall amc, String responseVarName, JavaWriter w,
-      boolean responseIsField) throws IOException {
+  protected void visitAsyncMethodCall(AsyncMethCall amc, String responseVarName, JavaWriter w)
+      throws IOException {
     String calleeId = getCalleeId(amc);
     List<String> params = getCalleeMethodParams(amc);
+    String methodName = amc.lident_;
+    String potentialReturnType =
+        findMethodReturnType(methodName, findVariableType(calleeId), params);
     String msgVarName = "msg_" + calleeId.hashCode();
-    String msgStatement = generateMessageStatement(msgVarName, null,
-        generateJavaMethodInvocation(calleeId, amc.lident_, params));
+    String msgStatement = generateMessageStatement(msgVarName, potentialReturnType,
+        generateJavaMethodInvocation(calleeId, methodName, params));
     w.emit(msgStatement, true);
     w.emitStatementEnd();
-    String sendStm =
-        generateMessageInvocationStatement(calleeId, false, null, msgVarName, responseVarName);
+    String sendStm = generateMessageInvocationStatement(calleeId, false, potentialReturnType,
+        msgVarName, responseVarName);
     w.emit(sendStm, true);
     w.emitStatementEnd();
   }
@@ -1156,12 +1198,15 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
     String calleeId = getCalleeId(smc);
     List<String> params = getCalleeMethodParams(smc);
     String msgVarName = "msg_" + calleeId.hashCode();
-    String msgStatement = generateMessageStatement(msgVarName, null,
-        generateJavaMethodInvocation(calleeId, smc.lident_, params));
+    String methodName = smc.lident_;
+    String potentialReturnType =
+        findMethodReturnType(methodName, findVariableType(calleeId), params);
+    String msgStatement = generateMessageStatement(msgVarName, potentialReturnType,
+        generateJavaMethodInvocation(calleeId, methodName, params));
     w.emit(msgStatement, true);
     w.emitStatementEnd();
-    String sendStm =
-        generateMessageInvocationStatement(calleeId, false, null, msgVarName, responseVarName);
+    String sendStm = generateMessageInvocationStatement(calleeId, false, potentialReturnType,
+        msgVarName, responseVarName);
     w.emit(sendStm, true);
     w.emitStatementEnd();
     w.emitStatement("%s.getValue()", responseVarName);
@@ -1177,9 +1222,9 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
       w.emitStatement("%s = %s", varName, auxsw.toString());
     } else {
       w.emitStatement("%s %s = %s", varType, varName, auxsw.toString());
+      createVarDefinition(varName, varType);
     }
   }
-
 
   protected List<String> getCalleeMethodParams(AsyncMethCall amc) {
     List<String> parameters = new ArrayList<>();
@@ -1468,6 +1513,63 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
       return sQ.toString();
     }
     return null;
+  }
+
+  private String findVariableType(String varName) {
+    for (String fqClassName : VARIABLES.keySet()) {
+      if (!fqClassName.startsWith(this.packageName)) {
+        continue;
+      }
+      Collection<VarDefinition> variables = VARIABLES.get(fqClassName);
+      for (VarDefinition vd : variables) {
+        if (vd.getName().equals(varName)) {
+          return vd.getType();
+        }
+      }
+    }
+    return null;
+  }
+
+  private String findMethodReturnType(String methodName, String calleeClassType,
+      List<String> actualParamNames) {
+    for (String fqClassName : METHODS.keySet()) {
+      if (calleeClassType != null && !fqClassName.endsWith(calleeClassType)) {
+        continue;
+      }
+      Collection<MethodDefinition> methods = METHODS.get(fqClassName);
+      for (MethodDefinition md : methods) {
+        if (md.matches(methodName, actualParamNames)) {
+          return md.type();
+        }
+      }
+    }
+    return null;
+  }
+
+  private void createVarDefinition(String varName, String varType) {
+    Module current = currentModule();
+    if (current == null) {
+      throw new IllegalStateException("No current module is available.");
+    }
+    String clazz = getQTypeName(((Modul) current).qtype_);
+    String fqClassName = this.packageName + "." + clazz;
+    VarDefinition vd = new VarDefinition(varName, varType);
+    VARIABLES.put(fqClassName, vd);
+  }
+
+  private void createMethodDefinition(String returnType, String name, List<String> parameters) {
+    Module current = currentModule();
+    if (current == null) {
+      throw new IllegalStateException("No current module is available.");
+    }
+    String clazz = getQTypeName(((Modul) current).qtype_);
+    String fqClassName = this.packageName + "." + clazz;
+    MethodDefinition md = new MethodDefinition(fqClassName, returnType, name, parameters);
+    METHODS.put(fqClassName, md);
+  }
+
+  private Module currentModule() {
+    return this.modules.peek();
   }
 
 }

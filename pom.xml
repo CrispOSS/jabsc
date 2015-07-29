@@ -24,7 +24,7 @@
 
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-		<version.abs-api>0.8.6</version.abs-api>
+		<version.abs-api>0.8.7</version.abs-api>
 		<version.airline>0.7</version.airline>
 		<version.jabsc-maven-plugin>0.1.0</version.jabsc-maven-plugin>
 		<version.junit>4.12</version.junit>
