@@ -4,9 +4,12 @@ import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.List;
 
 import org.junit.Assert;
 import org.junit.Test;
+
+import com.google.common.collect.Lists;
 
 public class CompilerTest {
 
@@ -25,7 +28,10 @@ public class CompilerTest {
   @Test
   public void compileTestABSSources() throws Exception {
     Files.createDirectories(outputDirectory);
-    Compiler compiler = new Compiler(Paths.get(uri.toURI()).getParent(), outputDirectory);
+    Path directory = Paths.get(uri.toURI()).getParent();
+    List<Path> sources =
+        Lists.newArrayList(directory.resolve("IPrime.abs"), directory.resolve("TestInterface.abs"));
+    Compiler compiler = new Compiler(sources, outputDirectory).enableDebugMode();
     compiler.compile();
     Assert.assertTrue(Files.list(outputDirectory).count() > 0);
   }

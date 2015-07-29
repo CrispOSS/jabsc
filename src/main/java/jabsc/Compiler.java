@@ -53,6 +53,7 @@ public class Compiler implements Runnable {
 
   private final List<Path> sources;
   private final Path outputDirectory;
+  private boolean debug = false;
 
   public Compiler(String source, String outputDirectory) {
     this(createPath(source), createOutputDirectoryPath(outputDirectory, createPath(source)));
@@ -95,6 +96,11 @@ public class Compiler implements Runnable {
     } catch (Exception e) {
       throw new RuntimeException(e);
     }
+  }
+
+  public Compiler enableDebugMode() {
+    this.debug = true;
+    return this;
   }
 
   /**
@@ -164,7 +170,15 @@ public class Compiler implements Runnable {
   protected Program parseSource(final BufferedReader reader) throws Exception {
     final Yylex lexer = new Yylex(reader);
     final parser parser = new parser(lexer);
-    return parser.pProgram();
+    try {
+      return debug ? (Program) parser.debug_parse().value : (Program) parser.parse().value;
+    } catch (Exception e) {
+      if (debug) {
+        parser.dump_stack();
+      }
+      logger.error("Compile error found at line {} near {}", lexer.line_num(), lexer.buff());
+      throw e;
+    }
   }
 
   /**

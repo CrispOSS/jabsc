@@ -28,8 +28,8 @@ class Prime (Int p) implements IPrime {
 	Unit divide (Int n) {
 		if ( (n % p) != 0) {
 			if (next != null) {
-				Fut f = next!divide (n);
-				await f;
+				Response<Void> f = next!divide (n);
+				await f?;
 				this.divide(n);
 			}
 			else {
