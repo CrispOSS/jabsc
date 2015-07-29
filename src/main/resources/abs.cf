@@ -182,9 +182,7 @@ LInt.    Literal ::= Integer ;
 New. EffExp ::= "new" Type "(" [PureExp] ")" ;
 NewLocal. EffExp ::= "new" "local" Type "(" [PureExp] ")" ;
 SyncMethCall. EffExp ::= PureExp "." LIdent "(" [PureExp] ")" ;
-ThisSyncMethCall. EffExp ::= "this" "." LIdent "(" [PureExp] ")" ;
 AsyncMethCall. EffExp ::= PureExp "!" LIdent "(" [PureExp] ")" ;
-ThisAsyncMethCall. EffExp ::= "this" "!" LIdent "(" [PureExp] ")" ;
 Get. EffExp ::= PureExp "." "get" ;
 Spawns. EffExp ::= PureExp "spawns" Type "(" [PureExp] ")" ;
 
