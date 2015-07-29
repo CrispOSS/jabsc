@@ -31,6 +31,7 @@ class Prime (Int p) implements IPrime {
 				Fut<Int> f = next!divide (n);
 				await f?;
 				this.divide(n);
+				println(n);
 			}
 			else {
 				next = new Prime(n);
