@@ -6,10 +6,12 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.Stack;
 import java.util.concurrent.Callable;
@@ -76,6 +78,8 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
         }
       });
   private final Stack<Module> modules = new Stack<>();
+  private final EnumMap<ElementKind, Set<Decl>> elements = new EnumMap<>(ElementKind.class);
+  private final Map<String, String> classNames = new HashMap<>();
 
   /**
    * Ctor.
@@ -98,7 +102,9 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   @Override
   public Prog visit(Prog p, JavaWriter w) {
     try {
-      for (Module module : ((Prog) p).listmodule_) {
+      Prog program = (Prog) p;
+      determineProgramDeclarationTypes(program);
+      for (Module module : program.listmodule_) {
         moduleNames.add(getQTypeName(((Modul) module).qtype_));
         modules.push(module);
         module.accept(this, w);
@@ -114,16 +120,30 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   @Override
   public Prog visit(Modul m, JavaWriter w) {
     try {
-      w.emitPackage(packageName);
-      final ListImport imports = m.listimport_;
-      for (Decl decl : m.listdecl_) {
-        JavaWriter jw = createJavaWriter(decl, w);
-        visitImports(imports, jw);
-        decl.accept(this, jw);
-        jw.emitEmptyLine();
-        close(jw, w);
+
+      // Interfaces
+      for (Decl decl : elements.get(ElementKind.INTERFACE)) {
+        String name = getTopLevelDeclIdentifier(decl);
+        JavaWriter declWriter = javaWriterSupplier.apply(name);
+        declWriter.emitPackage(packageName);
+        visitImports(m.listimport_, declWriter);
+        decl.accept(this, declWriter);
+        close(declWriter, w);
       }
+
+      // Classes
+      for (Decl decl : elements.get(ElementKind.CLASS)) {
+        String name = getTopLevelDeclIdentifier(decl);
+        final String refinedClassName = getRefinedClassName(name);
+        JavaWriter declWriter = javaWriterSupplier.apply(refinedClassName);
+        declWriter.emitPackage(packageName);
+        visitImports(m.listimport_, declWriter);
+        decl.accept(this, declWriter);
+        close(declWriter, w);
+      }
+
       visitMain(m, w);
+
       return prog;
     } catch (IOException e) {
       throw new RuntimeException(e);
@@ -183,7 +203,8 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   public Prog visit(ClassDecl p, JavaWriter w) {
     try {
       final String identifier = p.uident_;
-      beginElementKind(w, ElementKind.CLASS, identifier, DEFAULT_MODIFIERS, null, null);
+      final String className = getRefinedClassName(identifier);
+      beginElementKind(w, ElementKind.CLASS, className, DEFAULT_MODIFIERS, null, null);
       w.emitEmptyLine();
       for (ClassBody cb : p.listclassbody_1) {
         cb.accept(this, w);
@@ -209,8 +230,8 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   public Prog visit(ClassImplements ci, JavaWriter w) {
     try {
       final String identifier = ci.uident_;
-      beginElementKind(w, ElementKind.CLASS, identifier, DEFAULT_MODIFIERS, null,
-          toList(ci.listqtype_));
+      beginElementKind(w, ElementKind.CLASS, getRefinedClassName(identifier), DEFAULT_MODIFIERS,
+          null, toList(ci.listqtype_));
       w.emitEmptyLine();
       for (ClassBody cb : ci.listclassbody_1) {
         cb.accept(this, w);
@@ -236,7 +257,8 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   public Prog visit(ClassParamDecl cpd, JavaWriter w) {
     try {
       final String identifier = cpd.uident_;
-      beginElementKind(w, ElementKind.CLASS, identifier, DEFAULT_MODIFIERS, null, null);
+      beginElementKind(w, ElementKind.CLASS, getRefinedClassName(identifier), DEFAULT_MODIFIERS,
+          null, null);
       w.emitEmptyLine();
       List<String> parameters = new ArrayList<>();
       for (Param param : cpd.listparam_) {
@@ -276,8 +298,8 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   public Prog visit(ClassParamImplements cpi, JavaWriter w) {
     try {
       final String identifier = cpi.uident_;
-      beginElementKind(w, ElementKind.CLASS, identifier, DEFAULT_MODIFIERS, null,
-          toList(cpi.listqtype_));
+      beginElementKind(w, ElementKind.CLASS, getRefinedClassName(identifier), DEFAULT_MODIFIERS,
+          null, toList(cpi.listqtype_));
       w.emitEmptyLine();
       List<String> parameters = new ArrayList<>();
       for (Param param : cpi.listparam_) {
@@ -301,7 +323,6 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
         w.emitStatement("this." + p.lident_ + " = " + p.lident_);
       }
       cpi.maybeblock_.accept(this, w);
-
       w.endConstructor();
       w.emitEmptyLine();
       for (ClassBody cb : cpi.listclassbody_2) {
@@ -317,7 +338,6 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   @Override
   public Prog visit(JustBlock jb, JavaWriter w) {
     jb.block_.accept(this, w);
-
     return prog;
   }
 
@@ -1467,8 +1487,8 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
         msgVarName, responseVarName);
     w.emit(sendStm, true);
     w.emitStatementEnd();
-    w.emitStatement("%s.getValue()", responseVarName);
-
+    w.emit(responseVarName + ".getValue()", true);
+    w.emitStatementEnd();
   }
 
   protected void visitStatementAssignmentExp(Exp exp, String varName, String varType, JavaWriter w)
@@ -1735,6 +1755,9 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
     if (decl instanceof InterfDecl) {
       return ((InterfDecl) decl).uident_;
     }
+    if (decl instanceof FunDecl) {
+      return ((FunDecl) decl).lident_;
+    }
     if (decl == null) {
       return MAIN_CLASS_NAME;
     }
@@ -1828,6 +1851,53 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 
   private Module currentModule() {
     return this.modules.peek();
+  }
+
+  private void determineProgramDeclarationTypes(Prog program) {
+    /*
+     * ABS allows for SAME naming of an interface and an
+     * implementing class. To be able to properly compile this,
+     * we need to eagerly identify the elements of an ABS
+     * program. Strategy of compiling:
+     * 
+     * 1. Compile interfaces to separate files
+     * 
+     * 2. Compile classes to separate files
+     */
+
+    elements.clear();
+
+    for (ElementKind k : EnumSet.of(ElementKind.INTERFACE, ElementKind.CLASS)) {
+      elements.put(k, new HashSet<>());
+    }
+    for (Module module : program.listmodule_) {
+      Modul m = (Modul) module;
+      for (Decl decl : m.listdecl_) {
+        if (decl instanceof InterfDecl || decl instanceof ExtendsDecl) {
+          elements.get(ElementKind.INTERFACE).add(decl);
+        }
+      }
+    }
+    for (Module module : program.listmodule_) {
+      Modul m = (Modul) module;
+      for (Decl decl : m.listdecl_) {
+        if (decl instanceof InterfDecl || decl instanceof ExtendsDecl) {
+          continue;
+        }
+        final String className = getTopLevelDeclIdentifier(decl);
+        if (elements.get(ElementKind.INTERFACE).stream()
+            .anyMatch(d -> className.equals(getTopLevelDeclIdentifier(d)))) {
+          classNames.put(className, className + "Impl");
+        } else {
+          classNames.put(className, className);
+        }
+        elements.get(ElementKind.CLASS).add(decl);
+      }
+    }
+  }
+
+  private String getRefinedClassName(String name) {
+    return classNames.get(name);
   }
 
 }

@@ -266,7 +266,9 @@ class MapReduce implements MapReduce {
   // only modify state that is introduced in the same delta.
   Worker getWorker() {
     if (nWorkers < numNodes()) {
-      Worker w = new cog Worker(this);
+      // XXX: jabsc: COG NOT SUPPORTED
+      // Worker w = new cog Worker(this);
+      Worker w = new Worker(this);
       workers = insertElement(workers, w);
       nWorkers = nWorkers + 1;
     }

@@ -66,7 +66,7 @@ public class Compiler implements Runnable {
   public Compiler(List<Path> sources, Path outputDirectory) {
     this.sources = createSources(sources);
     this.outputDirectory = outputDirectory.normalize().toAbsolutePath();
-    validate(sources, outputDirectory);
+    validate(this.sources, outputDirectory);
     logger.info("JABSC Compiler {} initialized", VERSION);
   }
 
@@ -176,7 +176,7 @@ public class Compiler implements Runnable {
       if (debug) {
         parser.dump_stack();
       }
-      logger.error("Compile error found at line {} near {}", lexer.line_num(), lexer.buff());
+      logger.error("Compile error found at line {} near:\n\t{}", lexer.line_num(), lexer.buff());
       throw e;
     }
   }
