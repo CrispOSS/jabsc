@@ -1,3 +1,5 @@
-v0.5.0
+# CHANGELOG
 
-* #4 Create a Maven plugin for jabsc
+## v0.1.5
+
+* [#42](https://github.com/CrispOSS/jabsc/issues/#42) Deliver Maven artifact with OSGi meta-data
