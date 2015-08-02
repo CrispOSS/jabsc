@@ -14,10 +14,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.slf4j.bridge.SLF4JBridgeHandler;
+import java.util.logging.Logger;
 
 import bnfc.abs.Yylex;
 import bnfc.abs.parser;
@@ -33,23 +30,24 @@ public class Compiler implements Runnable {
 
   public static final String DEFAULT_OUTPUT_DIRECTORY_NAME = "generated-sources/jabsc";
 
+  private final Logger logger = Logger.getLogger(getClass().getName());
+
   /**
    * The version of JABSC Compiler.
    */
   private static final String VERSION;
 
   static {
+    // Set j.u.logging format: [LEVEL] MSG [THROWABLE]
+    System.setProperty("java.util.logging.SimpleFormatter.format", "[%4$s] %5$s%n%6$s");
     VERSION = Optional.ofNullable(Compiler.class.getPackage().getImplementationVersion())
         .orElse("1.x-SNAPSHOT");
-    SLF4JBridgeHandler.install();
   }
 
   /**
    * .java
    */
   private static final String JAVA_FILE_EXTENSION = ".java";
-
-  private final Logger logger = LoggerFactory.getLogger(getClass());
 
   private final List<Path> sources;
   private final Path outputDirectory;
@@ -67,7 +65,7 @@ public class Compiler implements Runnable {
     this.sources = createSources(sources);
     this.outputDirectory = outputDirectory.normalize().toAbsolutePath();
     validate(this.sources, outputDirectory);
-    logger.info("JABSC Compiler {} initialized", VERSION);
+    logger.info("jabsc " + VERSION);
   }
 
   /**
@@ -75,17 +73,17 @@ public class Compiler implements Runnable {
    * @throws Exception
    */
   public List<Path> compile() throws Exception {
-    logger.info("Compiling from {} to {}", sources, outputDirectory);
+    logger.info("Compiling from " + sources + " to " + outputDirectory);
     final List<Path> compilations = new ArrayList<>();
     for (Path source : sources) {
       if (Files.isDirectory(source) && Files.list(source).count() == 0) {
-        logger.info("Source directory {} is empty. Skipping.", source);
+        logger.info("Source directory " + source + " is empty. Skipping.");
         continue;
       }
       Path compilation = compile(source, outputDirectory);
       compilations.add(compilation);
     }
-    logger.info("Compiled {} Java sources to: {}", compilations.size(), outputDirectory);
+    logger.info("Compiled " + compilations.size() + " Java sources to: " + outputDirectory);
     return compilations;
   }
 
@@ -176,7 +174,8 @@ public class Compiler implements Runnable {
       if (debug) {
         parser.dump_stack();
       }
-      logger.error("Compile error found at line {} near:\n\t{}", lexer.line_num(), lexer.buff());
+      logger.severe(
+          "Compile error found at line " + lexer.line_num() + " near:\n\t{}" + lexer.buff());
       throw e;
     }
   }

@@ -15,13 +15,11 @@ import java.util.Map;
 import java.util.Set;
 import java.util.Stack;
 import java.util.concurrent.Callable;
+import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
 import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.Modifier;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import com.google.common.base.Supplier;
 import com.google.common.collect.Multimap;
@@ -54,7 +52,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 
   // Internal Fields
 
-  private static final Logger LOGGER = LoggerFactory.getLogger(Visitor.class);
+  private static final Logger LOGGER = Logger.getLogger(Visitor.class.getName());
 
   private final Set<String> moduleNames;
   private final Prog prog;
@@ -101,18 +99,15 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 
   @Override
   public Prog visit(Prog p, JavaWriter w) {
-    try {
-      Prog program = (Prog) p;
-      determineProgramDeclarationTypes(program);
-      for (Module module : program.listmodule_) {
-        moduleNames.add(getQTypeName(((Modul) module).qtype_));
-        modules.push(module);
-        module.accept(this, w);
-        modules.pop();
-        w.emitEmptyLine();
-      }
-    } catch (IOException e) {
-      throw new RuntimeException(e);
+    // WARNING: `w` should NOT be used in this method;
+    // otherwise, I/O issues occur during generation.
+    Prog program = (Prog) p;
+    determineProgramDeclarationTypes(program);
+    for (Module module : program.listmodule_) {
+      moduleNames.add(getQTypeName(((Modul) module).qtype_));
+      modules.push(module);
+      module.accept(this, w);
+      modules.pop();
     }
     return prog;
   }
@@ -346,7 +341,6 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
     return prog;
   }
 
-
   @Override
   public Prog visit(MethSig ms, JavaWriter w) {
     try {
@@ -451,7 +445,6 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
       JavaWriter auxjw = new JavaWriter(auxsw);
       p.guard_.accept(this, auxjw);
       w.emitStatement("%s.getValue()", auxsw.toString());
-
       return prog;
     } catch (IOException e) {
       throw new RuntimeException(e);
@@ -614,7 +607,6 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
     }
   }
 
-
   @Override
   public Prog visit(SReturn r, JavaWriter w) {
     try {
@@ -626,8 +618,6 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
     } catch (IOException e) {
       throw new RuntimeException(e);
     }
-
-
   }
 
   @Override
@@ -642,7 +632,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 
   @Override
   public Prog visit(SSkip sk, JavaWriter w) {
-    LOGGER.warn("Not implemented: #visit({})", sk);
+    logNotImplemented("#visit(%s)", sk);
     return prog;
   }
 
@@ -1082,193 +1072,193 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 
   @Override
   public Prog visit(AnyIden p, JavaWriter arg) {
-    LOGGER.warn("Not implemented: #visit({})", p);
+    logNotImplemented("#visit(%s)", p);
     return prog;
   }
 
   @Override
   public Prog visit(AnyTyIden p, JavaWriter arg) {
-    LOGGER.warn("Not implemented: #visit({})", p);
+    logNotImplemented("#visit(%s)", p);
     return prog;
   }
 
   @Override
   public Prog visit(AnyExport p, JavaWriter arg) {
-    LOGGER.warn("Not implemented: #visit({})", p);
+    logNotImplemented("#visit(%s)", p);
     return prog;
   }
 
   @Override
   public Prog visit(AnyFromExport p, JavaWriter arg) {
-    LOGGER.warn("Not implemented: #visit({})", p);
+    logNotImplemented("#visit(%s)", p);
     return prog;
   }
 
   @Override
   public Prog visit(StarExport p, JavaWriter arg) {
-    LOGGER.warn("Not implemented: #visit({})", p);
+    logNotImplemented("#visit(%s)", p);
     return prog;
   }
 
   @Override
   public Prog visit(StarFromExport p, JavaWriter arg) {
-    LOGGER.warn("Not implemented: #visit({})", p);
+    logNotImplemented("#visit(%s)", p);
     return prog;
   }
 
   @Override
   public Prog visit(AnyFromImport p, JavaWriter arg) {
-    LOGGER.warn("Not implemented: #visit({})", p);
+    logNotImplemented("#visit(%s)", p);
     return prog;
   }
 
   @Override
   public Prog visit(StarFromImport p, JavaWriter arg) {
-    LOGGER.warn("Not implemented: #visit({})", p);
+    logNotImplemented("#visit(%s)", p);
     return prog;
   }
 
   @Override
   public Prog visit(ForeignImport p, JavaWriter arg) {
-    LOGGER.warn("Not implemented: #visit({})", p);
+    logNotImplemented("#visit(%s)", p);
     return prog;
   }
 
   @Override
   public Prog visit(NormalImport p, JavaWriter arg) {
-    LOGGER.warn("Not implemented: #visit({})", p);
+    logNotImplemented("#visit(%s)", p);
     return prog;
   }
 
   @Override
   public Prog visit(TUnderscore p, JavaWriter arg) {
-    LOGGER.warn("Not implemented: #visit({})", p);
+    logNotImplemented("#visit(%s)", p);
     return prog;
   }
 
   @Override
   public Prog visit(TSimple p, JavaWriter arg) {
-    LOGGER.warn("Not implemented: #visit({})", p);
+    logNotImplemented("#visit(%s)", p);
     return prog;
   }
 
   @Override
   public Prog visit(TGen p, JavaWriter arg) {
-    LOGGER.warn("Not implemented: #visit({})", p);
+    logNotImplemented("#visit(%s)", p);
     return prog;
   }
 
   @Override
   public Prog visit(QTyp p, JavaWriter arg) {
-    LOGGER.warn("Not implemented: #visit({})", p);
+    logNotImplemented("#visit(%s)", p);
     return prog;
   }
 
   @Override
   public Prog visit(QTypeSegmen p, JavaWriter arg) {
-    LOGGER.warn("Not implemented: #visit({})", p);
+    logNotImplemented("#visit(%s)", p);
     return prog;
   }
 
   @Override
   public Prog visit(TTyp p, JavaWriter arg) {
-    LOGGER.warn("Not implemented: #visit({})", p);
+    logNotImplemented("#visit(%s)", p);
     return prog;
   }
 
   @Override
   public Prog visit(TTypeSegmen p, JavaWriter arg) {
-    LOGGER.warn("Not implemented: #visit({})", p);
+    logNotImplemented("#visit(%s)", p);
     return prog;
   }
 
   @Override
   public Prog visit(TypeDecl p, JavaWriter arg) {
-    LOGGER.warn("Not implemented: #visit({})", p);
+    logNotImplemented("#visit(%s)", p);
     return prog;
   }
 
   @Override
   public Prog visit(TypeParDecl p, JavaWriter arg) {
-    LOGGER.warn("Not implemented: #visit({})", p);
+    logNotImplemented("#visit(%s)", p);
     return prog;
   }
 
   @Override
   public Prog visit(ExceptionDecl p, JavaWriter arg) {
-    LOGGER.warn("Not implemented: #visit({})", p);
+    logNotImplemented("#visit(%s)", p);
     return prog;
   }
 
   @Override
   public Prog visit(DataDecl p, JavaWriter arg) {
-    LOGGER.warn("Not implemented: #visit({})", p);
+    logNotImplemented("#visit(%s)", p);
     return prog;
   }
 
   @Override
   public Prog visit(DataParDecl p, JavaWriter arg) {
-    LOGGER.warn("Not implemented: #visit({})", p);
+    logNotImplemented("#visit(%s)", p);
     return prog;
   }
 
   @Override
   public Prog visit(FunDecl p, JavaWriter arg) {
-    LOGGER.warn("Not implemented: #visit({})", p);
+    logNotImplemented("#visit(%s)", p);
     return prog;
   }
 
   @Override
   public Prog visit(FunParDecl p, JavaWriter arg) {
-    LOGGER.warn("Not implemented: #visit({})", p);
+    logNotImplemented("#visit(%s)", p);
     return prog;
   }
 
   @Override
   public Prog visit(SinglConstrIdent p, JavaWriter arg) {
-    LOGGER.warn("Not implemented: #visit({})", p);
+    logNotImplemented("#visit(%s)", p);
     return prog;
   }
 
   @Override
   public Prog visit(ParamConstrIdent p, JavaWriter arg) {
-    LOGGER.warn("Not implemented: #visit({})", p);
+    logNotImplemented("#visit(%s)", p);
     return prog;
   }
 
   @Override
   public Prog visit(EmptyConstrType p, JavaWriter arg) {
-    LOGGER.warn("Not implemented: #visit({})", p);
+    logNotImplemented("#visit(%s)", p);
     return prog;
   }
 
   @Override
   public Prog visit(RecordConstrType p, JavaWriter arg) {
-    LOGGER.warn("Not implemented: #visit({})", p);
+    logNotImplemented("#visit(%s)", p);
     return prog;
   }
 
   @Override
   public Prog visit(BuiltinFunBody p, JavaWriter arg) {
-    LOGGER.warn("Not implemented: #visit({})", p);
+    logNotImplemented("#visit(%s)", p);
     return prog;
   }
 
   @Override
   public Prog visit(NormalFunBody p, JavaWriter arg) {
-    LOGGER.warn("Not implemented: #visit({})", p);
+    logNotImplemented("#visit(%s)", p);
     return prog;
   }
 
   @Override
   public Prog visit(Par p, JavaWriter arg) {
-    LOGGER.warn("Not implemented: #visit({})", p);
+    logNotImplemented("#visit(%s)", p);
     return prog;
   }
 
   @Override
   public Prog visit(SAssert p, JavaWriter arg) {
-    LOGGER.warn("Not implemented: #visit({})", p);
+    logNotImplemented("#visit(%s)", p);
     return prog;
   }
 
@@ -1287,139 +1277,139 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 
   @Override
   public Prog visit(AndGuard p, JavaWriter arg) {
-    LOGGER.warn("Not implemented: #visit({})", p);
+    logNotImplemented("#visit(%s)", p);
     return prog;
   }
 
   @Override
   public Prog visit(Let p, JavaWriter arg) {
-    LOGGER.warn("Not implemented: #visit({})", p);
+    logNotImplemented("#visit(%s)", p);
     return prog;
   }
 
   @Override
   public Prog visit(If p, JavaWriter arg) {
-    LOGGER.warn("Not implemented: #visit({})", p);
+    logNotImplemented("#visit(%s)", p);
     return prog;
   }
 
   @Override
   public Prog visit(Case p, JavaWriter arg) {
-    LOGGER.warn("Not implemented: #visit({})", p);
+    logNotImplemented("#visit(%s)", p);
     return prog;
   }
 
   @Override
   public Prog visit(EFunCall p, JavaWriter arg) {
-    LOGGER.warn("Not implemented: #visit({})", p);
+    logNotImplemented("#visit(%s)", p);
     return prog;
   }
 
   @Override
   public Prog visit(EQualFunCall p, JavaWriter arg) {
-    LOGGER.warn("Not implemented: #visit({})", p);
+    logNotImplemented("#visit(%s)", p);
     return prog;
   }
 
   @Override
   public Prog visit(ENaryFunCall p, JavaWriter arg) {
-    LOGGER.warn("Not implemented: #visit({})", p);
+    logNotImplemented("#visit(%s)", p);
     return prog;
   }
 
   @Override
   public Prog visit(ENaryQualFunCall p, JavaWriter arg) {
-    LOGGER.warn("Not implemented: #visit({})", p);
+    logNotImplemented("#visit(%s)", p);
     return prog;
   }
 
   @Override
   public Prog visit(EQualVar p, JavaWriter arg) {
-    LOGGER.warn("Not implemented: #visit({})", p);
+    logNotImplemented("#visit(%s)", p);
     return prog;
   }
 
   @Override
   public Prog visit(ESinglConstr p, JavaWriter arg) {
-    LOGGER.warn("Not implemented: #visit({})", p);
+    logNotImplemented("#visit(%s)", p);
     return prog;
   }
 
   @Override
   public Prog visit(EParamConstr p, JavaWriter arg) {
-    LOGGER.warn("Not implemented: #visit({})", p);
+    logNotImplemented("#visit(%s)", p);
     return prog;
   }
 
   @Override
   public Prog visit(CaseBranc p, JavaWriter arg) {
-    LOGGER.warn("Not implemented: #visit({})", p);
+    logNotImplemented("#visit(%s)", p);
     return prog;
   }
 
   @Override
   public Prog visit(PIdent p, JavaWriter arg) {
-    LOGGER.warn("Not implemented: #visit({})", p);
+    logNotImplemented("#visit(%s)", p);
     return prog;
   }
 
   @Override
   public Prog visit(PLit p, JavaWriter arg) {
-    LOGGER.warn("Not implemented: #visit({})", p);
+    logNotImplemented("#visit(%s)", p);
     return prog;
   }
 
   @Override
   public Prog visit(PSinglConstr p, JavaWriter arg) {
-    LOGGER.warn("Not implemented: #visit({})", p);
+    logNotImplemented("#visit(%s)", p);
     return prog;
   }
 
   @Override
   public Prog visit(PParamConstr p, JavaWriter arg) {
-    LOGGER.warn("Not implemented: #visit({})", p);
+    logNotImplemented("#visit(%s)", p);
     return prog;
   }
 
   @Override
   public Prog visit(PUnderscore p, JavaWriter arg) {
-    LOGGER.warn("Not implemented: #visit({})", p);
+    logNotImplemented("#visit(%s)", p);
     return prog;
   }
 
   @Override
   public Prog visit(LThisDC p, JavaWriter arg) {
-    LOGGER.warn("Not implemented: #visit({})", p);
+    logNotImplemented("#visit(%s)", p);
     return prog;
   }
 
   @Override
   public Prog visit(NewLocal p, JavaWriter arg) {
-    LOGGER.warn("Not implemented: #visit({})", p);
+    logNotImplemented("#visit(%s)", p);
     return prog;
   }
 
   @Override
   public Prog visit(Spawns p, JavaWriter arg) {
-    LOGGER.warn("Not implemented: #visit({})", p);
+    logNotImplemented("#visit(%s)", p);
     return prog;
   }
 
   @Override
   public Prog visit(SimpleAnn p, JavaWriter arg) {
-    LOGGER.warn("Not implemented: #visit({})", p);
+    logNotImplemented("#visit(%s)", p);
     return prog;
   }
 
   @Override
   public Prog visit(AnnDec p, JavaWriter arg) {
-    LOGGER.warn("Not implemented: #visit({})", p);
+    logNotImplemented("#visit(%s)", p);
     return prog;
   }
 
   @Override
   public Prog visit(AnnTyp p, JavaWriter arg) {
-    LOGGER.warn("Not implemented: #visit({})", p);
+    logNotImplemented("#visit(%s)", p);
     return prog;
   }
 
@@ -1898,6 +1888,10 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 
   private String getRefinedClassName(String name) {
     return classNames.get(name);
+  }
+
+  private void logNotImplemented(String format, Object... args) {
+    LOGGER.warning("Not implemented: " + String.format(format, args));
   }
 
 }

@@ -1,7 +1,6 @@
 package jabsc.cli;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import java.util.logging.Logger;
 
 import com.google.common.base.Throwables;
 
@@ -12,7 +11,7 @@ import jabsc.Compiler;
 @Command(name = "compile", description = "Compile ABS source to Java source")
 public class CompilerCommand implements Runnable {
 
-  private final Logger logger = LoggerFactory.getLogger(getClass());
+  private final Logger logger = Logger.getLogger(getClass().getName());
 
   @Option(name = {"-s", "--source"}, title = "ABS-SOURCE",
       description = "The path to ABS source(s) to compile. Can be a directory.", required = true)
@@ -31,8 +30,8 @@ public class CompilerCommand implements Runnable {
       new Compiler(source, outputDirectory).compile();
       return;
     } catch (Exception e) {
-      logger.error("Compliation failed: {}",
-          Throwables.getStackTraceAsString(Throwables.getRootCause(e)));
+      logger.severe(
+          "Compliation failed: " + Throwables.getStackTraceAsString(Throwables.getRootCause(e)));
       return;
     }
   }

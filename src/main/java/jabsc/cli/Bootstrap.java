@@ -1,7 +1,6 @@
 package jabsc.cli;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import java.util.logging.Logger;
 
 import com.google.common.base.Throwables;
 import com.google.common.collect.Sets;
@@ -12,7 +11,7 @@ import io.airlift.airline.Help;
 
 public class Bootstrap {
 
-  private static final Logger LOGGER = LoggerFactory.getLogger(Bootstrap.class);
+  private static final Logger LOGGER = Logger.getLogger(Bootstrap.class.getName());
 
   public static void main(String[] args) {
     try {
@@ -24,8 +23,8 @@ public class Bootstrap {
       Runnable command = cli.parse(args);
       command.run();
     } catch (Exception e) {
-      LOGGER.error("Compilation failed: {}",
-          Throwables.getStackTraceAsString(Throwables.getRootCause(e)));
+      LOGGER.severe(
+          "Compilation failed: " + Throwables.getStackTraceAsString(Throwables.getRootCause(e)));
     }
   }
 
