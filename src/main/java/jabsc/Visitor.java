@@ -24,6 +24,7 @@ import javax.lang.model.element.Modifier;
 import com.google.common.base.Supplier;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Multimaps;
+import com.google.common.collect.Sets;
 
 import abs.api.Actor;
 import abs.api.Functional;
@@ -37,9 +38,38 @@ import bnfc.abs.Absyn.*;
  */
 class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 
+
+  /**
+   * High-level element types that an ABS program/module can
+   * have.
+   */
+  static enum AbsElementType {
+    /**
+     * Equivalent to Java's {@link ElementKind#INTERFACE}
+     */
+    INTERFACE,
+
+    /**
+     * Same as Java's {@link ElementKind#CLASS}
+     */
+    CLASS,
+
+    /**
+     * An abstract data type declaration.
+     */
+    DATA,
+
+    /**
+     * Equivalent of a set of Java's <code>static</code>
+     * functions.
+     */
+    FUNCTION;
+  }
+
   // Constants
   private static final String LITERAL_THIS = "this";
   private static final String LITERAL_NULL = "null";
+  private static final String FUNCTIONS_CLASS_NAME = "Functions";
   private static final String MAIN_CLASS_NAME = "Main";
   private static final String COMMA_SPACE = ", ";
   private static final String ABS_API_ACTOR_CLASS = Actor.class.getName();
@@ -76,7 +106,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
         }
       });
   private final Stack<Module> modules = new Stack<>();
-  private final EnumMap<ElementKind, Set<Decl>> elements = new EnumMap<>(ElementKind.class);
+  private final EnumMap<AbsElementType, Set<Decl>> elements = new EnumMap<>(AbsElementType.class);
   private final Map<String, String> classNames = new HashMap<>();
 
   /**
@@ -117,7 +147,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
     try {
 
       // Interfaces
-      for (Decl decl : elements.get(ElementKind.INTERFACE)) {
+      for (Decl decl : elements.get(AbsElementType.INTERFACE)) {
         String name = getTopLevelDeclIdentifier(decl);
         JavaWriter declWriter = javaWriterSupplier.apply(name);
         declWriter.emitPackage(packageName);
@@ -127,7 +157,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
       }
 
       // Classes
-      for (Decl decl : elements.get(ElementKind.CLASS)) {
+      for (Decl decl : elements.get(AbsElementType.CLASS)) {
         String name = getTopLevelDeclIdentifier(decl);
         final String refinedClassName = getRefinedClassName(name);
         JavaWriter declWriter = javaWriterSupplier.apply(refinedClassName);
@@ -137,6 +167,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
         close(declWriter, w);
       }
 
+      visitFunctions(m, w);
       visitMain(m, w);
 
       return prog;
@@ -147,10 +178,6 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 
   @Override
   public Prog visit(AnyImport p, JavaWriter w) {
-    ImportType importType = p.importtype_;
-    if (importType instanceof ForeignImport) {
-      throw new UnsupportedOperationException("ABS Foreign Import not supported.");
-    }
     Collection<String> types = new HashSet<>();
     for (TTypeSegment segment : ((TTyp) p.ttype_).listttypesegment_) {
       TTypeSegmen segmen = (TTypeSegmen) segment;
@@ -1126,7 +1153,6 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 
   @Override
   public Prog visit(NormalImport p, JavaWriter arg) {
-    logNotImplemented("#visit(%s)", p);
     return prog;
   }
 
@@ -1203,8 +1229,24 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   }
 
   @Override
-  public Prog visit(FunDecl p, JavaWriter arg) {
-    logNotImplemented("#visit(%s)", p);
+  public Prog visit(FunDecl f, JavaWriter w) {
+    try {
+      String methodName = f.lident_;
+      String methodType = getTypeName(f.type_);
+      List<String> parameters = new ArrayList<>();
+      for (Param param : f.listparam_) {
+        Par parameter = (Par) param;
+        parameters.add(getTypeName(parameter.type_));
+        parameters.add(parameter.lident_);
+      }
+      Set<Modifier> modifiers = Sets.newHashSet(Modifier.PUBLIC, Modifier.STATIC);
+      w.beginMethod(methodType, methodName, modifiers, parameters.toArray(new String[0]));
+      f.funbody_.accept(this, w);
+      w.endMethod();
+      w.emitEmptyLine();
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
     return prog;
   }
 
@@ -1245,9 +1287,16 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   }
 
   @Override
-  public Prog visit(NormalFunBody p, JavaWriter arg) {
-    logNotImplemented("#visit(%s)", p);
-    return prog;
+  public Prog visit(NormalFunBody body, JavaWriter w) {
+    try {
+      w.emit("return ", true);
+      body.pureexp_.accept(this, w);
+      w.emit(";");
+      w.emitEmptyLine();
+      return prog;
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
   }
 
   @Override
@@ -1300,9 +1349,22 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   }
 
   @Override
-  public Prog visit(EFunCall p, JavaWriter arg) {
-    logNotImplemented("#visit(%s)", p);
-    return prog;
+  public Prog visit(EFunCall f, JavaWriter w) {
+    try {
+      w.emit(f.lident_);
+      w.emit("(");
+      List<String> params = new ArrayList<>();
+      for (PureExp p : f.listpureexp_) {
+        StringWriter auxsw = new StringWriter();
+        p.accept(this, new JavaWriter(auxsw));
+        params.add(auxsw.toString());
+      }
+      w.emit(String.join(COMMA_SPACE, params));
+      w.emit(")");
+      return prog;
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
   }
 
   @Override
@@ -1413,18 +1475,39 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
     return prog;
   }
 
+  protected void visitFunctions(Module m, JavaWriter w) {
+    try {
+      JavaWriter jw = javaWriterSupplier.apply(FUNCTIONS_CLASS_NAME);
+      jw.emitPackage(packageName);
+      jw.emitStaticImports(DEFAULT_STATIC_IMPORTS);
+      jw.emitImports(DEFAULT_IMPORTS);
+      jw.emitEmptyLine();
+      beginElementKind(jw, ElementKind.CLASS, FUNCTIONS_CLASS_NAME, DEFAULT_MODIFIERS, null, null,
+          false);
+      jw.emitEmptyLine();
+      for (Decl decl : elements.get(AbsElementType.FUNCTION)) {
+        decl.accept(this, jw);
+      }
+      jw.endType();
+      close(jw, w);
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
+  }
+
   protected void visitMain(Modul m, JavaWriter w) {
     try {
-      JavaWriter jw = createJavaWriter(null, w);
+      JavaWriter jw = javaWriterSupplier.apply(MAIN_CLASS_NAME);
+      jw.emitPackage(packageName);
       final String identifier = MAIN_CLASS_NAME;
       EnumSet<Modifier> mainModifiers = EnumSet.of(Modifier.PUBLIC, Modifier.STATIC);
-      beginElementKind(jw, ElementKind.CLASS, identifier, DEFAULT_MODIFIERS, null, null);
+      beginElementKind(jw, ElementKind.CLASS, identifier, DEFAULT_MODIFIERS, null, null, false);
       jw.emitEmptyLine();
       List<String> javaMainMethodParameters = Arrays.asList("String[]", "args");
       jw.beginMethod("void", "main", mainModifiers, javaMainMethodParameters,
           Collections.emptyList());
       m.maybeblock_.accept(this, jw);
-      jw.emit(";");
+      jw.emit(";", true);
       jw.emitEmptyLine();
       jw.endMethod();
       jw.endType();
@@ -1436,6 +1519,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 
   protected void visitImports(final ListImport imports, JavaWriter w) throws IOException {
     w.emitStaticImports(DEFAULT_STATIC_IMPORTS);
+    w.emitStaticImports(FUNCTIONS_CLASS_NAME + ".*");
     w.emitImports(DEFAULT_IMPORTS);
     for (Import imprt : imports) {
       imprt.accept(this, w);
@@ -1644,6 +1728,12 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
     }
   }
 
+  protected void beginElementKind(JavaWriter w, ElementKind kind, String identifier,
+      Set<Modifier> modifiers, String classParentType, Collection<String> implementingInterfaces)
+          throws IOException {
+    beginElementKind(w, kind, identifier, modifiers, classParentType, implementingInterfaces, true);
+  }
+
   /**
    * Begin a Java type.
    * 
@@ -1655,17 +1745,21 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
    *        <code>null</code>
    * @param implementingInterfaces the implementing interface
    *        that can be <code>null</code>
+   * @param isActor indicates if the class should "implement"
+   *        <code>abs.api.Actor</code>
    * @throws IOException Exception from {@link JavaWriter}
    * @throws IllegalArgumentException if kind other than "class"
    *         or "interface" is requested
    */
   protected void beginElementKind(JavaWriter w, ElementKind kind, String identifier,
-      Set<Modifier> modifiers, String classParentType, Collection<String> implementingInterfaces)
-          throws IOException {
+      Set<Modifier> modifiers, String classParentType, Collection<String> implementingInterfaces,
+      final boolean isActor) throws IOException {
     switch (kind) {
       case CLASS:
         Set<String> implementsTypes = new HashSet<>();
-        implementsTypes.add(ABS_API_ACTOR_CLASS);
+        if (isActor) {
+          implementsTypes.add(ABS_API_ACTOR_CLASS);
+        }
         if (implementingInterfaces != null && !implementingInterfaces.isEmpty()) {
           implementsTypes.addAll(implementingInterfaces);
         }
@@ -1717,9 +1811,8 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
    * @return
    */
   protected boolean isTopLevel(Decl decl) {
-    return decl instanceof ClassDecl || decl instanceof ClassImplements
-        || decl instanceof ClassParamDecl || decl instanceof ClassParamImplements
-        || decl instanceof ExtendsDecl || decl instanceof InterfDecl || decl == null;
+    return isAbsInterfaceDecl(decl) || isAbsClassDecl(decl) || isAbsFunctionDecl(decl)
+        || isAbsDataTypeDecl(decl);
   }
 
   /**
@@ -1857,33 +1950,60 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 
     elements.clear();
 
-    for (ElementKind k : EnumSet.of(ElementKind.INTERFACE, ElementKind.CLASS)) {
-      elements.put(k, new HashSet<>());
+    // 1. Interfaces
+    for (AbsElementType t : EnumSet.allOf(AbsElementType.class)) {
+      elements.put(t, new HashSet<>());
     }
     for (Module module : program.listmodule_) {
       Modul m = (Modul) module;
       for (Decl decl : m.listdecl_) {
-        if (decl instanceof InterfDecl || decl instanceof ExtendsDecl) {
-          elements.get(ElementKind.INTERFACE).add(decl);
+        if (isAbsInterfaceDecl(decl)) {
+          elements.get(AbsElementType.INTERFACE).add(decl);
         }
       }
     }
+    // 2. Classes
     for (Module module : program.listmodule_) {
       Modul m = (Modul) module;
       for (Decl decl : m.listdecl_) {
-        if (decl instanceof InterfDecl || decl instanceof ExtendsDecl) {
-          continue;
+        if (isAbsClassDecl(decl)) {
+          final String className = getTopLevelDeclIdentifier(decl);
+          if (elements.get(AbsElementType.INTERFACE).stream()
+              .anyMatch(d -> className.equals(getTopLevelDeclIdentifier(d)))) {
+            classNames.put(className, className + "Impl");
+          } else {
+            classNames.put(className, className);
+          }
+          elements.get(AbsElementType.CLASS).add(decl);
         }
-        final String className = getTopLevelDeclIdentifier(decl);
-        if (elements.get(ElementKind.INTERFACE).stream()
-            .anyMatch(d -> className.equals(getTopLevelDeclIdentifier(d)))) {
-          classNames.put(className, className + "Impl");
-        } else {
-          classNames.put(className, className);
-        }
-        elements.get(ElementKind.CLASS).add(decl);
       }
     }
+    // 3. Functions
+    for (Module module : program.listmodule_) {
+      Modul m = (Modul) module;
+      for (Decl decl : m.listdecl_) {
+        if (isAbsFunctionDecl(decl)) {
+          elements.get(AbsElementType.FUNCTION).add(decl);
+        }
+      }
+    }
+  }
+
+  private boolean isAbsInterfaceDecl(Decl decl) {
+    return decl instanceof InterfDecl || decl instanceof ExtendsDecl;
+  }
+
+  private boolean isAbsClassDecl(Decl decl) {
+    return decl instanceof ClassDecl || decl instanceof ClassImplements
+        || decl instanceof ClassParamDecl || decl instanceof ClassParamImplements;
+  }
+
+  private boolean isAbsFunctionDecl(Decl decl) {
+    return decl instanceof FunDecl || decl instanceof FunParDecl;
+  }
+
+  private boolean isAbsDataTypeDecl(Decl decl) {
+    return decl instanceof DataDecl || decl instanceof DataParDecl;
   }
 
   private String getRefinedClassName(String name) {
