@@ -514,7 +514,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   @Override
   public Prog visit(FieldGuard p, JavaWriter w) {
     try {
-      w.emit(p.lident_);
+      w.emit(LITERAL_THIS+"."+p.lident_);
     } catch (IOException x) {
       throw new RuntimeException(x);
     }
