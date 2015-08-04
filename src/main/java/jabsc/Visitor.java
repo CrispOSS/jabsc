@@ -17,6 +17,7 @@ import java.util.Random;
 import java.util.Set;
 import java.util.Stack;
 import java.util.concurrent.Callable;
+import java.util.function.Function;
 import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -80,9 +81,9 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   private static final String COMMA_SPACE = ", ";
   private static final String ABS_API_ACTOR_CLASS = Actor.class.getName();
   private static final Set<Modifier> DEFAULT_MODIFIERS = Collections.singleton(Modifier.PUBLIC);
-  private static final String[] DEFAULT_IMPORTS =
-      new String[] {Collection.class.getPackage().getName() + ".*",
-          Callable.class.getPackage().getName() + ".*", Actor.class.getPackage().getName() + ".*"};
+  private static final String[] DEFAULT_IMPORTS = new String[] {
+      Collection.class.getPackage().getName() + ".*", Function.class.getPackage().getName() + ".*",
+      Callable.class.getPackage().getName() + ".*", Actor.class.getPackage().getName() + ".*"};
   private static final String[] DEFAULT_STATIC_IMPORTS = new String[] {
       Functional.class.getPackage().getName() + "." + Functional.class.getSimpleName() + ".*"};
 
@@ -473,12 +474,37 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   }
 
   @Override
-  public Prog visit(SAwait p, JavaWriter w) {
+  public Prog visit(SAwait await, JavaWriter w) {
     try {
-      StringWriter auxsw = new StringWriter();
-      JavaWriter auxjw = new JavaWriter(auxsw);
-      p.guard_.accept(this, auxjw);
-      w.emitStatement("%s.getValue()", auxsw.toString());
+      Guard g = await.guard_;
+      if (g instanceof FieldGuard) {
+        FieldGuard fg = (FieldGuard) g;
+        String fieldName = fg.lident_;
+        w.emitStatement("%s.getValue()", fieldName);
+      } else if (g instanceof VarGuard) {
+        VarGuard vg = (VarGuard) g;
+        String varName = vg.lident_;
+        w.emitStatement("%s.getValue()", varName);
+      } else if (g instanceof AndGuard) {
+        AndGuard ag = (AndGuard) g;
+        Guard g1 = ag.guard_1;
+        Guard g2 = ag.guard_2;
+        logNotImplemented("#visit(Guard1 & Guard2): %s & %s", g1, g2);
+      } else if (g instanceof ExpGuard) {
+        ExpGuard eg = (ExpGuard) g;
+        PureExp exp = eg.pureexp_;
+        StringWriter auxsw = new StringWriter();
+        exp.accept(this, new JavaWriter(auxsw));
+        String baBooleanSupplierVarName = "booleanAwait_" + RANDOM.nextInt(1000);
+        String baResponseVarName = createMessageResponseVariableName(baBooleanSupplierVarName);
+        w.emitStatement("Supplier<Boolean> %s = () -> %s", baBooleanSupplierVarName,
+            auxsw.toString());
+        w.emitStatement("Response<Boolean> %s = send(this, %s)", baResponseVarName,
+            baBooleanSupplierVarName);
+        w.emitStatement("%s.getValue()", baResponseVarName);
+      } else {
+        logNotImplemented("#visit(%s): %s", await, await.guard_);
+      }
       return prog;
     } catch (IOException e) {
       throw new RuntimeException(e);
@@ -696,8 +722,12 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 
   @Override
   public Prog visit(SSkip sk, JavaWriter w) {
-    logNotImplemented("#visit(%s)", sk);
-    return prog;
+    try {
+      w.emitSingleLineComment("skip;");
+      return prog;
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
   }
 
   @Override
@@ -1007,7 +1037,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
       StringWriter auxsw = new StringWriter();
       JavaWriter auxw = new JavaWriter(auxsw);
       g.pureexp_.accept(this, auxw);
-      w.emit(auxsw.toString() + ".get()");
+      w.emit(auxsw.toString() + ".getValue()");
       return prog;
     } catch (IOException e) {
       throw new RuntimeException(e);
@@ -1175,43 +1205,43 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 
   @Override
   public Prog visit(AnyExport p, JavaWriter arg) {
-    logNotImplemented("#visit(%s)", p);
+    logNotSupported("#visit(%s): %s", p, p.listanyident_);
     return prog;
   }
 
   @Override
   public Prog visit(AnyFromExport p, JavaWriter arg) {
-    logNotImplemented("#visit(%s)", p);
+    logNotSupported("#visit(%s): %s", p, p.listanyident_);
     return prog;
   }
 
   @Override
   public Prog visit(StarExport p, JavaWriter arg) {
-    logNotImplemented("#visit(%s)", p);
+    logNotSupported("#visit(%s)", p);
     return prog;
   }
 
   @Override
   public Prog visit(StarFromExport p, JavaWriter arg) {
-    logNotImplemented("#visit(%s)", p);
+    logNotSupported("#visit(%s): %s", p, p.qtype_);
     return prog;
   }
 
   @Override
   public Prog visit(AnyFromImport p, JavaWriter arg) {
-    logNotImplemented("#visit(%s)", p);
+    logNotSupported("#visit(%s): %s", p, p.listanyident_);
     return prog;
   }
 
   @Override
   public Prog visit(StarFromImport p, JavaWriter arg) {
-    logNotImplemented("#visit(%s)", p);
+    logNotSupported("#visit(%s): %s", p, p.qtype_);
     return prog;
   }
 
   @Override
   public Prog visit(ForeignImport p, JavaWriter arg) {
-    logNotImplemented("#visit(%s)", p);
+    logNotSupported("#visit(%s)", p);
     return prog;
   }
 
@@ -1461,9 +1491,9 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   }
 
   @Override
-  public Prog visit(ESinglConstr p, JavaWriter arg) {
-    logNotImplemented("#visit(%s)", p);
-    return prog;
+  public Prog visit(ESinglConstr p, JavaWriter w) {
+    EParamConstr epc = new EParamConstr(p.qtype_, new ListPureExp());
+    return this.visit(epc, w);
   }
 
   @Override
@@ -1857,7 +1887,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
             implementsTypes.toArray(new String[0]));
         if (isActor) {
           w.emitField("long", "serialVersionUID",
-              EnumSet.of(Modifier.PUBLIC, Modifier.STATIC, Modifier.FINAL), "1L");
+              EnumSet.of(Modifier.PRIVATE, Modifier.STATIC, Modifier.FINAL), "1L");
         }
         return;
       case INTERFACE:
@@ -2105,7 +2135,17 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   }
 
   private void logNotImplemented(String format, Object... args) {
-    LOGGER.warning("Not implemented: " + String.format(format, args));
+    String msg = "Not implemented: " + String.format(format, args);
+    logWarn(msg);
+  }
+
+  private void logNotSupported(String format, Object... args) {
+    String msg = "Not supported: " + String.format(format, args);
+    logWarn(msg);
+  }
+
+  private void logWarn(String msg) {
+    LOGGER.warning(msg);
   }
 
   private String stripGenericResponseType(String type) {

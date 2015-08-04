@@ -4,6 +4,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
 
+import abs.api.Response;
+
 /**
  * Some ABS types have an equivalent proper Java type. This is
  * function to be able to translate those.
@@ -31,7 +33,7 @@ class JavaTypeTranslator implements Function<String, String> {
     types.put("Bool", Boolean.class.getName());
     types.put("ABS.StdLib.Map", Map.class.getName());
     types.put("Unit", "void");
-    types.put("Fut", "Response");
+    types.put("Fut", Response.class.getSimpleName());
   }
 
 }
