@@ -71,6 +71,8 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   }
 
   // Constants
+  
+  private static final String ALREADY_DEFINED = "defined";
   private static final String LITERAL_THIS = "this";
   private static final String LITERAL_NULL = "null";
   private static final String FUNCTIONS_CLASS_NAME = "Functions";
@@ -576,7 +578,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   public Prog visit(SFieldAss fa, JavaWriter w) {
     try {
       Exp exp = fa.exp_;
-      String fieldName = fa.lident_;
+      String fieldName = LITERAL_THIS + "." + fa.lident_;
       String fieldType = findVariableType(fieldName);
       if (exp instanceof ExpE == false) {
         visitStatementAssignmentExp(exp, fieldName, null, w);
@@ -585,12 +587,12 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
         EffExp effExp = expe.effexp_;
         if (effExp instanceof AsyncMethCall) {
           AsyncMethCall amc = (AsyncMethCall) effExp;
-          visitAsyncMethodCall(amc, fieldType, fieldName, w);
+          visitAsyncMethodCall(amc, ALREADY_DEFINED, fieldName, w);
         } else if (effExp instanceof ThisAsyncMethCall) {
           ThisAsyncMethCall tams = (ThisAsyncMethCall) effExp;
           AsyncMethCall amc =
               new AsyncMethCall(new ELit(new LThis()), tams.lident_, tams.listpureexp_);
-          visitAsyncMethodCall(amc, fieldType, fieldName, w);
+          visitAsyncMethodCall(amc, ALREADY_DEFINED, fieldName, w);
         } else if (effExp instanceof SyncMethCall) {
           SyncMethCall smc = (SyncMethCall) effExp;
           visitSyncMethodCall(smc, fieldType, fieldName, w);

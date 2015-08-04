@@ -25,11 +25,12 @@ class Sieve(Int bound) implements ISieve {
 
 class Prime (Int p) implements IPrime {
 	IPrime next;
+	Fut<Int> f;
 	Int divide (Int n) {
 		if ( (n % p) != 0) {
 			if (next != null) {
-				Fut<Int> f = next!divide (n);
-				await f?;
+				this.f = next!divide (n);
+				await this.f?;
 				this.divide(n);
 				println(n);
 			}
