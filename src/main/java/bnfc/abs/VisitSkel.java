@@ -698,6 +698,12 @@ public class VisitSkel
     { /* Code For LInt Goes Here */
       //p.integer_;
       return null;
+    }    public R visit(bnfc.abs.Absyn.LFalse p, A arg)
+    { /* Code For LFalse Goes Here */
+      return null;
+    }    public R visit(bnfc.abs.Absyn.LTrue p, A arg)
+    { /* Code For LTrue Goes Here */
+      return null;
     }
   }
   public class EffExpVisitor<R,A> implements EffExp.Visitor<R,A>

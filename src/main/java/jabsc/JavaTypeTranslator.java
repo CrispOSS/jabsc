@@ -28,6 +28,8 @@ class JavaTypeTranslator implements Function<String, String> {
 
   protected void fill(Map<String, String> types) {
     types.put("Int", Integer.class.getName());
+    types.put("Bool", Boolean.class.getName());
+    types.put("ABS.StdLib.Map", Map.class.getName());
     types.put("Unit", "void");
     types.put("Fut", "Response");
   }

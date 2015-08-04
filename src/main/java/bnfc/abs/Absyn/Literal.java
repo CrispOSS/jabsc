@@ -8,6 +8,8 @@ public abstract class Literal implements java.io.Serializable {
     public R visit(bnfc.abs.Absyn.LThisDC p, A arg);
     public R visit(bnfc.abs.Absyn.LStr p, A arg);
     public R visit(bnfc.abs.Absyn.LInt p, A arg);
+    public R visit(bnfc.abs.Absyn.LFalse p, A arg);
+    public R visit(bnfc.abs.Absyn.LTrue p, A arg);
 
   }
 

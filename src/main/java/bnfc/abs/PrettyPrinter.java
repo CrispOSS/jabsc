@@ -2302,6 +2302,20 @@ public class PrettyPrinter
        pp(_lint.integer_, 0);
        if (_i_ > 0) render(_R_PAREN);
     }
+    else     if (foo instanceof bnfc.abs.Absyn.LFalse)
+    {
+       bnfc.abs.Absyn.LFalse _lfalse = (bnfc.abs.Absyn.LFalse) foo;
+       if (_i_ > 0) render(_L_PAREN);
+       render("False");
+       if (_i_ > 0) render(_R_PAREN);
+    }
+    else     if (foo instanceof bnfc.abs.Absyn.LTrue)
+    {
+       bnfc.abs.Absyn.LTrue _ltrue = (bnfc.abs.Absyn.LTrue) foo;
+       if (_i_ > 0) render(_L_PAREN);
+       render("True");
+       if (_i_ > 0) render(_R_PAREN);
+    }
   }
 
   private static void pp(bnfc.abs.Absyn.EffExp foo, int _i_)
@@ -3829,6 +3843,16 @@ public class PrettyPrinter
        render("LInt");
        sh(_lint.integer_);
        render(")");
+    }
+    if (foo instanceof bnfc.abs.Absyn.LFalse)
+    {
+       bnfc.abs.Absyn.LFalse _lfalse = (bnfc.abs.Absyn.LFalse) foo;
+       render("LFalse");
+    }
+    if (foo instanceof bnfc.abs.Absyn.LTrue)
+    {
+       bnfc.abs.Absyn.LTrue _ltrue = (bnfc.abs.Absyn.LTrue) foo;
+       render("LTrue");
     }
   }
 

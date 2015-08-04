@@ -177,6 +177,8 @@ LThis.   Literal ::= "this" ;
 LThisDC.  Literal ::= "thisDC" ;
 LStr.    Literal ::= String ;
 LInt.    Literal ::= Integer ;
+LFalse.  Literal ::= "False" ;
+LTrue.   Literal ::= "True" ;
 
 -- Effectful Expressions
 New. EffExp ::= "new" Type "(" [PureExp] ")" ;

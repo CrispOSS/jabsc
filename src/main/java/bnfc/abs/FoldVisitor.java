@@ -790,6 +790,14 @@ public abstract class FoldVisitor<R,A> implements AllVisitor<R,A> {
       R r = leaf(arg);
       return r;
     }
+    public R visit(bnfc.abs.Absyn.LFalse p, A arg) {
+      R r = leaf(arg);
+      return r;
+    }
+    public R visit(bnfc.abs.Absyn.LTrue p, A arg) {
+      R r = leaf(arg);
+      return r;
+    }
 
 /* EffExp */
     public R visit(bnfc.abs.Absyn.New p, A arg) {

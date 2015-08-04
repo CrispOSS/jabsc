@@ -793,6 +793,12 @@ public class ComposVisitor<A> implements
     {
       Integer integer_ = p.integer_;
       return new bnfc.abs.Absyn.LInt(integer_);
+    }    public Literal visit(bnfc.abs.Absyn.LFalse p, A arg)
+    {
+      return new bnfc.abs.Absyn.LFalse();
+    }    public Literal visit(bnfc.abs.Absyn.LTrue p, A arg)
+    {
+      return new bnfc.abs.Absyn.LTrue();
     }
 /* EffExp */
     public EffExp visit(bnfc.abs.Absyn.New p, A arg)

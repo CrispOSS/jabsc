@@ -235,6 +235,8 @@ public class AbstractVisitor<R,A> implements AllVisitor<R,A> {
     public R visit(bnfc.abs.Absyn.LThisDC p, A arg) { return visitDefault(p, arg); }
     public R visit(bnfc.abs.Absyn.LStr p, A arg) { return visitDefault(p, arg); }
     public R visit(bnfc.abs.Absyn.LInt p, A arg) { return visitDefault(p, arg); }
+    public R visit(bnfc.abs.Absyn.LFalse p, A arg) { return visitDefault(p, arg); }
+    public R visit(bnfc.abs.Absyn.LTrue p, A arg) { return visitDefault(p, arg); }
     public R visitDefault(bnfc.abs.Absyn.Literal p, A arg) {
       throw new IllegalArgumentException(this.getClass().getName() + ": " + p);
     }
