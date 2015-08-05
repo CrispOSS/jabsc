@@ -84,8 +84,8 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   private static final String[] DEFAULT_IMPORTS = new String[] {
       Collection.class.getPackage().getName() + ".*", Function.class.getPackage().getName() + ".*",
       Callable.class.getPackage().getName() + ".*", Actor.class.getPackage().getName() + ".*"};
-  private static final String[] DEFAULT_STATIC_IMPORTS = new String[] {Functional.class
-      .getPackage().getName() + "." + Functional.class.getSimpleName() + ".*"};
+  private static final String[] DEFAULT_STATIC_IMPORTS = new String[] {
+      Functional.class.getPackage().getName() + "." + Functional.class.getSimpleName() + ".*"};
 
   // Internal Fields
 
@@ -99,15 +99,15 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   private final JavaTypeTranslator javaTypeTranslator;
 
   // Internal state
-  private static final Multimap<String, MethodDefinition> METHODS = Multimaps.newSetMultimap(
-      new HashMap<>(), new Supplier<Set<MethodDefinition>>() {
+  private static final Multimap<String, MethodDefinition> METHODS =
+      Multimaps.newSetMultimap(new HashMap<>(), new Supplier<Set<MethodDefinition>>() {
         @Override
         public Set<MethodDefinition> get() {
           return new HashSet<>();
         }
       });
-  private static final Multimap<String, VarDefinition> VARIABLES = Multimaps.newSetMultimap(
-      new HashMap<>(), new Supplier<Set<VarDefinition>>() {
+  private static final Multimap<String, VarDefinition> VARIABLES =
+      Multimaps.newSetMultimap(new HashMap<>(), new Supplier<Set<VarDefinition>>() {
         @Override
         public Set<VarDefinition> get() {
           return new HashSet<>();
@@ -479,7 +479,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
       Guard g = await.guard_;
       if (g instanceof FieldGuard) {
         FieldGuard fg = (FieldGuard) g;
-        String fieldName = LITERAL_THIS+"."+fg.lident_;
+        String fieldName = LITERAL_THIS + "." + fg.lident_;
         w.emitStatement("%s.getValue()", fieldName);
       } else if (g instanceof VarGuard) {
         VarGuard vg = (VarGuard) g;
@@ -514,7 +514,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   @Override
   public Prog visit(FieldGuard p, JavaWriter w) {
     try {
-      w.emit(LITERAL_THIS+"."+p.lident_);
+      w.emit(LITERAL_THIS + "." + p.lident_);
     } catch (IOException x) {
       throw new RuntimeException(x);
     }
@@ -1622,6 +1622,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
     try {
       JavaWriter jw = javaWriterSupplier.apply(MAIN_CLASS_NAME);
       jw.emitPackage(packageName);
+      emitDefaultImports(jw);
       final String identifier = MAIN_CLASS_NAME;
       EnumSet<Modifier> mainModifiers = EnumSet.of(Modifier.PUBLIC, Modifier.STATIC);
       beginElementKind(jw, ElementKind.CLASS, identifier, DEFAULT_MODIFIERS, null, null, false);
@@ -1641,17 +1642,21 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   }
 
   protected void visitImports(final ListImport imports, JavaWriter w) throws IOException {
-    w.emitStaticImports(DEFAULT_STATIC_IMPORTS);
-    w.emitStaticImports(this.packageName + "." + FUNCTIONS_CLASS_NAME + ".*");
-    w.emitImports(DEFAULT_IMPORTS);
+    emitDefaultImports(w);
     for (Import imprt : imports) {
       imprt.accept(this, w);
     }
     w.emitEmptyLine();
   }
 
-  protected void visitAsyncMethodCall(AsyncMethCall amc, String resultVarType,
-      String resultVarName, boolean await, JavaWriter w) throws IOException {
+  protected void emitDefaultImports(JavaWriter w) throws IOException {
+    w.emitStaticImports(DEFAULT_STATIC_IMPORTS);
+    w.emitStaticImports(this.packageName + "." + FUNCTIONS_CLASS_NAME + ".*");
+    w.emitImports(DEFAULT_IMPORTS);
+  }
+
+  protected void visitAsyncMethodCall(AsyncMethCall amc, String resultVarType, String resultVarName,
+      boolean await, JavaWriter w) throws IOException {
     String calleeId = getCalleeId(amc);
     List<String> params = getCalleeMethodParams(amc);
     String methodName = amc.lident_;
@@ -1660,16 +1665,14 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
     // findMethodReturnType(methodName,
     // findVariableType(calleeId), params);
     String msgVarName = createMessageVariableName(calleeId);
-    String msgStatement =
-        generateMessageStatement(msgVarName, resultVarType,
-            generateJavaMethodInvocation(calleeId, methodName, params));
+    String msgStatement = generateMessageStatement(msgVarName, resultVarType,
+        generateJavaMethodInvocation(calleeId, methodName, params));
     w.emit(msgStatement, true);
     w.emitStatementEnd();
     String responseVarName =
         resultVarName != null ? resultVarName : createMessageResponseVariableName(msgVarName);
-    String sendStm =
-        generateMessageInvocationStatement(calleeId, await, resultVarType, msgVarName,
-            responseVarName);
+    String sendStm = generateMessageInvocationStatement(calleeId, await, resultVarType, msgVarName,
+        responseVarName);
     w.emit(sendStm, true);
     w.emitStatementEnd();
   }
@@ -1680,23 +1683,20 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
     List<String> params = getCalleeMethodParams(smc);
     String msgVarName = createMessageVariableName(calleeId);
     String methodName = smc.lident_;
-    String potentialReturnType =
-        resultVarType != null ? resultVarType : findMethodReturnType(methodName,
-            findVariableType(calleeId), params);
-    String msgStatement =
-        generateMessageStatement(msgVarName, potentialReturnType,
-            generateJavaMethodInvocation(calleeId, methodName, params));
+    String potentialReturnType = resultVarType != null ? resultVarType
+        : findMethodReturnType(methodName, findVariableType(calleeId), params);
+    String msgStatement = generateMessageStatement(msgVarName, potentialReturnType,
+        generateJavaMethodInvocation(calleeId, methodName, params));
     w.emit(msgStatement, true);
     w.emitStatementEnd();
     String responseVarName = createMessageResponseVariableName(msgVarName);
-    String sendStm =
-        generateMessageInvocationStatement(calleeId, false, potentialReturnType, msgVarName,
-            responseVarName);
+    String sendStm = generateMessageInvocationStatement(calleeId, false, potentialReturnType,
+        msgVarName, responseVarName);
     w.emit(sendStm, true);
     w.emitStatementEnd();
     if (resultVarName != null && resultVarType != null) {
-      w.emit((resultVarType == ALREADY_DEFINED ? "" : resultVarType+ " " + " ") + resultVarName + " = " + responseVarName
-          + ".getValue()", true);
+      w.emit((resultVarType == ALREADY_DEFINED ? "" : resultVarType + " " + " ") + resultVarName
+          + " = " + responseVarName + ".getValue()", true);
     } else {
       w.emit(responseVarName + ".getValue()", true);
     }
@@ -1785,10 +1785,11 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
    * @return a string in Java representing a lambda expression
    *         for a {@link Runnable} or a {@link Callable}
    */
-  protected String generateMessageStatement(String msgVarName, String returnType, String expression) {
-    final String returnTypeVar =
-        returnType == null ? "Runnable" : (returnType == ALREADY_DEFINED) ? "Callable<?>" : "Callable<"
-            + stripGenericResponseType(returnType) + ">";
+  protected String generateMessageStatement(String msgVarName, String returnType,
+      String expression) {
+    final String returnTypeVar = returnType == null ? "Runnable"
+        : (returnType == ALREADY_DEFINED) ? "Callable<?>"
+            : "Callable<" + stripGenericResponseType(returnType) + ">";
     return String.format("%s %s = () -> %s", returnTypeVar, msgVarName, expression);
   }
 
@@ -1875,7 +1876,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 
   protected void beginElementKind(JavaWriter w, ElementKind kind, String identifier,
       Set<Modifier> modifiers, String classParentType, Collection<String> implementingInterfaces)
-      throws IOException {
+          throws IOException {
     beginElementKind(w, kind, identifier, modifiers, classParentType, implementingInterfaces, true);
   }
 
@@ -1899,15 +1900,15 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   protected void beginElementKind(JavaWriter w, ElementKind kind, String identifier,
       Set<Modifier> modifiers, String classParentType, Collection<String> implementingInterfaces,
       final boolean isActor) throws IOException {
+    Set<String> implementsTypes = new HashSet<>();
+    if (isActor) {
+      implementsTypes.add(ABS_API_ACTOR_CLASS);
+    }
+    if (implementingInterfaces != null && !implementingInterfaces.isEmpty()) {
+      implementsTypes.addAll(implementingInterfaces);
+    }
     switch (kind) {
       case CLASS:
-        Set<String> implementsTypes = new HashSet<>();
-        if (isActor) {
-          implementsTypes.add(ABS_API_ACTOR_CLASS);
-        }
-        if (implementingInterfaces != null && !implementingInterfaces.isEmpty()) {
-          implementsTypes.addAll(implementingInterfaces);
-        }
         w.beginType(identifier, kind.name().toLowerCase(), modifiers, classParentType,
             implementsTypes.toArray(new String[0]));
         if (isActor) {
@@ -1916,8 +1917,8 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
         }
         return;
       case INTERFACE:
-        w.beginType(identifier, kind.name().toLowerCase(), modifiers, ABS_API_ACTOR_CLASS,
-            new String[0]);
+        w.beginType(identifier, kind.name().toLowerCase(), modifiers,
+            String.join(COMMA_SPACE, implementsTypes), new String[0]);
         return;
       default:
         throw new IllegalArgumentException("Unsupported Java element kind: " + kind);
