@@ -27,6 +27,13 @@ import javax.lang.model.element.Modifier;
 
 import com.squareup.javawriter.StringLiteral;
 
+/* XXX
+ * 
+ * This class is an extension over Square's original JavaWriter
+ * due to our limitations of parsing and lexing of ABS code.
+ * 
+ */
+
 /** A utility class which aids in generating Java source files. */
 class JavaWriter implements Closeable {
   private static final Pattern TYPE_TRAILER = Pattern.compile("(.*?)(\\.\\.\\.|(?:\\[\\])+)$");
