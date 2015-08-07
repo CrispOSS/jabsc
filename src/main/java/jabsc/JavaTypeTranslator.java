@@ -13,6 +13,7 @@ import abs.api.Response;
 class JavaTypeTranslator implements Function<String, String> {
 
   private final Map<String, String> abs2java = new HashMap<>();
+  private final Map<String, String> abstractTypes = new HashMap<>();
 
   public JavaTypeTranslator() {
     fill(abs2java);
@@ -20,12 +21,24 @@ class JavaTypeTranslator implements Function<String, String> {
 
   @Override
   public String apply(String absType) {
-    String javaType = abs2java.get(absType);
+    String javaType = translateJava(absType);
     if (javaType != null) {
       return javaType;
     }
-    // TODO To be completed.
-    return absType;
+    String type = translateAbstract(absType);
+    if (type == null) {
+      return absType;
+    }
+    javaType = translateJava(type);
+    return javaType == null ? type : javaType;
+  }
+
+  private String translateJava(String absType) {
+    return abs2java.get(absType);
+  }
+
+  private String translateAbstract(String absType) {
+    return abstractTypes.get(absType);
   }
 
   protected void fill(Map<String, String> types) {
@@ -34,6 +47,10 @@ class JavaTypeTranslator implements Function<String, String> {
     types.put("ABS.StdLib.Map", Map.class.getName());
     types.put("Unit", "void");
     types.put("Fut", Response.class.getSimpleName());
+  }
+
+  protected void registerAbstractType(String absType, String defType) {
+    this.abstractTypes.put(absType, defType);
   }
 
 }

@@ -70,6 +70,11 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
      */
     FUNCTION,
 
+    /**
+     * An abstract data type declaration.
+     */
+    TYPE,
+
     ;
   }
 
@@ -102,14 +107,14 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   private final JavaTypeTranslator javaTypeTranslator;
 
   // Internal state
-  private static final Multimap<String, MethodDefinition> METHODS =
+  private final Multimap<String, MethodDefinition> methods =
       Multimaps.newSetMultimap(new HashMap<>(), new Supplier<Set<MethodDefinition>>() {
         @Override
         public Set<MethodDefinition> get() {
           return new HashSet<>();
         }
       });
-  private static final Multimap<String, VarDefinition> VARIABLES =
+  private final Multimap<String, VarDefinition> variables =
       Multimaps.newSetMultimap(new HashMap<>(), new Supplier<Set<VarDefinition>>() {
         @Override
         public Set<VarDefinition> get() {
@@ -157,6 +162,13 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   @Override
   public Prog visit(Modul m, JavaWriter w) {
     try {
+
+      // Types
+      // Should be first to ensure correct type translation.
+      for (Decl decl : elements.get(AbsElementType.TYPE)) {
+        // Does NOT use writer.
+        decl.accept(this, w);
+      }
 
       // Interfaces
       for (Decl decl : elements.get(AbsElementType.INTERFACE)) {
@@ -767,7 +779,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
       if (exp instanceof ExpE) {
         ExpE expE = (ExpE) exp;
         EffExp effExp = expE.effexp_;
-        if (effExp instanceof Get) {
+        if (effExp instanceof Get || effExp instanceof New) {
           // XXX Ideally fix the indentation
           w.emitStatementEnd();
         }
@@ -1335,14 +1347,19 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   }
 
   @Override
-  public Prog visit(TypeDecl p, JavaWriter arg) {
-    logNotImplemented("#visit(%s)", p);
+  public Prog visit(TypeDecl adt, JavaWriter arg) {
+    String adtName = adt.uident_;
+    String typeName = getTypeName(adt.type_);
+    this.javaTypeTranslator.registerAbstractType(adtName, typeName);
     return prog;
   }
 
   @Override
-  public Prog visit(TypeParDecl p, JavaWriter arg) {
-    logNotImplemented("#visit(%s)", p);
+  public Prog visit(TypeParDecl adt, JavaWriter arg) {
+    String adtName = adt.uident_;
+    String typeName = getTypeName(adt.type_);
+    this.javaTypeTranslator.registerAbstractType(adtName, typeName);
+    logNotSupported("Parametric Type Declaration not supported: %s", adt.listuident_);
     return prog;
   }
 
@@ -2151,12 +2168,12 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   }
 
   private String findVariableType(String varName) {
-    for (String fqClassName : VARIABLES.keySet()) {
+    for (String fqClassName : variables.keySet()) {
       if (!fqClassName.startsWith(this.packageName)) {
         continue;
       }
-      Collection<VarDefinition> variables = VARIABLES.get(fqClassName);
-      for (VarDefinition vd : variables) {
+      Collection<VarDefinition> vars = variables.get(fqClassName);
+      for (VarDefinition vd : vars) {
         if (vd.getName().equals(varName)) {
           return vd.getType();
         }
@@ -2167,11 +2184,11 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 
   private String findMethodReturnType(String methodName, String calleeClassType,
       List<String> actualParamNames) {
-    for (String fqClassName : METHODS.keySet()) {
+    for (String fqClassName : methods.keySet()) {
       if (calleeClassType != null && !fqClassName.endsWith(calleeClassType)) {
         continue;
       }
-      Collection<MethodDefinition> methods = METHODS.get(fqClassName);
+      Collection<MethodDefinition> methods = this.methods.get(fqClassName);
       for (MethodDefinition md : methods) {
         if (md.matches(methodName, actualParamNames)) {
           return md.type();
@@ -2189,7 +2206,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
     String clazz = getQTypeName(((Modul) current).qtype_);
     String fqClassName = this.packageName + "." + clazz;
     VarDefinition vd = new VarDefinition(varName, varType);
-    VARIABLES.put(fqClassName, vd);
+    variables.put(fqClassName, vd);
   }
 
   private void createMethodDefinition(String returnType, String name, List<String> parameters) {
@@ -2200,7 +2217,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
     String clazz = getQTypeName(((Modul) current).qtype_);
     String fqClassName = this.packageName + "." + clazz;
     MethodDefinition md = new MethodDefinition(fqClassName, returnType, name, parameters);
-    METHODS.put(fqClassName, md);
+    methods.put(fqClassName, md);
   }
 
   private Module currentModule() {
@@ -2268,6 +2285,15 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
         }
       }
     }
+    // 5. Type
+    for (Module module : program.listmodule_) {
+      Modul m = (Modul) module;
+      for (Decl decl : m.listdecl_) {
+        if (isAbsAbstractTypeDecl(decl)) {
+          elements.get(AbsElementType.TYPE).add(decl);
+        }
+      }
+    }
   }
 
   private boolean isAbsInterfaceDecl(Decl decl) {
@@ -2285,6 +2311,10 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 
   private boolean isAbsDataTypeDecl(Decl decl) {
     return decl instanceof DataDecl || decl instanceof DataParDecl;
+  }
+
+  private boolean isAbsAbstractTypeDecl(Decl decl) {
+    return decl instanceof TypeDecl || decl instanceof TypeParDecl;
   }
 
   private String getRefinedClassName(String name) {
