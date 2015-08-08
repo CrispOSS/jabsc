@@ -1719,7 +1719,8 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
       beginElementKind(jw, ElementKind.CLASS, identifier, DEFAULT_MODIFIERS, null, null, true);
       jw.emitEmptyLine();
 
-      jw.beginConstructor(EnumSet.of(Modifier.PUBLIC), "String[]", "args");
+      jw.beginConstructor(EnumSet.of(Modifier.PUBLIC), Arrays.asList("String[]", "args"),
+          Collections.singletonList("Exception"));
       jw.emitStatement("Context context = Configuration.newConfiguration().buildContext()");
       jw.emitEmptyLine();
       jw.emitSingleLineComment("Init section: %s", this.packageName);
@@ -1727,12 +1728,13 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
       jw.emitEmptyLine();
       jw.emit("", true);
       jw.emitStatementEnd();
+      jw.emitStatement("context.stop()");
       jw.endConstructor();
 
       jw.emitEmptyLine();
       List<String> javaMainMethodParameters = Arrays.asList("String[]", "args");
       jw.beginMethod(VOID_PRIMITIVE_NAME, "main", mainModifiers, javaMainMethodParameters,
-          Collections.emptyList());
+          Collections.singletonList("Exception"));
       jw.emitStatement("new Main(args)");
       jw.endMethod();
       jw.endType();
