@@ -275,6 +275,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
       for (ClassBody cb : p.listclassbody_2) {
         cb.accept(this, w);
       }
+      emitToStringMethod(w);
       w.endType();
       return prog;
     } catch (IOException e) {
@@ -302,6 +303,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
       for (ClassBody cb : ci.listclassbody_2) {
         cb.accept(this, w);
       }
+      emitToStringMethod(w);
       w.endType();
       return prog;
     } catch (IOException e) {
@@ -343,6 +345,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
       for (ClassBody cb : cpd.listclassbody_2) {
         cb.accept(this, w);
       }
+      emitToStringMethod(w);
       w.endType();
       return prog;
     } catch (IOException e) {
@@ -385,6 +388,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
       for (ClassBody cb : cpi.listclassbody_2) {
         cb.accept(this, w);
       }
+      emitToStringMethod(w);
       w.endType();
       return prog;
     } catch (IOException e) {
@@ -1228,7 +1232,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   @Override
   public Prog visit(LFalse lfalse, JavaWriter w) {
     try {
-      w.emit(Boolean.FALSE.toString());
+      w.emit("Boolean.FALSE");
       return prog;
     } catch (IOException e) {
       throw new RuntimeException(e);
@@ -1238,7 +1242,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   @Override
   public Prog visit(LTrue ltrue, JavaWriter w) {
     try {
-      w.emit(Boolean.TRUE.toString());
+      w.emit("Boolean.TRUE");
       return prog;
     } catch (IOException e) {
       throw new RuntimeException(e);
@@ -1561,9 +1565,20 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   }
 
   @Override
-  public Prog visit(ENaryFunCall p, JavaWriter arg) {
-    logNotImplemented("#visit(%s)", p);
-    return prog;
+  public Prog visit(ENaryFunCall fnc, JavaWriter w) {
+    try {
+      String identifier = fnc.lident_;
+      List<String> exps = new ArrayList<>();
+      for (PureExp pexp : fnc.listpureexp_) {
+        StringWriter auxsw = new StringWriter();
+        pexp.accept(this, new JavaWriter(auxsw));
+        exps.add(auxsw.toString());
+      }
+      w.emit(identifier + String.format("(%s)", String.join(COMMA_SPACE, exps)));
+      return prog;
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
   }
 
   @Override
@@ -1732,11 +1747,15 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
       jw.endConstructor();
 
       jw.emitEmptyLine();
+      emitToStringMethod(jw);
+
+      jw.emitEmptyLine();
       List<String> javaMainMethodParameters = Arrays.asList("String[]", "args");
       jw.beginMethod(VOID_PRIMITIVE_NAME, "main", mainModifiers, javaMainMethodParameters,
           Collections.singletonList("Exception"));
       jw.emitStatement("new Main(args)");
       jw.endMethod();
+
       jw.endType();
       close(jw, w);
     } catch (IOException e) {
@@ -1762,7 +1781,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   }
 
   protected void visitAsyncMethodCall(AsyncMethCall amc, String resultVarType, String resultVarName,
-      boolean isDefined, boolean await, JavaWriter w) throws IOException {
+      final boolean isDefined, final boolean await, JavaWriter w) throws IOException {
     String calleeId = getCalleeId(amc);
     List<String> params = getCalleeMethodParams(amc);
     String methodName = amc.lident_;
@@ -2378,6 +2397,18 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 
   private void emitThisActorRegistration(JavaWriter w) throws IOException {
     w.emitStatement("context().newActor(toString(), this)");
+  }
+
+  /*
+   * The reason for this method to resolve the compilation issue
+   * with Java compiler. The resolution scope hierarchy starts
+   * from java.lang.Object and that's why Functional.toString()
+   * is not resolved by default order.
+   */
+  private void emitToStringMethod(JavaWriter w) throws IOException {
+    w.beginMethod("String", "toString", EnumSet.of(Modifier.PRIVATE), "Object", "o");
+    w.emitStatement("return Functional.toString(o)");
+    w.endMethod();
   }
 
 }
