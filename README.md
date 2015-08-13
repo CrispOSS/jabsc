@@ -42,15 +42,19 @@ The legend for the following tables:
 * :bangbang: ABS source fails to compile to *correct* Java.
 
 #### Tests: `compiler/must/`
-| Test | State | Test | State | Test | State |
-|----|:----:|----|:----:|----|:----:|----|:----:|
-| Arith | :white_check_mark: | AsyncToSameCOG | :white_check_mark: | AwaitOnThis | :white_check_mark: 
-| AwaitOnThis2 | :white_check_mark: | BenchLists | :bangbang: | BenchMaps | :bangbang: |
-| CatchClauseBugInOtherBackends | | ClassDisjointInterfs | :white_check_mark: | Cosimo1 | :white_check_mark: |
-| Cosimo2 | :heavy_exclamation_mark: | Cosimo3 | :heavy_exclamation_mark: | Cosimo4 | :heavy_exclamation_mark: |
-| CosimoAsyncRun | :white_check_mark: | Equality | :white_check_mark: | ExceptionCase | |
-| ExceptionMod | | ExceptionPos | | Fail1 | :white_check_mark: |
-| Fail2 | :white_check_mark: | FieldToFunc | :white_check_mark: | FixBugMonadicStyle | :heavy_exclamation_mark: | 
+| Test | State | Test | State |
+|----|:----:|----|:----:|----|:----:|
+| Arith | :white_check_mark: | AsyncToSameCOG | :white_check_mark: |
+| AwaitOnThis | :white_check_mark: | AwaitOnThis2 | :white_check_mark: |
+| BenchLists | :bangbang: | BenchMaps | :bangbang: |
+| CatchClauseBugInOtherBackends | | ClassDisjointInterfs | :white_check_mark: |
+| Cosimo1 | :white_check_mark: | Cosimo2 | :heavy_exclamation_mark: |
+| Cosimo3 | :heavy_exclamation_mark: | Cosimo4 | :heavy_exclamation_mark: |
+| CosimoAsyncRun | :white_check_mark: | Equality | :white_check_mark: |
+| ExceptionCase | | ExceptionMod | |
+| ExceptionPos | | Fail1 | :white_check_mark: |
+| Fail2 | :white_check_mark: | FieldToFunc | :white_check_mark: |
+| FixBugMonadicStyle | :heavy_exclamation_mark: | | | 
  
 ## Build Parser/Lexer
 
