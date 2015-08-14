@@ -32,7 +32,29 @@ and make sure you have the proper Maven dependency:
 
 ## Tests
 
-Please refer to [`jabsc-tests`][2].
+Please refer to [`jabsc-tests`][2] for a set of examples. In addition, the feature coverage of the compiler is testing using [reference examples][3] by Haskell compiler for ABS. 
+
+The legend for the following tables:
+
+* :white_check_mark: ABS source is compiled to Java and its test *passes*.
+* :x: ABS source is compiled to Java but its test *fails*.
+* :heavy_exclamation_mark: ABS source is compiled to Java but its test *hangs*.
+* :bangbang: ABS source fails to compile to *correct* Java.
+
+#### Tests: `compiler/must/`
+| Test | State | Test | State |
+|----|:----:|----|:----:|----|:----:|
+| Arith | :white_check_mark: | AsyncToSameCOG | :white_check_mark: |
+| AwaitOnThis | :white_check_mark: | AwaitOnThis2 | :white_check_mark: |
+| BenchLists | :bangbang: | BenchMaps | :bangbang: |
+| CatchClauseBugInOtherBackends | | ClassDisjointInterfs | :white_check_mark: |
+| Cosimo1 | :white_check_mark: | Cosimo2 | :heavy_exclamation_mark: |
+| Cosimo3 | :heavy_exclamation_mark: | Cosimo4 | :heavy_exclamation_mark: |
+| CosimoAsyncRun | :white_check_mark: | Equality | :white_check_mark: |
+| ExceptionCase | | ExceptionMod | |
+| ExceptionPos | | Fail1 | :white_check_mark: |
+| Fail2 | :white_check_mark: | FieldToFunc | :white_check_mark: |
+| FixBugMonadicStyle | :heavy_exclamation_mark: | | | 
  
 ## Build Parser/Lexer
 
@@ -45,3 +67,4 @@ You need the following *only* if you modify `src/main/resources/ABS.cf` to gener
 
 [1]: https://github.com/CrispOSS/jabsc-maven-plugin-example
 [2]: https://github.com/CrispOSS/jabsc-tests
+[3]: https://github.com/bezirg/abs2haskell/tree/cloud/test
