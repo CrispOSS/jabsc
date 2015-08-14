@@ -54,7 +54,8 @@ The legend for the following tables:
 | ExceptionCase | | ExceptionMod | |
 | ExceptionPos | | Fail1 | :white_check_mark: |
 | Fail2 | :white_check_mark: | FieldToFunc | :white_check_mark: |
-| FixBugMonadicStyle | :heavy_exclamation_mark: | | | 
+| FixBugMonadicStyle | :heavy_exclamation_mark: | ForeignImport | | 
+| Futures | :white_check_mark: | HiddenMethod | :heavy_exclamation_mark: |
  
 ## Build Parser/Lexer
 
