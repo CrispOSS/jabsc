@@ -56,6 +56,20 @@ The legend for the following tables:
 | Fail2 | :white_check_mark: | FieldToFunc | :white_check_mark: |
 | FixBugMonadicStyle | :heavy_exclamation_mark: | ForeignImport | | 
 | Futures | :white_check_mark: | HiddenMethod | :heavy_exclamation_mark: |
+| Inference | :bangbang: | InferenceNum | :bangbang: |
+| Interfaces | :white_check_mark: | LeaderElection | :bangbang: |
+| Module | :x: | MultipleTasksPerObject | :white_check_mark: |
+| MultiScope | :white_check_mark: | NonMethods | :heavy_exclamation_mark: |
+| Null | :bangbang: | Parens | :white_check_mark: |
+| PingPong | :white_check_mark: | Promise | :x: |
+| PureCode | :x: | RunAndNonMethods | :white_check_mark |
+| StatefulOO | :white_check_mark: | Subtyping | :white_check_mark: |
+| Subtyping2 | :white_check_mark: | TestAwait | :white_check_mark: |
+| TestMaps | :white_check_mark: | TestRefs | :white_check_mark: |
+| TestThis | :white_check_mark: | ThisSwitching | :white_check_mark: |
+| TypeSym | :x: | UpcastingInt | :x: |
+| While | :x: | | |
+
  
 ## Build Parser/Lexer
 
