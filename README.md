@@ -48,8 +48,8 @@ The legend for the following tables:
 | AwaitOnThis | :white_check_mark: | AwaitOnThis2 | :white_check_mark: |
 | BenchLists | :bangbang: | BenchMaps | :bangbang: |
 | CatchClauseBugInOtherBackends | | ClassDisjointInterfs | :white_check_mark: |
-| Cosimo1 | :white_check_mark: | Cosimo2 | :heavy_exclamation_mark: |
-| Cosimo3 | :heavy_exclamation_mark: | Cosimo4 | :heavy_exclamation_mark: |
+| Cosimo1 | :white_check_mark: | Cosimo2 | :heavy_exclamation_mark: Object's field reference to a "future" is changed; thus the future is lost. |
+| Cosimo3 | :heavy_exclamation_mark: Same as Cosimo2 | Cosimo4 | :white_check_mark: |
 | CosimoAsyncRun | :white_check_mark: | Equality | :white_check_mark: |
 | ExceptionCase | | ExceptionMod | |
 | ExceptionPos | | Fail1 | :white_check_mark: |
@@ -62,7 +62,7 @@ The legend for the following tables:
 | MultiScope | :white_check_mark: | NonMethods | :heavy_exclamation_mark: |
 | Null | :bangbang: | Parens | :white_check_mark: |
 | PingPong | :white_check_mark: | Promise | :x: |
-| PureCode | :x: | RunAndNonMethods | :white_check_mark |
+| PureCode | :x: | RunAndNonMethods | :white_check_mark: |
 | StatefulOO | :white_check_mark: | Subtyping | :white_check_mark: |
 | Subtyping2 | :white_check_mark: | TestAwait | :white_check_mark: |
 | TestMaps | :white_check_mark: | TestRefs | :white_check_mark: |
