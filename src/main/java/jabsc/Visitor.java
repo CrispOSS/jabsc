@@ -124,7 +124,8 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   private final Stack<Module> modules = new Stack<>();
   private final EnumMap<AbsElementType, Set<Decl>> elements = new EnumMap<>(AbsElementType.class);
   private final Map<String, String> classNames = new HashMap<>();
-  private final Set<String> packageEnumImports = new HashSet<>();
+  private final Set<String> packageLevelImports = new HashSet<>();
+  private final Set<String> dataDeclarations = new HashSet<>();
 
   /**
    * Ctor.
@@ -164,10 +165,19 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
     try {
 
       // Types
-      // Should be first to ensure correct type translation.
       for (Decl decl : elements.get(AbsElementType.TYPE)) {
         // Does NOT use writer.
         decl.accept(this, w);
+      }
+
+      // Data
+      for (Decl decl : elements.get(AbsElementType.DATA)) {
+        String name = getTopLevelDeclIdentifier(decl);
+        JavaWriter declWriter = javaWriterSupplier.apply(name);
+        declWriter.emitPackage(packageName);
+        visitImports(m.listimport_, declWriter);
+        decl.accept(this, declWriter);
+        close(declWriter, w);
       }
 
       // Interfaces
@@ -185,16 +195,6 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
         String name = getTopLevelDeclIdentifier(decl);
         final String refinedClassName = getRefinedClassName(name);
         JavaWriter declWriter = javaWriterSupplier.apply(refinedClassName);
-        declWriter.emitPackage(packageName);
-        visitImports(m.listimport_, declWriter);
-        decl.accept(this, declWriter);
-        close(declWriter, w);
-      }
-
-      // Data
-      for (Decl decl : elements.get(AbsElementType.DATA)) {
-        String name = getTopLevelDeclIdentifier(decl);
-        JavaWriter declWriter = javaWriterSupplier.apply(name);
         declWriter.emitPackage(packageName);
         visitImports(m.listimport_, declWriter);
         decl.accept(this, declWriter);
@@ -492,16 +492,10 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 
   @Override
   public Prog visit(SBlock b, JavaWriter w) {
-    try {
-      w.beginStatementBlock();
-      for (Stm stm : b.liststm_) {
-        stm.accept(this, w);
-      }
-      w.endStatementBlock();
-      return prog;
-    } catch (IOException e) {
-      throw new RuntimeException(e);
+    for (Stm stm : b.liststm_) {
+      stm.accept(this, w);
     }
+    return prog;
   }
 
   @Override
@@ -999,9 +993,13 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   public Prog visit(ENeq e, JavaWriter w) {
     try {
       w.beginExpressionGroup();
-      e.pureexp_1.accept(this, w);
-      w.emit(" != ");
-      e.pureexp_2.accept(this, w);
+      StringWriter auxsw = new StringWriter();
+      e.pureexp_1.accept(this, new JavaWriter(auxsw));
+      String firstArg = auxsw.toString();
+      auxsw = new StringWriter();
+      e.pureexp_2.accept(this, new JavaWriter(auxsw));
+      String secondArg = auxsw.toString();
+      w.emit(String.format("!Objects.equals(%s, %s)", firstArg, secondArg));
       w.endExpressionGroup();
       return prog;
     } catch (IOException x) {
@@ -1026,7 +1024,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   public Prog visit(ELogNeg ln, JavaWriter w) {
     try {
       w.beginExpressionGroup();
-      w.emit(" ! ");
+      w.emit("!");
       ln.pureexp_.accept(this, w);
       w.endExpressionGroup();
       return prog;
@@ -1372,31 +1370,67 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   public Prog visit(DataDecl dd, JavaWriter w) {
     try {
       w.emitEmptyLine();
-      String enumName = dd.uident_;
-      beginElementKind(w, ElementKind.ENUM, enumName, EnumSet.of(Modifier.PUBLIC), null, null,
-          false);
-      w.emitEmptyLine();
-      ListConstrIdent lci = dd.listconstrident_;
-      for (ConstrIdent ci : lci) {
-        String id = null;
-        if (ci instanceof ParamConstrIdent) {
-          id = ((ParamConstrIdent) ci).uident_;
-          logNotSupported("Parametric Data declaration not supported: %s",
-              ((ParamConstrIdent) ci).listconstrtype_);
-        } else if (ci instanceof SinglConstrIdent) {
-          id = ((SinglConstrIdent) ci).uident_;
-        }
-        if (id == null) {
-          throw new IllegalStateException("Invalid data declaration: " + enumName);
-        }
-        w.emit(id, true);
-        w.emit(",");
-        w.emitEmptyLine();
-        w.emitEmptyLine();
-      }
-      w.emit(";", true);
+      String paraentDataInterface = dd.uident_;
+      // Define parent 'data' holder interface
+      beginElementKind(w, ElementKind.INTERFACE, paraentDataInterface, EnumSet.of(Modifier.PUBLIC),
+          null, null, false);
       w.emitEmptyLine();
       w.endType();
+      this.dataDeclarations.add(paraentDataInterface);
+      // Each data declaration as a subclass
+      ListConstrIdent lci = dd.listconstrident_;
+      for (ConstrIdent ci : lci) {
+        if (ci instanceof ParamConstrIdent) {
+          ParamConstrIdent pci = (ParamConstrIdent) ci;
+          String className = pci.uident_;
+          JavaWriter cw = javaWriterSupplier.apply(className);
+          cw.emitPackage(this.packageName);
+          emitDefaultImports(cw);
+          cw.emitEmptyLine();
+          beginElementKind(cw, ElementKind.CLASS, className, EnumSet.of(Modifier.PUBLIC), null,
+              Collections.singletonList(paraentDataInterface), false);
+          cw.emitEmptyLine();
+          for (ConstrType ct : pci.listconstrtype_) {
+            if (ct instanceof EmptyConstrType) {
+              EmptyConstrType ect = (EmptyConstrType) ct;
+              String type = getTypeName(ect.type_);
+              String fieldName = "_field_" + type.replace('.', '_');
+              cw.emitField(type, fieldName, EnumSet.of(Modifier.PUBLIC, Modifier.FINAL));
+              cw.emitEmptyLine();
+              cw.beginConstructor(EnumSet.of(Modifier.PUBLIC), type, "value");
+              cw.emitStatement("this.%s = %s", fieldName, "value");
+              cw.endConstructor();
+            } else if (ct instanceof RecordConstrType) {
+              RecordConstrType rct = (RecordConstrType) ct;
+              String type = getTypeName(rct.type_);
+              String fieldName = rct.lident_;
+              cw.emitField(type, fieldName, EnumSet.of(Modifier.PUBLIC, Modifier.FINAL));
+              cw.emitEmptyLine();
+              cw.beginConstructor(EnumSet.of(Modifier.PUBLIC), type, fieldName);
+              cw.emitStatement("this.%s = %s", fieldName, fieldName);
+              cw.endConstructor();
+            }
+          }
+          cw.endType();
+          cw.close();
+          this.dataDeclarations.add(className);
+        } else if (ci instanceof SinglConstrIdent) {
+          String className = ((SinglConstrIdent) ci).uident_;
+          JavaWriter cw = javaWriterSupplier.apply(className);
+          cw.emitPackage(this.packageName);
+          emitDefaultImports(cw);
+          cw.emitEmptyLine();
+          beginElementKind(cw, ElementKind.CLASS, className, EnumSet.of(Modifier.PUBLIC), null,
+              Collections.singletonList(paraentDataInterface), false);
+          cw.emitEmptyLine();
+          cw.emitField(className, "INSTANCE",
+              EnumSet.of(Modifier.PUBLIC, Modifier.STATIC, Modifier.FINAL),
+              "new " + className + "()");
+          cw.endType();
+          cw.close();
+          this.dataDeclarations.add(className);
+        }
+      }
       return prog;
     } catch (IOException e) {
       throw new RuntimeException(e);
@@ -1437,27 +1471,39 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
     return prog;
   }
 
+  /**
+   * @see #visit(DataDecl, JavaWriter)
+   * @see #visit(DataParDecl, JavaWriter)
+   */
   @Override
   public Prog visit(SinglConstrIdent p, JavaWriter arg) {
-    logNotImplemented("#visit(%s)", p);
     return prog;
   }
 
+  /**
+   * @see #visit(DataDecl, JavaWriter)
+   * @see #visit(DataParDecl, JavaWriter)
+   */
   @Override
   public Prog visit(ParamConstrIdent p, JavaWriter arg) {
-    logNotImplemented("#visit(%s)", p);
     return prog;
   }
 
+  /**
+   * @see #visit(DataDecl, JavaWriter)
+   * @see #visit(DataParDecl, JavaWriter)
+   */
   @Override
   public Prog visit(EmptyConstrType p, JavaWriter arg) {
-    logNotImplemented("#visit(%s)", p);
     return prog;
   }
 
+  /**
+   * @see #visit(DataDecl, JavaWriter)
+   * @see #visit(DataParDecl, JavaWriter)
+   */
   @Override
   public Prog visit(RecordConstrType p, JavaWriter arg) {
-    logNotImplemented("#visit(%s)", p);
     return prog;
   }
 
@@ -1592,7 +1638,11 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   public Prog visit(ESinglConstr cons, JavaWriter w) {
     try {
       String type = getQTypeName(cons.qtype_);
-      w.emit(javaTypeTranslator.translateFunctionalType(type));
+      String resolvedType = javaTypeTranslator.translateFunctionalType(type);
+      w.emit(resolvedType);
+      if (this.dataDeclarations.contains(resolvedType)) {
+        w.emit(".INSTANCE");
+      }
       return prog;
     } catch (IOException e) {
       throw new RuntimeException(e);
@@ -1641,6 +1691,9 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   public Prog visit(PSinglConstr p, JavaWriter w) {
     try {
       w.emit(p.uident_);
+      if (this.dataDeclarations.contains(p.uident_)) {
+        w.emit(".INSTANCE");
+      }
       return prog;
     } catch (IOException e) {
       throw new RuntimeException(e);
@@ -1648,9 +1701,20 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   }
 
   @Override
-  public Prog visit(PParamConstr p, JavaWriter arg) {
-    logNotImplemented("#visit(%s)", p);
-    return prog;
+  public Prog visit(PParamConstr p, JavaWriter w) {
+    try {
+      List<String> parameters = new ArrayList<>();
+      for (bnfc.abs.Absyn.Pattern pattern : p.listpattern_) {
+        StringWriter sw = new StringWriter();
+        pattern.accept(this, new JavaWriter(sw));
+        parameters.add(sw.toString());
+      }
+      String params = String.join(COMMA_SPACE, parameters);
+      w.emit("new " + p.uident_ + "(" + params + ")");
+      return prog;
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
   }
 
   @Override
@@ -1770,7 +1834,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   protected void emitDefaultImports(JavaWriter w) throws IOException {
     w.emitStaticImports(DEFAULT_STATIC_IMPORTS);
     w.emitStaticImports(this.packageName + "." + FUNCTIONS_CLASS_NAME + ".*");
-    for (String p : this.packageEnumImports) {
+    for (String p : this.packageLevelImports) {
       w.emitStaticImports(this.packageName + "." + p + ".*");
     }
     w.emitImports(DEFAULT_IMPORTS);
@@ -2077,8 +2141,12 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
         }
         return;
       case INTERFACE:
-        w.beginType(identifier, kindName, modifiers, String.join(COMMA_SPACE, implementsTypes),
-            new String[0]);
+        if (implementsTypes.isEmpty()) {
+          w.beginType(identifier, kindName, modifiers, null, new String[0]);
+        } else {
+          w.beginType(identifier, kindName, modifiers, String.join(COMMA_SPACE, implementsTypes),
+              new String[0]);
+        }
         return;
       case ENUM:
         w.beginType(identifier, kindName, modifiers);
@@ -2312,7 +2380,6 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
       for (Decl decl : m.listdecl_) {
         if (isAbsDataTypeDecl(decl)) {
           elements.get(AbsElementType.DATA).add(decl);
-          packageEnumImports.add(getTopLevelDeclIdentifier(decl));
         }
       }
     }
@@ -2434,6 +2501,11 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
     w.beginMethod("String", "toString", EnumSet.of(Modifier.PRIVATE), "Object", "o");
     w.emitStatement("return Functional.toString(o)");
     w.endMethod();
+  }
+
+  private boolean isBlockStatement(Stm s) {
+    return s instanceof SIf || s instanceof SIfElse || s instanceof STryCatchFinally
+        || s instanceof SWhile;
   }
 
 }
