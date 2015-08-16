@@ -12,11 +12,13 @@ import abs.api.Response;
  */
 class JavaTypeTranslator implements Function<String, String> {
 
-  private final Map<String, String> abs2java = new HashMap<>();
+  private final Map<String, String> absTypes = new HashMap<>();
   private final Map<String, String> abstractTypes = new HashMap<>();
+  private final Map<String, String> functionalTypes = new HashMap<>();
 
   public JavaTypeTranslator() {
-    fill(abs2java);
+    fillABSTypes(absTypes);
+    fillFunctionalTypes(functionalTypes);
   }
 
   @Override
@@ -33,20 +35,35 @@ class JavaTypeTranslator implements Function<String, String> {
     return javaType == null ? type : javaType;
   }
 
+  protected String translateFunctionalType(String type) {
+    if (this.functionalTypes.containsKey(type)) {
+      return this.functionalTypes.get(type);
+    }
+    return type;
+  }
+
   private String translateJava(String absType) {
-    return abs2java.get(absType);
+    return absTypes.get(absType);
   }
 
   private String translateAbstract(String absType) {
     return abstractTypes.get(absType);
   }
 
-  protected void fill(Map<String, String> types) {
+  protected void fillABSTypes(final Map<String, String> types) {
     types.put("Int", Integer.class.getName());
+    types.put("Rat", Double.class.getName());
     types.put("Bool", Boolean.class.getName());
     types.put("ABS.StdLib.Map", Map.class.getName());
     types.put("Unit", "void");
     types.put("Fut", Response.class.getSimpleName());
+  }
+
+  protected void fillFunctionalTypes(final Map<String, String> types) {
+    types.put("Nil", "Nil()");
+    types.put("EmptyList", "EmptyList()");
+    types.put("EmptySet", "EmptySet()");
+    types.put("EmptyMap", "EmptyMap()");
   }
 
   protected void registerAbstractType(String absType, String defType) {

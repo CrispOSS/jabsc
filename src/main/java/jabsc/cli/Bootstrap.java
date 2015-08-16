@@ -25,6 +25,7 @@ public class Bootstrap {
     } catch (Exception e) {
       LOGGER.severe(
           "Compilation failed: " + Throwables.getStackTraceAsString(Throwables.getRootCause(e)));
+      System.exit(1);
     }
   }
 

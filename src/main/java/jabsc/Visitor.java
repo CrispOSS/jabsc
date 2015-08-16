@@ -265,13 +265,10 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
       for (ClassBody cb : p.listclassbody_1) {
         cb.accept(this, w);
       }
-
       w.beginConstructor(DEFAULT_MODIFIERS, null, null);
-
       p.maybeblock_.accept(this, w);
       emitThisActorRegistration(w);
       w.endConstructor();
-
       for (ClassBody cb : p.listclassbody_2) {
         cb.accept(this, w);
       }
@@ -324,7 +321,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
         String fieldType = getTypeName(p.type_);
         parameters.add(fieldType);
         parameters.add(p.lident_);
-        emitField(w, fieldType, p.lident_, null, true);
+        emitField(w, fieldType, p.lident_, null, false);
       }
       w.emitEmptyLine();
 
@@ -366,16 +363,13 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
         String fieldType = getTypeName(p.type_);
         parameters.add(fieldType);
         parameters.add(p.lident_);
-        emitField(w, fieldType, p.lident_, null, true);
+        emitField(w, fieldType, p.lident_, null, false);
       }
-
       w.emitEmptyLine();
 
       for (ClassBody cb : cpi.listclassbody_1) {
         cb.accept(this, w);
       }
-
-
       w.beginConstructor(DEFAULT_MODIFIERS, parameters, null);
       for (Param param : cpi.listparam_) {
         Par p = (Par) param;
@@ -498,24 +492,31 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 
   @Override
   public Prog visit(SBlock b, JavaWriter w) {
-    for (Stm stm : b.liststm_) {
-      stm.accept(this, w);
+    try {
+      w.beginStatementBlock();
+      for (Stm stm : b.liststm_) {
+        stm.accept(this, w);
+      }
+      w.endStatementBlock();
+      return prog;
+    } catch (IOException e) {
+      throw new RuntimeException(e);
     }
-    return prog;
   }
 
   @Override
   public Prog visit(SAwait await, JavaWriter w) {
     try {
+      final String patternAwaitVar = "await(this, () -> %s.getValue() != null)";
       Guard g = await.guard_;
       if (g instanceof FieldGuard) {
         FieldGuard fg = (FieldGuard) g;
         String fieldName = LITERAL_THIS + "." + fg.lident_;
-        w.emitStatement("%s.getValue()", fieldName);
+        w.emitStatement(patternAwaitVar, fieldName);
       } else if (g instanceof VarGuard) {
         VarGuard vg = (VarGuard) g;
         String varName = vg.lident_;
-        w.emitStatement("%s.getValue()", varName);
+        w.emitStatement(patternAwaitVar, varName);
       } else if (g instanceof AndGuard) {
         AndGuard ag = (AndGuard) g;
         Guard g1 = ag.guard_1;
@@ -527,12 +528,9 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
         StringWriter auxsw = new StringWriter();
         exp.accept(this, new JavaWriter(auxsw));
         String baBooleanSupplierVarName = "booleanAwait_" + RANDOM.nextInt(1000);
-        String baResponseVarName = createMessageResponseVariableName(baBooleanSupplierVarName);
         w.emitStatement("Supplier<Boolean> %s = () -> %s", baBooleanSupplierVarName,
             auxsw.toString());
-        w.emitStatement("Response<Boolean> %s = send(this, %s)", baResponseVarName,
-            baBooleanSupplierVarName);
-        w.emitStatement("%s.getValue()", baResponseVarName);
+        w.emitStatement("await(this, %s)", baBooleanSupplierVarName);
       } else {
         logNotImplemented("#visit(%s): %s", await, await.guard_);
       }
@@ -644,20 +642,20 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
         EffExp effExp = expe.effexp_;
         if (effExp instanceof AsyncMethCall) {
           AsyncMethCall amc = (AsyncMethCall) effExp;
-          visitAsyncMethodCall(amc, fieldType, fieldName, true, true, w);
+          visitAsyncMethodCall(amc, fieldType, fieldName, true, w);
         } else if (effExp instanceof ThisAsyncMethCall) {
           ThisAsyncMethCall tams = (ThisAsyncMethCall) effExp;
           AsyncMethCall amc =
               new AsyncMethCall(new ELit(new LThis()), tams.lident_, tams.listpureexp_);
-          visitAsyncMethodCall(amc, fieldType, fieldName, true, true, w);
+          visitAsyncMethodCall(amc, fieldType, fieldName, true, w);
         } else if (effExp instanceof SyncMethCall) {
           SyncMethCall smc = (SyncMethCall) effExp;
-          visitSyncMethodCall(smc, fieldType, fieldName, true, w);
+          visitSyncMethodCall_Sync(smc, fieldType, fieldName, true, w);
         } else if (effExp instanceof ThisSyncMethCall) {
           ThisSyncMethCall tsmc = (ThisSyncMethCall) effExp;
           SyncMethCall smc =
               new SyncMethCall(new ELit(new LThis()), tsmc.lident_, tsmc.listpureexp_);
-          visitSyncMethodCall(smc, fieldType, fieldName, true, w);
+          visitSyncMethodCall_Sync(smc, fieldType, fieldName, true, w);
         } else {
           visitStatementAssignmentExp(exp, fieldName, fieldType, w);
         }
@@ -681,20 +679,20 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
         EffExp effExp = expe.effexp_;
         if (effExp instanceof AsyncMethCall) {
           AsyncMethCall amc = (AsyncMethCall) effExp;
-          visitAsyncMethodCall(amc, varType, varName, true, true, w);
+          visitAsyncMethodCall(amc, varType, varName, true, w);
         } else if (effExp instanceof ThisAsyncMethCall) {
           ThisAsyncMethCall tams = (ThisAsyncMethCall) effExp;
           AsyncMethCall amc =
               new AsyncMethCall(new ELit(new LThis()), tams.lident_, tams.listpureexp_);
-          visitAsyncMethodCall(amc, varType, varName, true, true, w);
+          visitAsyncMethodCall(amc, varType, varName, true, w);
         } else if (effExp instanceof SyncMethCall) {
           SyncMethCall smc = (SyncMethCall) effExp;
-          visitSyncMethodCall(smc, varType, varName, true, w);
+          visitSyncMethodCall_Sync(smc, varType, varName, true, w);
         } else if (effExp instanceof ThisSyncMethCall) {
           ThisSyncMethCall tsmc = (ThisSyncMethCall) effExp;
           SyncMethCall smc =
               new SyncMethCall(new ELit(new LThis()), tsmc.lident_, tsmc.listpureexp_);
-          visitSyncMethodCall(smc, varType, varName, true, w);
+          visitSyncMethodCall_Sync(smc, varType, varName, true, w);
         } else {
           visitStatementAssignmentExp(exp, varName, null, w);
         }
@@ -709,7 +707,9 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   public Prog visit(SDecAss p, JavaWriter w) {
     try {
       String varType = getTypeName(p.type_);
+      varType = VOID_PRIMITIVE_NAME.equals(varType) ? Object.class.getSimpleName() : varType;
       String varName = p.lident_;
+      createVarDefinition(varName, varType);
       Exp exp = p.exp_;
       if (exp instanceof ExpE == false) {
         visitStatementAssignmentExp(exp, varName, varType, w);
@@ -718,20 +718,20 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
         EffExp effExp = expe.effexp_;
         if (effExp instanceof AsyncMethCall) {
           AsyncMethCall amc = (AsyncMethCall) effExp;
-          visitAsyncMethodCall(amc, varType, varName, false, true, w);
+          visitAsyncMethodCall(amc, varType, varName, false, w);
         } else if (effExp instanceof ThisAsyncMethCall) {
           ThisAsyncMethCall tams = (ThisAsyncMethCall) effExp;
           AsyncMethCall amc =
               new AsyncMethCall(new ELit(new LThis()), tams.lident_, tams.listpureexp_);
-          visitAsyncMethodCall(amc, varType, varName, false, true, w);
+          visitAsyncMethodCall(amc, varType, varName, false, w);
         } else if (effExp instanceof SyncMethCall) {
           SyncMethCall smc = (SyncMethCall) effExp;
-          visitSyncMethodCall(smc, varType, varName, false, w);
+          visitSyncMethodCall_Sync(smc, varType, varName, true, w);
         } else if (effExp instanceof ThisSyncMethCall) {
           ThisSyncMethCall tsmc = (ThisSyncMethCall) effExp;
           SyncMethCall smc =
               new SyncMethCall(new ELit(new LThis()), tsmc.lident_, tsmc.listpureexp_);
-          visitSyncMethodCall(smc, varType, varName, false, w);
+          visitSyncMethodCall_Sync(smc, varType, varName, true, w);
         } else {
           visitStatementAssignmentExp(exp, varName, varType, w);
         }
@@ -758,7 +758,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   @Override
   public Prog visit(SSuspend ss, JavaWriter w) {
     try {
-      w.emitStatement("Thread.yield()");
+      w.emitSingleLineComment("suspend;");
       return prog;
     } catch (IOException e) {
       throw new RuntimeException(e);
@@ -1039,9 +1039,13 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   public Prog visit(EEq e, JavaWriter w) {
     try {
       w.beginExpressionGroup();
-      e.pureexp_1.accept(this, w);
-      w.emit(" == ");
-      e.pureexp_2.accept(this, w);
+      StringWriter auxsw = new StringWriter();
+      e.pureexp_1.accept(this, new JavaWriter(auxsw));
+      String firstArg = auxsw.toString();
+      auxsw = new StringWriter();
+      e.pureexp_2.accept(this, new JavaWriter(auxsw));
+      String secondArg = auxsw.toString();
+      w.emit(String.format("Objects.equals(%s, %s)", firstArg, secondArg));
       w.endExpressionGroup();
       return prog;
     } catch (IOException x) {
@@ -1105,24 +1109,17 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   @Override
   public Prog visit(AsyncMethCall amc, JavaWriter w) {
     try {
-      visitAsyncMethodCall(amc, null, null, false, false, w);
+      visitAsyncMethodCall(amc, null, null, false, w);
       return prog;
     } catch (IOException e) {
       throw new RuntimeException(e);
     }
   }
 
-  /**
-   * Implemented in #visit(SDecAss, JavaWriter)
-   * 
-   * @param smc
-   * @param w
-   * @return
-   */
   @Override
   public Prog visit(SyncMethCall smc, JavaWriter w) {
     try {
-      visitSyncMethodCall(smc, null, null, false, w);
+      visitSyncMethodCall_Sync(smc, null, null, false, w);
       return prog;
     } catch (IOException e) {
       throw new RuntimeException(e);
@@ -1132,9 +1129,8 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   @Override
   public Prog visit(ThisAsyncMethCall p, JavaWriter w) {
     try {
-      ELit lhs = new ELit(new LThis());
-      AsyncMethCall amc = new AsyncMethCall(lhs, p.lident_, p.listpureexp_);
-      visitAsyncMethodCall(amc, null, null, false, false, w);
+      AsyncMethCall amc = new AsyncMethCall(new ELit(new LThis()), p.lident_, p.listpureexp_);
+      visitAsyncMethodCall(amc, null, null, false, w);
       return prog;
     } catch (IOException e) {
       throw new RuntimeException(e);
@@ -1144,9 +1140,8 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   @Override
   public Prog visit(ThisSyncMethCall p, JavaWriter w) {
     try {
-      ELit lhs = new ELit(new LThis());
-      SyncMethCall smc = new SyncMethCall(lhs, p.lident_, p.listpureexp_);
-      visitSyncMethodCall(smc, null, p.lident_ + "_response", false, w);
+      SyncMethCall smc = new SyncMethCall(new ELit(new LThis()), p.lident_, p.listpureexp_);
+      visitSyncMethodCall_Sync(smc, null, null, false, w);
       return prog;
     } catch (IOException e) {
       throw new RuntimeException(e);
@@ -1597,7 +1592,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   public Prog visit(ESinglConstr cons, JavaWriter w) {
     try {
       String type = getQTypeName(cons.qtype_);
-      w.emit(type);
+      w.emit(javaTypeTranslator.translateFunctionalType(type));
       return prog;
     } catch (IOException e) {
       throw new RuntimeException(e);
@@ -1737,6 +1732,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
       jw.beginConstructor(EnumSet.of(Modifier.PUBLIC), Arrays.asList("String[]", "args"),
           Collections.singletonList("Exception"));
       jw.emitStatement("Context context = Configuration.newConfiguration().buildContext()");
+      emitThisActorRegistration(jw);
       jw.emitEmptyLine();
       jw.emitSingleLineComment("Init section: %s", this.packageName);
       m.maybeblock_.accept(this, jw);
@@ -1781,12 +1777,14 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   }
 
   protected void visitAsyncMethodCall(AsyncMethCall amc, String resultVarType, String resultVarName,
-      final boolean isDefined, final boolean await, JavaWriter w) throws IOException {
+      final boolean isDefined, JavaWriter w) throws IOException {
     String calleeId = getCalleeId(amc);
     List<String> params = getCalleeMethodParams(amc);
     String methodName = amc.lident_;
+    String varDefType = findVariableType(resultVarName);
     String potentialReturnType = resultVarType != null ? resultVarType
-        : findMethodReturnType(methodName, findVariableType(calleeId), params);
+        : varDefType != null ? varDefType
+            : findMethodReturnType(methodName, findVariableType(calleeId), params);
     String msgVarName = createMessageVariableName(calleeId);
     String msgStatement = generateMessageStatement(msgVarName, potentialReturnType,
         generateJavaMethodInvocation(calleeId, methodName, params));
@@ -1794,14 +1792,14 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
     w.emitStatementEnd();
     String responseVarName =
         resultVarName != null ? resultVarName : createMessageResponseVariableName(msgVarName);
-    String sendStm = generateMessageInvocationStatement(calleeId, isDefined, await, resultVarType,
+    String sendStm = generateMessageInvocationStatement(calleeId, isDefined, resultVarType,
         msgVarName, responseVarName);
     w.emit(sendStm, true);
     w.emitStatementEnd();
   }
 
-  protected void visitSyncMethodCall(SyncMethCall smc, String resultVarType, String resultVarName,
-      boolean isDefined, JavaWriter w) throws IOException {
+  protected void visitSyncMethodCall_Async(SyncMethCall smc, String resultVarType,
+      String resultVarName, boolean isDefined, JavaWriter w) throws IOException {
     String calleeId = getCalleeId(smc);
     List<String> params = getCalleeMethodParams(smc);
     String msgVarName = createMessageVariableName(calleeId);
@@ -1813,7 +1811,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
     w.emit(msgStatement, true);
     w.emitStatementEnd();
     String responseVarName = createMessageResponseVariableName(msgVarName);
-    String sendStm = generateMessageInvocationStatement(calleeId, isDefined, false, resultVarType,
+    String sendStm = generateMessageInvocationStatement(calleeId, isDefined, resultVarType,
         msgVarName, responseVarName);
     w.emit(sendStm, true);
     w.emitStatementEnd();
@@ -1824,6 +1822,21 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
       w.emit(responseVarName + ".getValue()", true);
     }
     w.emitStatementEnd();
+  }
+
+  protected void visitSyncMethodCall_Sync(SyncMethCall smc, String resultVarType,
+      String resultVarName, boolean isDefined, JavaWriter w) throws IOException {
+    String calleeId = getCalleeId(smc);
+    List<String> params = getCalleeMethodParams(smc);
+    String methodName = smc.lident_;
+    String potentialReturnType = resultVarName != null ? resultVarType
+        : findMethodReturnType(methodName, findVariableType(calleeId), params);
+    String javaMethodCall = generateJavaMethodInvocation(calleeId, methodName, params);
+    if (isDefined && resultVarName != null) {
+      w.emitStatement("%s %s = %s", potentialReturnType, resultVarName, javaMethodCall);
+    } else {
+      w.emitStatement(javaMethodCall);
+    }
   }
 
   protected void visitStatementAssignmentExp(Exp exp, String varName, String varType, JavaWriter w)
@@ -1839,7 +1852,6 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
         w.emitStatement("%s = %s", varName, auxsw.toString());
       } else {
         w.emitStatement("%s %s = %s", varType, varName, auxsw.toString());
-        createVarDefinition(varName, varType);
       }
     }
   }
@@ -1949,10 +1961,6 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
    * {@link Actor} in the ABS API.
    * 
    * @param target the receiver identifier of the message
-   * @param await if this is an await statement; If
-   *        <code>true</code>,
-   *        {@link Actor#await(Object, Object)} is generated
-   *        otherwise {@link Actor#send(Object, Object)}
    * @param msgReturnType the expected return type of the
    *        message; if <code>null</code>, the generated
    *        {@link Response} will be over {@link Void}
@@ -1962,14 +1970,16 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
    * @return a Java statement string for such a call
    */
   protected String generateMessageInvocationStatement(String target, final boolean isDefined,
-      final boolean await, String msgReturnType, String msgVarName, String responseVarName) {
-    final String method = await ? "await" : "send";
-    if (responseVarName == null)
+      String msgReturnType, String msgVarName, String responseVarName) {
+    final String method = "send";
+    if (responseVarName == null) {
       return String.format("%s(%s, %s)", method, target, msgVarName);
-    if (isDefined && !responseVarName.startsWith("msg_"))
+    }
+    if (isDefined && !responseVarName.startsWith("msg_")) {
       return String.format("%s = %s(%s, %s)", responseVarName, method, target, msgVarName);
-    String returnType = msgReturnType == null || isPrimitiveVoid(msgReturnType)
-        ? VOID_WRAPPER_CLASS_NAME : stripGenericResponseType(msgReturnType);
+    }
+    String returnType = msgReturnType == null || isVoid(msgReturnType) ? VOID_WRAPPER_CLASS_NAME
+        : stripGenericResponseType(msgReturnType);
     return String.format("Response<%s> %s = %s(%s, %s)", returnType, responseVarName, method,
         target, msgVarName);
   }
@@ -2183,7 +2193,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
       }
       sQ.append(String.join(COMMA_SPACE, gTypes));
       sQ.append(">");
-      return sQ.toString();
+      return refineVoidType(sQ.toString());
     }
     return null;
   }
@@ -2376,15 +2386,27 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
     return msgVarName + "_response";
   }
 
-  private boolean isPrimitiveVoid(String type) {
-    return VOID_PRIMITIVE_NAME.equals(type) || type.contains("<" + VOID_PRIMITIVE_NAME + ">");
+  private boolean isVoid(String type) {
+    return isLiteralPrimitiveVoid(type) || isGenericVoid(type);
+  }
+
+  private boolean isGenericVoid(String type) {
+    return type.contains("<" + VOID_PRIMITIVE_NAME + ">");
+  }
+
+  private boolean isLiteralPrimitiveVoid(String type) {
+    return VOID_PRIMITIVE_NAME.equalsIgnoreCase(type);
+  }
+
+  private String refineVoidType(String type) {
+    return isGenericVoid(type) ? type.replaceAll("<void>", "<Void>") : type;
   }
 
   private String resolveMessageType(String returnType) {
     String actualReturnType = null;
     if (returnType != null) {
       String type = stripGenericResponseType(returnType);
-      if (isPrimitiveVoid(type)) {
+      if (isVoid(type)) {
         actualReturnType = "Runnable";
       } else {
         actualReturnType = String.format("Callable<%s>", type);
@@ -2406,6 +2428,9 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
    * is not resolved by default order.
    */
   private void emitToStringMethod(JavaWriter w) throws IOException {
+    w.emitEmptyLine();
+    w.emitSingleLineComment("To override default Object#toString() competing");
+    w.emitSingleLineComment("with static imports of Functional#toString()");
     w.beginMethod("String", "toString", EnumSet.of(Modifier.PRIVATE), "Object", "o");
     w.emitStatement("return Functional.toString(o)");
     w.endMethod();

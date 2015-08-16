@@ -781,34 +781,6 @@ class JavaWriter implements Closeable {
     return this;
   }
   
-  protected JavaWriter emit(String string) throws IOException {
-    return emit(string, false);
-  }
-
-  protected JavaWriter emit(String string, final boolean indent) throws IOException {
-    if (indent) {
-      indent();
-    }
-    out.write(string);
-    return this;
-  }
-
-  protected JavaWriter beginExpressionGroup() throws IOException {
-    out.write("(");
-    return this;
-  }
-
-  protected JavaWriter endExpressionGroup() throws IOException {
-    out.write(")");
-    return this;
-  }
-  
-  protected JavaWriter emitStatementEnd() throws IOException {
-    out.write(";");
-    out.write("\n");
-    return this;
-  }
-
   /**
    * Returns the string literal representing {@code data}, including wrapping quotes.
    *
@@ -903,6 +875,48 @@ class JavaWriter implements Closeable {
     ANNOTATION_ATTRIBUTE,
     ANNOTATION_ARRAY_VALUE,
     INITIALIZER
+  }
+
+  // *** Extra custom methods for JABSC
+  
+  protected JavaWriter beginStatementBlock() throws IOException {
+    indent();
+    out.write("{\n");
+    return this;
+  }
+  
+  protected JavaWriter endStatementBlock() throws IOException {
+    indent();
+    out.write("}\n");
+    return this;
+  }
+  
+  protected JavaWriter emit(String string) throws IOException {
+    return emit(string, false);
+  }
+
+  protected JavaWriter emit(String string, final boolean indent) throws IOException {
+    if (indent) {
+      indent();
+    }
+    out.write(string);
+    return this;
+  }
+
+  protected JavaWriter beginExpressionGroup() throws IOException {
+    out.write("(");
+    return this;
+  }
+
+  protected JavaWriter endExpressionGroup() throws IOException {
+    out.write(")");
+    return this;
+  }
+  
+  protected JavaWriter emitStatementEnd() throws IOException {
+    out.write(";");
+    out.write("\n");
+    return this;
   }
 
 }
