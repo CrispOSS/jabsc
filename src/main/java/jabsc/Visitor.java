@@ -1913,7 +1913,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
       JavaWriter auxw = new JavaWriter(auxsw);
       exp.accept(this, auxw);
       if (varType == null) {
-        w.emitStatement("%s = %s", varName, auxsw.toString());
+        w.emitStatement(varName + "=" + auxsw.toString());
       } else {
         w.emitStatement("%s %s = %s", varType, varName, auxsw.toString());
       }
