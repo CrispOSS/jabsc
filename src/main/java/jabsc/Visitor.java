@@ -122,6 +122,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
         }
       });
   private final Stack<Module> modules = new Stack<>();
+  private final Stack<String> classes = new Stack<>();
   private final EnumMap<AbsElementType, Set<Decl>> elements = new EnumMap<>(AbsElementType.class);
   private final Map<String, String> classNames = new HashMap<>();
   private final Set<String> packageLevelImports = new HashSet<>();
@@ -231,9 +232,11 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
     try {
       final String identifier = id.uident_;
       beginElementKind(w, ElementKind.INTERFACE, identifier, DEFAULT_MODIFIERS, null, null);
+      this.classes.push(identifier);
       w.emitEmptyLine();
       id.listmethsignat_.forEach(sig -> visit((MethSig) sig, w));
       w.endType();
+      this.classes.pop();
       return prog;
     } catch (IOException e) {
       throw new RuntimeException(e);
@@ -257,23 +260,28 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 
   @Override
   public Prog visit(ClassDecl p, JavaWriter w) {
+    // Order to visit 'class':
+    // - visit class body including 'methods'
+    // - visit 'maybeblock'
     try {
       final String identifier = p.uident_;
       final String className = getRefinedClassName(identifier);
       beginElementKind(w, ElementKind.CLASS, className, DEFAULT_MODIFIERS, null, null);
+      this.classes.push(className);
       w.emitEmptyLine();
       for (ClassBody cb : p.listclassbody_1) {
         cb.accept(this, w);
       }
-      w.beginConstructor(DEFAULT_MODIFIERS, null, null);
-      p.maybeblock_.accept(this, w);
-      emitThisActorRegistration(w);
-      w.endConstructor();
       for (ClassBody cb : p.listclassbody_2) {
         cb.accept(this, w);
       }
+      w.beginConstructor(DEFAULT_MODIFIERS, null, null);
+      p.maybeblock_.accept(this, w);
+      emitClassConstructorActions(w, className);
+      w.endConstructor();
       emitToStringMethod(w);
       w.endType();
+      this.classes.pop();
       return prog;
     } catch (IOException e) {
       throw new RuntimeException(e);
@@ -284,24 +292,24 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   public Prog visit(ClassImplements ci, JavaWriter w) {
     try {
       final String identifier = ci.uident_;
-      beginElementKind(w, ElementKind.CLASS, getRefinedClassName(identifier), DEFAULT_MODIFIERS,
-          null, toList(ci.listqtype_));
+      String className = getRefinedClassName(identifier);
+      beginElementKind(w, ElementKind.CLASS, className, DEFAULT_MODIFIERS, null,
+          toList(ci.listqtype_));
+      this.classes.push(className);
       w.emitEmptyLine();
       for (ClassBody cb : ci.listclassbody_1) {
         cb.accept(this, w);
       }
-
-      w.beginConstructor(DEFAULT_MODIFIERS, null, null);
-
-      ci.maybeblock_.accept(this, w);
-      emitThisActorRegistration(w);
-      w.endConstructor();
-
       for (ClassBody cb : ci.listclassbody_2) {
         cb.accept(this, w);
       }
+      w.beginConstructor(DEFAULT_MODIFIERS, null, null);
+      ci.maybeblock_.accept(this, w);
+      emitClassConstructorActions(w, className);
+      w.endConstructor();
       emitToStringMethod(w);
       w.endType();
+      this.classes.pop();
       return prog;
     } catch (IOException e) {
       throw new RuntimeException(e);
@@ -312,8 +320,9 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   public Prog visit(ClassParamDecl cpd, JavaWriter w) {
     try {
       final String identifier = cpd.uident_;
-      beginElementKind(w, ElementKind.CLASS, getRefinedClassName(identifier), DEFAULT_MODIFIERS,
-          null, null);
+      String className = getRefinedClassName(identifier);
+      beginElementKind(w, ElementKind.CLASS, className, DEFAULT_MODIFIERS, null, null);
+      this.classes.push(className);
       w.emitEmptyLine();
       List<String> parameters = new ArrayList<>();
       for (Param param : cpd.listparam_) {
@@ -324,8 +333,10 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
         emitField(w, fieldType, p.lident_, null, false);
       }
       w.emitEmptyLine();
-
       for (ClassBody cb : cpd.listclassbody_1) {
+        cb.accept(this, w);
+      }
+      for (ClassBody cb : cpd.listclassbody_2) {
         cb.accept(this, w);
       }
       w.beginConstructor(DEFAULT_MODIFIERS, parameters, null);
@@ -333,17 +344,12 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
         Par p = (Par) param;
         w.emitStatement("this." + p.lident_ + " = " + p.lident_);
       }
-
       cpd.maybeblock_.accept(this, w);
-      emitThisActorRegistration(w);
+      emitClassConstructorActions(w, className);
       w.endConstructor();
-      w.emitEmptyLine();
-
-      for (ClassBody cb : cpd.listclassbody_2) {
-        cb.accept(this, w);
-      }
       emitToStringMethod(w);
       w.endType();
+      this.classes.pop();
       return prog;
     } catch (IOException e) {
       throw new RuntimeException(e);
@@ -354,8 +360,10 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   public Prog visit(ClassParamImplements cpi, JavaWriter w) {
     try {
       final String identifier = cpi.uident_;
-      beginElementKind(w, ElementKind.CLASS, getRefinedClassName(identifier), DEFAULT_MODIFIERS,
-          null, toList(cpi.listqtype_));
+      String className = getRefinedClassName(identifier);
+      beginElementKind(w, ElementKind.CLASS, className, DEFAULT_MODIFIERS, null,
+          toList(cpi.listqtype_));
+      this.classes.push(className);
       w.emitEmptyLine();
       List<String> parameters = new ArrayList<>();
       for (Param param : cpi.listparam_) {
@@ -366,8 +374,10 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
         emitField(w, fieldType, p.lident_, null, false);
       }
       w.emitEmptyLine();
-
       for (ClassBody cb : cpi.listclassbody_1) {
+        cb.accept(this, w);
+      }
+      for (ClassBody cb : cpi.listclassbody_2) {
         cb.accept(this, w);
       }
       w.beginConstructor(DEFAULT_MODIFIERS, parameters, null);
@@ -376,14 +386,12 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
         w.emitStatement("this." + p.lident_ + " = " + p.lident_);
       }
       cpi.maybeblock_.accept(this, w);
-      emitThisActorRegistration(w);
+      emitClassConstructorActions(w, className);
       w.endConstructor();
       w.emitEmptyLine();
-      for (ClassBody cb : cpi.listclassbody_2) {
-        cb.accept(this, w);
-      }
       emitToStringMethod(w);
       w.endType();
+      this.classes.pop();
       return prog;
     } catch (IOException e) {
       throw new RuntimeException(e);
@@ -2309,18 +2317,21 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   }
 
   private void createMethodDefinition(String returnType, String name, List<String> parameters) {
-    Module current = currentModule();
-    if (current == null) {
-      throw new IllegalStateException("No current module is available.");
+    String className = currentClass();
+    if (className == null) {
+      throw new IllegalStateException("No current 'class' is available.");
     }
-    String clazz = getQTypeName(((Modul) current).qtype_);
-    String fqClassName = this.packageName + "." + clazz;
+    String fqClassName = this.packageName + "." + className;
     MethodDefinition md = new MethodDefinition(fqClassName, returnType, name, parameters);
     methods.put(fqClassName, md);
   }
 
   private Module currentModule() {
     return this.modules.peek();
+  }
+
+  private String currentClass() {
+    return this.classes.peek();
   }
 
   private void buildProgramDeclarationTypes(Prog program) {
@@ -2506,6 +2517,22 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   private boolean isBlockStatement(Stm s) {
     return s instanceof SIf || s instanceof SIfElse || s instanceof STryCatchFinally
         || s instanceof SWhile;
+  }
+
+  private void emitClassConstructorActions(JavaWriter w, String className) throws IOException {
+    emitThisActorRegistration(w);
+
+    // Check for 'run' method
+    final String fqClassName = this.packageName + "." + className;
+    final String methodName = "run";
+    boolean definesMethod = methods.get(fqClassName).stream()
+        .anyMatch(md -> md.matches(methodName, Collections.emptyList()));
+    if (definesMethod) {
+      w.emitEmptyLine();
+      w.emitSingleLineComment("Call 'run' method");
+      w.emitStatement("this.run()");
+      w.emitEmptyLine();
+    }
   }
 
 }
