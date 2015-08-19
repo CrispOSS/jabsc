@@ -17,6 +17,8 @@ import java.util.Random;
 import java.util.Set;
 import java.util.Stack;
 import java.util.concurrent.Callable;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.Lock;
 import java.util.function.Function;
 import java.util.logging.Logger;
 import java.util.regex.Matcher;
@@ -91,7 +93,10 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   private static final Set<Modifier> DEFAULT_MODIFIERS = Collections.singleton(Modifier.PUBLIC);
   private static final String[] DEFAULT_IMPORTS = new String[] {
       Collection.class.getPackage().getName() + ".*", Function.class.getPackage().getName() + ".*",
-      Callable.class.getPackage().getName() + ".*", Actor.class.getPackage().getName() + ".*"};
+      Callable.class.getPackage().getName() + ".*", AtomicLong.class.getPackage().getName() + ".*",
+      Lock.class.getPackage().getName() + ".*",
+
+      Actor.class.getPackage().getName() + ".*"};
   private static final String[] DEFAULT_STATIC_IMPORTS = new String[] {
       Functional.class.getPackage().getName() + "." + Functional.class.getSimpleName() + ".*"};
 
@@ -276,8 +281,9 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
         cb.accept(this, w);
       }
       w.beginConstructor(DEFAULT_MODIFIERS, null, null);
+      emitThisActorRegistration(w);
       p.maybeblock_.accept(this, w);
-      emitClassConstructorActions(w, className);
+      emitDefaultRunMethodExecution(w, className);
       w.endConstructor();
       emitToStringMethod(w);
       w.endType();
@@ -304,8 +310,9 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
         cb.accept(this, w);
       }
       w.beginConstructor(DEFAULT_MODIFIERS, null, null);
+      emitThisActorRegistration(w);
       ci.maybeblock_.accept(this, w);
-      emitClassConstructorActions(w, className);
+      emitDefaultRunMethodExecution(w, className);
       w.endConstructor();
       emitToStringMethod(w);
       w.endType();
@@ -344,8 +351,9 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
         Par p = (Par) param;
         w.emitStatement("this." + p.lident_ + " = " + p.lident_);
       }
+      emitThisActorRegistration(w);
       cpd.maybeblock_.accept(this, w);
-      emitClassConstructorActions(w, className);
+      emitDefaultRunMethodExecution(w, className);
       w.endConstructor();
       emitToStringMethod(w);
       w.endType();
@@ -385,8 +393,9 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
         Par p = (Par) param;
         w.emitStatement("this." + p.lident_ + " = " + p.lident_);
       }
+      emitThisActorRegistration(w);
       cpi.maybeblock_.accept(this, w);
-      emitClassConstructorActions(w, className);
+      emitDefaultRunMethodExecution(w, className);
       w.endConstructor();
       w.emitEmptyLine();
       emitToStringMethod(w);
@@ -2519,9 +2528,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
         || s instanceof SWhile;
   }
 
-  private void emitClassConstructorActions(JavaWriter w, String className) throws IOException {
-    emitThisActorRegistration(w);
-
+  private void emitDefaultRunMethodExecution(JavaWriter w, String className) throws IOException {
     // Check for 'run' method
     final String fqClassName = this.packageName + "." + className;
     final String methodName = "run";
