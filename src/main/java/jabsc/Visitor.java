@@ -94,11 +94,14 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   private static final String[] DEFAULT_IMPORTS = new String[] {
       Collection.class.getPackage().getName() + ".*", Function.class.getPackage().getName() + ".*",
       Callable.class.getPackage().getName() + ".*", AtomicLong.class.getPackage().getName() + ".*",
-      Lock.class.getPackage().getName() + ".*",
-
-      Actor.class.getPackage().getName() + ".*"};
+      Lock.class.getPackage().getName() + ".*", Actor.class.getPackage().getName() + ".*"};
+  private static final String[] DEFAULT_IMPORTS_PATTERNS =
+      new String[] {"com.leacox.motif.function.*", "com.leacox.motif.matching.*"};
   private static final String[] DEFAULT_STATIC_IMPORTS = new String[] {
       Functional.class.getPackage().getName() + "." + Functional.class.getSimpleName() + ".*"};
+  private static final String[] DEFAULT_STATIC_IMPORTS_PATTERNS =
+      new String[] {"com.leacox.motif.Motif.*", "com.leacox.motif.cases.ListConsCases.*",
+          "com.leacox.motif.MatchesAny.*", "com.leacox.motif.MatchesExact.eq"};
 
   // Internal Fields
 
@@ -1201,7 +1204,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   @Override
   public Prog visit(LInt i, JavaWriter w) {
     try {
-      w.emit(Integer.toString(i.integer_));
+      w.emit(Long.toString(i.integer_) + "L");
       return prog;
     } catch (IOException x) {
       throw new RuntimeException(x);
@@ -1588,8 +1591,14 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 
   @Override
   public Prog visit(Case p, JavaWriter w) {
-    logNotImplemented("#visit(%s)", p);
-    return prog;
+    try {
+      String result = visitCase(p);
+      w.emitEmptyLine();
+      w.emit(result, true);
+      return prog;
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
   }
 
   @Override
@@ -1783,7 +1792,10 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
       JavaWriter jw = javaWriterSupplier.apply(FUNCTIONS_CLASS_NAME);
       jw.emitPackage(packageName);
       jw.emitStaticImports(DEFAULT_STATIC_IMPORTS);
+      jw.emitStaticImports(DEFAULT_STATIC_IMPORTS_PATTERNS);
+      jw.emitEmptyLine();
       jw.emitImports(DEFAULT_IMPORTS);
+      jw.emitImports(DEFAULT_IMPORTS_PATTERNS);
       jw.emitEmptyLine();
       beginElementKind(jw, ElementKind.CLASS, FUNCTIONS_CLASS_NAME, DEFAULT_MODIFIERS, null, null,
           false);
@@ -1940,8 +1952,8 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   protected String visitCase(Case kase) {
     StringWriter auxsw = new StringWriter();
     kase.pureexp_.accept(this, new JavaWriter(auxsw));
-    String kaseVarName = auxsw.toString();
-    StringBuilder caseStm = new StringBuilder(String.format("Match.ofNull(ignored -> null)"));
+    String kaseVar = auxsw.toString();
+    StringBuilder caseStm = new StringBuilder(String.format("match(%s)", kaseVar));
     for (CaseBranch b : kase.listcasebranch_) {
       CaseBranc cb = (CaseBranc) b;
       bnfc.abs.Absyn.Pattern left = cb.pattern_;
@@ -1949,16 +1961,26 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
       auxsw = new StringWriter();
       right.accept(this, new JavaWriter(auxsw));
       String thenMatchValue = auxsw.toString();
-      if (left instanceof PUnderscore) {
-        caseStm.append(".").append(String.format("orDefault(%s)", thenMatchValue));
+      if (left instanceof PIdent) {
+        String v = ((PIdent) left).lident_;
+        caseStm.append(".").append(String.format("when(eq(%s))", v));
+        caseStm.append(".").append(String.format("get(() -> %s)", thenMatchValue));
+      } else if (left instanceof PLit) {
+        StringWriter litsw = new StringWriter();
+        left.accept(this, new JavaWriter(litsw));
+        String lit = litsw.toString();
+        caseStm.append(".").append(String.format("when(eq(%s))", lit));
+        caseStm.append(".").append(String.format("get(() -> %s)", thenMatchValue));
+      } else if (left instanceof PUnderscore) {
+        caseStm.append(".").append("when(any())");
+        String kaseVarLocal = kaseVar + "Local";
+        thenMatchValue = thenMatchValue.replace(kaseVar, kaseVarLocal);
+        caseStm.append(".").append(String.format("get(%s -> %s)", kaseVarLocal, thenMatchValue));
       } else {
-        auxsw = new StringWriter();
-        left.accept(this, new JavaWriter(auxsw));
-        String ifMatchValue = auxsw.toString();
-        caseStm.append(".").append(String.format("orEquals(%s, %s)", ifMatchValue, thenMatchValue));
+        logNotImplemented("case pattern: %s", left);
       }
     }
-    caseStm.append(".").append(String.format("apply(%s).get()", kaseVarName));
+    caseStm.append(".getMatch()");
     return caseStm.toString();
   }
 
