@@ -159,7 +159,7 @@ terminal _SYMB_69;    //   while
 
 terminal String _STRING_;
 
-terminal Integer _INTEGER_;
+terminal Long _INTEGER_;
 
 
 

@@ -116,6 +116,6 @@ IDENT = ({LETTER}|{DIGIT}|['_])
 
 
 
-<YYINITIAL>{DIGIT}+ { return new Symbol(sym._INTEGER_, new Integer(yytext())); }
+<YYINITIAL>{DIGIT}+ { return new Symbol(sym._INTEGER_, new Long(yytext())); }
 
 <YYINITIAL>[ \t\r\n\f] { /* ignore white space. */ }

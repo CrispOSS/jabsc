@@ -51,7 +51,7 @@ class JavaTypeTranslator implements Function<String, String> {
   }
 
   protected void fillABSTypes(final Map<String, String> types) {
-    types.put("Int", Integer.class.getName());
+    types.put("Int", Long.class.getName());
     types.put("Rat", Double.class.getName());
     types.put("Bool", Boolean.class.getName());
     types.put("ABS.StdLib.Map", Map.class.getName());
