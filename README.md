@@ -46,7 +46,7 @@ The legend for the following tables:
 |----|:----:|----|:----:|----|:----:|
 | Arith | :white_check_mark: | AsyncToSameCOG | :white_check_mark: |
 | AwaitOnThis | :white_check_mark: | AwaitOnThis2 | :white_check_mark: |
-| BenchLists | :bangbang: | BenchMaps | :bangbang: |
+| BenchLists | :white_check_mark: | BenchMaps | :white_check_mark: |
 | CatchClauseBugInOtherBackends | | ClassDisjointInterfs | :white_check_mark: |
 | Cosimo1 | :white_check_mark: | Cosimo2 | :heavy_exclamation_mark: Object's field reference to a "future" is changed; thus the future is lost. |
 | Cosimo3 | :heavy_exclamation_mark: Same as Cosimo2 | Cosimo4 | :white_check_mark: |
@@ -54,21 +54,21 @@ The legend for the following tables:
 | ExceptionCase | | ExceptionMod | |
 | ExceptionPos | | Fail1 | :white_check_mark: |
 | Fail2 | :white_check_mark: | FieldToFunc | :white_check_mark: |
-| FixBugMonadicStyle | :heavy_exclamation_mark: | ForeignImport | | 
+| FixBugMonadicStyle | :white_check_mark: | ForeignImport | | 
 | Futures | :white_check_mark: | HiddenMethod | :heavy_exclamation_mark: |
 | Inference | :bangbang: | InferenceNum | :bangbang: |
-| Interfaces | :white_check_mark: | LeaderElection | :bangbang: |
-| Module | :x: | MultipleTasksPerObject | :white_check_mark: |
+| Interfaces | :white_check_mark: | LeaderElection | :white_check_mark: |
+| Module | :x: Multi-module in the same file not supported. | MultipleTasksPerObject | :white_check_mark: |
 | MultiScope | :white_check_mark: | NonMethods | :heavy_exclamation_mark: |
 | Null | :bangbang: | Parens | :white_check_mark: |
-| PingPong | :white_check_mark: | Promise | :x: |
+| PingPong | :white_check_mark: | PromiseSimple | :x: No definitive semantics. |
 | PureCode | :x: | RunAndNonMethods | :white_check_mark: |
 | StatefulOO | :white_check_mark: | Subtyping | :white_check_mark: |
 | Subtyping2 | :white_check_mark: | TestAwait | :white_check_mark: |
 | TestMaps | :white_check_mark: | TestRefs | :white_check_mark: |
 | TestThis | :white_check_mark: | ThisSwitching | :white_check_mark: |
 | TypeSym | :x: | UpcastingInt | :x: |
-| While | :x: | | |
+| While | :white_check_mark: | | |
 
  
 ## Build Parser/Lexer

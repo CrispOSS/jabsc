@@ -16,6 +16,8 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.logging.Logger;
 
+import com.google.common.collect.Sets;
+
 import bnfc.abs.Yylex;
 import bnfc.abs.parser;
 import bnfc.abs.Absyn.Modul;
@@ -28,6 +30,19 @@ import bnfc.abs.Absyn.Program;
  */
 public class Compiler implements Runnable {
 
+  /**
+   * Java keywords
+   */
+  public static final Set<String> JAVA_KEYWORDS =
+      Sets.newHashSet("abstract", "assert", "boolean", "break", "byte", "case", "catch", "char",
+          "class", "const", "continue", "default", "do", "double", "else", "extends", "false",
+          "final", "finally", "float", "for", "goto", "if", "implements", "import", "instanceof",
+          "int", "interface", "long", "native", "new", "null", "package", "private", "protected",
+          "public", "return", "short", "static", "strictfp", "super", "switch", "synchronized",
+          "this", "throw", "throws", "transient", "true", "try", "void", "volatile", "while");
+  /**
+   * The default relative directory to generate Java files.
+   */
   public static final String DEFAULT_OUTPUT_DIRECTORY_NAME = "generated-sources/jabsc";
   /**
    * .abs
@@ -190,7 +205,13 @@ public class Compiler implements Runnable {
   protected String getPackageName(final Prog prog) {
     Module module = prog.listmodule_.iterator().next();
     Visitor v = new Visitor(null, prog, null, new JavaTypeTranslator());
-    return v.getQTypeName(((Modul) module).qtype_).toLowerCase();
+    String pakkage = v.getQTypeName(((Modul) module).qtype_).toLowerCase();
+    if (isJavaKeyword(pakkage)) {
+      String newPakkage = pakkage + "_";
+      logger.warning(String.format("Java keyword is used: %s. Renamed: %s", pakkage, newPakkage));
+      return newPakkage;
+    }
+    return pakkage;
   }
 
   /**
@@ -264,6 +285,10 @@ public class Compiler implements Runnable {
           ? source.getParent().resolve(DEFAULT_OUTPUT_DIRECTORY_NAME).toAbsolutePath()
           : source.getParent().getParent().resolve(DEFAULT_OUTPUT_DIRECTORY_NAME).toAbsolutePath();
     }
+  }
+
+  protected static boolean isJavaKeyword(String s) {
+    return s != null && !s.trim().isEmpty() && JAVA_KEYWORDS.contains(s);
   }
 
   private static Path createPath(String source) {
