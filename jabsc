@@ -1,0 +1,193 @@
+#!/bin/bash
+
+ANSI_RESET='\033[0m'
+ANSI_RED='\033[0;31m'
+ANSI_GREEN='\033[0;32m'
+ANSI_WHITE='\033[1;37m'
+
+base_dir="$(pwd)"
+target_dir="${base_dir}/target"
+build_dir="${target_dir}/classes"
+gen_dir="${target_dir}/generated-sources/jabsc"
+tmp_dir="${target_dir}/tmp"
+
+task=""
+jabsc_abs_source_dir=""
+jabsc_java_source_dir="${gen_dir}"
+
+JAVA_CLASSPATH=""
+VERSION_JABS="1.0.0-SNAPSHOT"
+
+BENCH_HEADER="prog,exitstatus,realtime(s),usertime(s),systemtime(s),cpupercent,maxmemory(KB),contextswitches(forced), contextswitches(coop),pagefaults"
+BENCH_FORMAT="%x,%e,%U,%S,%P,%M,%c,%w,%F"
+
+function parse_args
+{
+   if [[ $# -lt 1 ]]; then
+      echo "Usage: "
+      echo "         jabsc <COMMAND> <PATH>"
+      echo ""
+      echo "      COMMAND"
+      echo "         The command to run: compile | test"
+      echo "            compile: Generates Java from ABS"
+      echo "            test   : 'compile' and run tests"
+      echo "            benchmark   : 'compile' and run benchmarks"
+      echo ""
+      echo "      PATH"
+      echo "         The path to an ABS source file or a directory"
+      exit 1;
+   fi
+   task="$1"
+   jabsc_abs_source_dir="${2:-/nobeh/dev/workspaces/crisp/ws-crisp/abs2haskell/test/compiler/must}"
+}
+
+function log_pass
+{
+   printf "${ANSI_GREEN}PASS${ANSI_RESET}\n"
+}
+
+function log_fail
+{
+   printf "${ANSI_RED}FAIL${ANSI_RESET}: $1\n"
+}
+
+function log
+{
+   printf "${ANSI_WHITE}$1${ANSI_RESET}: $2\n"   
+}
+
+function task_clean
+{
+   echo "Cleaning workspace ..."
+   mvn -q clean
+   local exit_code=$?
+   if [[ ${exit_code} -ne 0 ]]; then
+      log_fail "mvn clean"
+      exit 1;
+   fi
+}
+
+function task_generate_java_classpath
+{
+   echo "Generating Java class path ..."
+   java_classpath_file="${target_dir}/java-cp.txt"
+   mvn -q dependency:build-classpath -Dmdep.outputFile="${java_classpath_file}" -Dversion.abs-api=${VERSION_JABS}
+   local exit_code=$?
+   if [[ ${exit_code} -ne 0 ]]; then
+      log_fail "mvn build-classpath"
+      exit 1;
+   fi
+   JAVA_CLASSPATH="$(cat ${java_classpath_file})"
+   JAVA_CLASSPATH=" ${build_dir}:${JAVA_CLASSPATH} "
+   echo "Java Class Path:"
+   echo "================"
+   echo "${JAVA_CLASSPATH}"
+   echo "================"
+   echo ""
+}
+
+function task_compile_abs
+{
+   log "Compiling ABS" "${jabsc_abs_source_dir}"
+   mvn -q compile -Dversion.abs-api=${VERSION_JABS}
+   mvn -q exec:java -Dexec.mainClass="jabsc.cli.Bootstrap" -Dexec.args="compile -s ${jabsc_abs_source_dir} -d ${jabsc_java_source_dir}"
+   echo ""
+}
+
+function task_compile_java
+{
+   local src="$1"
+   log "Compiling" "$src"
+   local java_sources=$(find ${src} -name "*.java" -printf '%p ')
+   echo " -encoding UTF-8 -source 1.8 -target 1.8 -classpath ${JAVA_CLASSPATH} -d ${build_dir} ${java_sources} " > ${tmp_dir}/jcompile
+   javac @${tmp_dir}/jcompile
+}
+
+function task_run_tests
+{
+   echo "Running tests ..."
+   mkdir -p "${tmp_dir}"
+   for pkg in $(ls -1 "${gen_dir}"); do
+      pkg_dir="${build_dir}/${pkg}"
+      task_compile_java "${gen_dir}/${pkg}"
+      main_class_file="${build_dir}/${pkg}/Main.class"
+      if [[ ! -f "${main_class_file}" ]]; then
+         echo "Cannot find a Java main class. Skipping: ${dir}"
+         continue;
+      fi
+      main_class="${pkg}.Main"
+      log "Testing" "${main_class}"
+      out_file="${tmp_dir}/${pkg}.out"
+      java -cp ${JAVA_CLASSPATH} -Xmx4G ${main_class} &> ${out_file}
+      exit_code=$?
+      if [[ ${exit_code} -ne 0 ]]; then
+         log_fail "${exit_code}"
+         exit 1;
+      fi
+      result=$(cat ${out_file} | grep -v 'true' | wc -l)
+      if [[ ${result} -ne 0 ]]; then
+         log_fail "${result} failures"
+         exit 1;
+      fi
+      log_pass
+   done
+}
+
+function task_run_bench
+{
+   echo "Running benchmarks ..."
+   mkdir -p "${tmp_dir}"
+   for pkg in $(ls -1 "${gen_dir}"); do
+      pkg_dir="${build_dir}/${pkg}"
+      task_compile_java "${gen_dir}/${pkg}"
+      main_class_file="${build_dir}/${pkg}/Main.class"
+      if [[ ! -f "${main_class_file}" ]]; then
+         echo "Cannot find a Java main class. Skipping: ${dir}"
+         continue;
+      fi
+      main_class="${pkg}.Main"
+      log "Running" "${main_class}"
+      out_file="${tmp_dir}/${pkg}.out"
+      bench_file="/tmp/bench-${pkg}.csv"
+      echo "${BENCH_HEADER}" > ${bench_file}
+      /usr/bin/time -o ${bench_file} -a -f "${pkg%.*},%x,%e,%U,%S,%P,%M,%c,%w,%F" --append -- java -cp ${JAVA_CLASSPATH} -Xss64m -Xmx4G ${main_class} &> ${out_file}
+   done
+
+   rm /tmp/bench-jabsc.csv || true
+   for bf in $(ls /tmp/bench-*.csv); do
+      cat ${bf} >> /tmp/bench-jabsc.csv
+   done
+   log "Benchmark results" "/tmp/bench-jabsc.csv"
+   ./plot /tmp/bench-jabsc.csv
+}
+
+# Main
+
+parse_args "$@"
+case $task in
+compile)
+   task_clean
+   task_compile_abs
+   ;;
+test)
+   task_clean
+   task_compile_abs
+   task_generate_java_classpath
+   task_run_tests
+   ;;
+benchmark)
+   task_clean
+   task_compile_abs
+   task_generate_java_classpath
+   task_run_bench
+   ;;
+*)
+   log_fail "Unknown command: $task"
+   exit 1;
+   ;;
+esac
+
+echo ""
+echo "Done"
+
+exit 0
