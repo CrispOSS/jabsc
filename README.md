@@ -70,6 +70,27 @@ The legend for the following tables:
 | TypeSym | :x: | UpcastingInt | :x: |
 | While | :white_check_mark: | | |
 
+## Benchmarks
+
+We use [abs-bench][4] repository to perform benchmarks on generated Java code from jabsc. 
+To run the benchmarks:
+
+1. Checkout abs-bench and switch to "jabsc" branch
+```bash
+$ git clone https://github.com/abstools/abs-bench.git
+$ cd abs-bench
+abs-bench$ git checkout jabsc
+```
+2. Run the benchmarks from jabsc root source directory
+```
+$ cd /path/to/jabsc
+jabsc$ ./jabsc benchmark /path/to/abs-bench/synthetic_par/
+```
+3. The results in CSV format and a GNU Plot result will be generated in `/tmp`.
+
+The latest run of the benchmarks:
+
+![jabsc Benchmarks](docs/figs/plot-benchmark.jpeg)
  
 ## Build Parser/Lexer
 

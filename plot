@@ -5,7 +5,11 @@ in_file="$1"
 function plot
 {
 local data_file="$1"
-local mode="$2"
+local _type="$2"
+local _terminal="${_type}"
+if [ "${_type}" == "png" ] || [ "${_type}" == "jpeg" ]; then
+   _terminal="${_terminal} size 1600,1200"
+fi
 
 gnuplot <<EOF
 reset
@@ -32,7 +36,7 @@ set palette defined ( 0 '#1B9E77',\
             7 '#666666' )
 
 
-set term ${mode}
+set term ${_terminal} enhanced
 set key spacing 1.3
 set xlabel "Benchmark"
 set xtics nomirror rotate by -90 font ",12"
@@ -42,7 +46,7 @@ set grid
 set title "Benchmarks" font ",12"
 
 set datafile separator ","
-set output "/tmp/plot-benchmark.${mode}"
+set output "/tmp/plot-benchmark.${_type}"
 set style data linespoints
 
 nc="`awk -F, 'NR == 1 { print NF; exit }' ${data_file}`"
@@ -67,7 +71,7 @@ else
 fi
 
 echo ""
-for t in "svg" "pdf"; do
+for t in "svg" "pdf" "eps" "png" "jpeg"; do
    plot ${in_file} ${t}
    echo "Plot type: ${t}   done."
 done
