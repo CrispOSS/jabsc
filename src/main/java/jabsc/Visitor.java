@@ -916,7 +916,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
     try {
       w.beginExpressionGroup();
       e.pureexp_1.accept(this, w);
-      w.emit(" %% ");
+      w.emit(" % ");
       e.pureexp_2.accept(this, w);
       w.endExpressionGroup();
     } catch (IOException x) {
@@ -1031,7 +1031,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   public Prog visit(EIntNeg in, JavaWriter w) {
     try {
       w.beginExpressionGroup();
-      w.emit(" - ");
+      w.emit("-");
       in.pureexp_.accept(this, w);
       w.endExpressionGroup();
       return prog;
@@ -1403,51 +1403,12 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
         if (ci instanceof ParamConstrIdent) {
           ParamConstrIdent pci = (ParamConstrIdent) ci;
           String className = pci.uident_;
-          JavaWriter cw = javaWriterSupplier.apply(className);
-          cw.emitPackage(this.packageName);
-          emitDefaultImports(cw);
-          cw.emitEmptyLine();
-          beginElementKind(cw, ElementKind.CLASS, className, EnumSet.of(Modifier.PUBLIC), null,
-              Collections.singletonList(paraentDataInterface), false);
-          cw.emitEmptyLine();
-          for (ConstrType ct : pci.listconstrtype_) {
-            if (ct instanceof EmptyConstrType) {
-              EmptyConstrType ect = (EmptyConstrType) ct;
-              String type = getTypeName(ect.type_);
-              String fieldName = "_field_" + type.replace('.', '_');
-              cw.emitField(type, fieldName, EnumSet.of(Modifier.PUBLIC, Modifier.FINAL));
-              cw.emitEmptyLine();
-              cw.beginConstructor(EnumSet.of(Modifier.PUBLIC), type, "value");
-              cw.emitStatement("this.%s = %s", fieldName, "value");
-              cw.endConstructor();
-            } else if (ct instanceof RecordConstrType) {
-              RecordConstrType rct = (RecordConstrType) ct;
-              String type = getTypeName(rct.type_);
-              String fieldName = rct.lident_;
-              cw.emitField(type, fieldName, EnumSet.of(Modifier.PUBLIC, Modifier.FINAL));
-              cw.emitEmptyLine();
-              cw.beginConstructor(EnumSet.of(Modifier.PUBLIC), type, fieldName);
-              cw.emitStatement("this.%s = %s", fieldName, fieldName);
-              cw.endConstructor();
-            }
-          }
-          cw.endType();
-          cw.close();
+          visitParamConstrIdent(pci, paraentDataInterface, true);
           this.dataDeclarations.add(className);
         } else if (ci instanceof SinglConstrIdent) {
-          String className = ((SinglConstrIdent) ci).uident_;
-          JavaWriter cw = javaWriterSupplier.apply(className);
-          cw.emitPackage(this.packageName);
-          emitDefaultImports(cw);
-          cw.emitEmptyLine();
-          beginElementKind(cw, ElementKind.CLASS, className, EnumSet.of(Modifier.PUBLIC), null,
-              Collections.singletonList(paraentDataInterface), false);
-          cw.emitEmptyLine();
-          cw.emitField(className, "INSTANCE",
-              EnumSet.of(Modifier.PUBLIC, Modifier.STATIC, Modifier.FINAL),
-              "new " + className + "()");
-          cw.endType();
-          cw.close();
+          SinglConstrIdent sci = (SinglConstrIdent) ci;
+          String className = sci.uident_;
+          visitSingleConstrIdent(sci, paraentDataInterface, true);
           this.dataDeclarations.add(className);
         }
       }
@@ -1982,6 +1943,67 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
     }
     caseStm.append(".getMatch()");
     return caseStm.toString();
+  }
+
+  private void visitSingleConstrIdent(SinglConstrIdent sci, String parent,
+      final boolean isParentInterface) throws IOException {
+    String className = sci.uident_;
+    JavaWriter cw = javaWriterSupplier.apply(className);
+    cw.emitPackage(this.packageName);
+    emitDefaultImports(cw);
+    cw.emitEmptyLine();
+    if (parent != null && isParentInterface) {
+      beginElementKind(cw, ElementKind.CLASS, className, EnumSet.of(Modifier.PUBLIC), null,
+          Collections.singletonList(parent), false);
+    } else if (parent != null && !isParentInterface) {
+      beginElementKind(cw, ElementKind.CLASS, className, EnumSet.of(Modifier.PUBLIC), parent,
+          Collections.emptyList(), false);
+    }
+    cw.emitEmptyLine();
+    cw.emitField(className, "INSTANCE",
+        EnumSet.of(Modifier.PUBLIC, Modifier.STATIC, Modifier.FINAL), "new " + className + "()");
+    cw.endType();
+    cw.close();
+  }
+
+  private void visitParamConstrIdent(ParamConstrIdent pci, String parent,
+      final boolean isParentInterface) throws IOException {
+    String className = pci.uident_;
+    JavaWriter cw = javaWriterSupplier.apply(className);
+    cw.emitPackage(this.packageName);
+    emitDefaultImports(cw);
+    cw.emitEmptyLine();
+    if (parent != null && isParentInterface) {
+      beginElementKind(cw, ElementKind.CLASS, className, EnumSet.of(Modifier.PUBLIC), null,
+          Collections.singletonList(parent), false);
+    } else if (parent != null && !isParentInterface) {
+      beginElementKind(cw, ElementKind.CLASS, className, EnumSet.of(Modifier.PUBLIC), parent,
+          Collections.emptyList(), false);
+    }
+    cw.emitEmptyLine();
+    for (ConstrType ct : pci.listconstrtype_) {
+      if (ct instanceof EmptyConstrType) {
+        EmptyConstrType ect = (EmptyConstrType) ct;
+        String type = getTypeName(ect.type_);
+        String fieldName = "_field_" + type.replace('.', '_');
+        cw.emitField(type, fieldName, EnumSet.of(Modifier.PUBLIC, Modifier.FINAL));
+        cw.emitEmptyLine();
+        cw.beginConstructor(EnumSet.of(Modifier.PUBLIC), type, "value");
+        cw.emitStatement("this.%s = %s", fieldName, "value");
+        cw.endConstructor();
+      } else if (ct instanceof RecordConstrType) {
+        RecordConstrType rct = (RecordConstrType) ct;
+        String type = getTypeName(rct.type_);
+        String fieldName = rct.lident_;
+        cw.emitField(type, fieldName, EnumSet.of(Modifier.PUBLIC, Modifier.FINAL));
+        cw.emitEmptyLine();
+        cw.beginConstructor(EnumSet.of(Modifier.PUBLIC), type, fieldName);
+        cw.emitStatement("this.%s = %s", fieldName, fieldName);
+        cw.endConstructor();
+      }
+    }
+    cw.endType();
+    cw.close();
   }
 
   protected List<String> getCalleeMethodParams(AsyncMethCall amc) {
