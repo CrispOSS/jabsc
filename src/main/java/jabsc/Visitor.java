@@ -916,7 +916,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
     try {
       w.beginExpressionGroup();
       e.pureexp_1.accept(this, w);
-      w.emit(" % ");
+      w.emit(" %% ");
       e.pureexp_2.accept(this, w);
       w.endExpressionGroup();
     } catch (IOException x) {
