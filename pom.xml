@@ -180,6 +180,11 @@
 			<artifactId>motif</artifactId>
 			<version>${version.motif}</version>
 		</dependency>
+		<dependency>
+			<groupId>com.leacox.motif</groupId>
+			<artifactId>motif-hamcrest</artifactId>
+			<version>${version.motif}</version>
+		</dependency>
 	</dependencies>
 
 	<distributionManagement>

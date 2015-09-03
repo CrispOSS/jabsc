@@ -2,6 +2,7 @@ package jabsc;
 
 import java.io.IOException;
 import java.io.StringWriter;
+import java.util.AbstractMap.SimpleEntry;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -13,6 +14,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Random;
 import java.util.Set;
 import java.util.Stack;
@@ -28,6 +30,7 @@ import java.util.stream.Collectors;
 import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.Modifier;
 
+import com.google.common.base.StandardSystemProperty;
 import com.google.common.base.Supplier;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Multimaps;
@@ -44,7 +47,6 @@ import bnfc.abs.Absyn.*;
  * program.
  */
 class Visitor extends AbstractVisitor<Prog, JavaWriter> {
-
 
   /**
    * High-level element types that an ABS program/module can
@@ -77,11 +79,19 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
      */
     TYPE,
 
+    /**
+     * An exception declaration.
+     */
+    EXCEPTION,
+
     ;
   }
 
   // Constants
 
+  private static final String DATA_DECL_INSTANCE_NAME = "INSTANCE";
+  private static final char CHAR_UNDERSCORE = '_';
+  private static final char CHAR_DOT = '.';
   private static final String VOID_WRAPPER_CLASS_NAME = "Void";
   private static final String VOID_PRIMITIVE_NAME = "void";
   private static final String LITERAL_THIS = "this";
@@ -89,6 +99,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   private static final String FUNCTIONS_CLASS_NAME = "Functions";
   private static final String MAIN_CLASS_NAME = "Main";
   private static final String COMMA_SPACE = ", ";
+  private static final String NEW_LINE = StandardSystemProperty.LINE_SEPARATOR.value();
   private static final String ABS_API_ACTOR_CLASS = Actor.class.getName();
   private static final Set<Modifier> DEFAULT_MODIFIERS = Collections.singleton(Modifier.PUBLIC);
   private static final String[] DEFAULT_IMPORTS = new String[] {
@@ -96,12 +107,16 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
       Callable.class.getPackage().getName() + ".*", AtomicLong.class.getPackage().getName() + ".*",
       Lock.class.getPackage().getName() + ".*", Actor.class.getPackage().getName() + ".*"};
   private static final String[] DEFAULT_IMPORTS_PATTERNS =
-      new String[] {"com.leacox.motif.function.*", "com.leacox.motif.matching.*"};
+      new String[] {"com.leacox.motif.function.*", "com.leacox.motif.matching.*",
+          "com.leacox.motif.cases.*", "com.leacox.motif.caseclass.*"};
   private static final String[] DEFAULT_STATIC_IMPORTS = new String[] {
       Functional.class.getPackage().getName() + "." + Functional.class.getSimpleName() + ".*"};
   private static final String[] DEFAULT_STATIC_IMPORTS_PATTERNS =
       new String[] {"com.leacox.motif.Motif.*", "com.leacox.motif.cases.ListConsCases.*",
-          "com.leacox.motif.MatchesAny.*", "com.leacox.motif.MatchesExact.eq"};
+          "com.leacox.motif.cases.Case1Cases.*", "com.leacox.motif.cases.Case2Cases.*",
+          "com.leacox.motif.cases.Case3Cases.*", "com.leacox.motif.MatchesAny.*",
+          "com.leacox.motif.hamcrest.CaseThatCases.*", "com.leacox.motif.MatchesExact.eq",
+          "org.hamcrest.CoreMatchers.*"};
 
   // Internal Fields
 
@@ -135,6 +150,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   private final Map<String, String> classNames = new HashMap<>();
   private final Set<String> packageLevelImports = new HashSet<>();
   private final Set<String> dataDeclarations = new HashSet<>();
+  private final Set<String> exceptionDeclaraions = new HashSet<>();
 
   /**
    * Ctor.
@@ -181,6 +197,16 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 
       // Data
       for (Decl decl : elements.get(AbsElementType.DATA)) {
+        String name = getTopLevelDeclIdentifier(decl);
+        JavaWriter declWriter = javaWriterSupplier.apply(name);
+        declWriter.emitPackage(packageName);
+        visitImports(m.listimport_, declWriter);
+        decl.accept(this, declWriter);
+        close(declWriter, w);
+      }
+
+      // Exception
+      for (Decl decl : elements.get(AbsElementType.EXCEPTION)) {
         String name = getTopLevelDeclIdentifier(decl);
         JavaWriter declWriter = javaWriterSupplier.apply(name);
         declWriter.emitPackage(packageName);
@@ -1381,9 +1407,31 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   }
 
   @Override
-  public Prog visit(ExceptionDecl p, JavaWriter arg) {
-    logNotImplemented("#visit(%s)", p);
-    return prog;
+  public Prog visit(ExceptionDecl ed, JavaWriter w) {
+    try {
+      w.emitEmptyLine();
+      ConstrIdent ex = ed.constrident_;
+      String className = getExceptionClassName(ex);
+      this.exceptionDeclaraions.add(className);
+      Collection<String> implementingCaseInterface = Collections.emptyList();
+      beginElementKind(w, ElementKind.CLASS, className, EnumSet.of(Modifier.PUBLIC),
+          RuntimeException.class.getSimpleName(), implementingCaseInterface, false);
+      w.emitEmptyLine();
+      emitSerialVersionUid(w);
+      List<Entry<String, String>> fields = Collections.emptyList();
+      if (ex instanceof SinglConstrIdent) {
+        // Default super constructor works
+      } else if (ex instanceof ParamConstrIdent) {
+        ParamConstrIdent cstr = (ParamConstrIdent) ex;
+        fields = visitConstrType(cstr.listconstrtype_, w, true);
+      }
+      List<String> fieldNames = fields.stream().map(e -> e.getValue()).collect(Collectors.toList());
+      emitEqualsMethod(className, fieldNames, w);
+      w.endType();
+      return prog;
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
   }
 
   @Override
@@ -1403,12 +1451,12 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
         if (ci instanceof ParamConstrIdent) {
           ParamConstrIdent pci = (ParamConstrIdent) ci;
           String className = pci.uident_;
-          visitParamConstrIdent(pci, paraentDataInterface, true);
+          visitParametricConstructorDataDecl(pci, paraentDataInterface, true);
           this.dataDeclarations.add(className);
         } else if (ci instanceof SinglConstrIdent) {
           SinglConstrIdent sci = (SinglConstrIdent) ci;
           String className = sci.uident_;
-          visitSingleConstrIdent(sci, paraentDataInterface, true);
+          visitSingleConstructorDataDecl(sci, paraentDataInterface, true);
           this.dataDeclarations.add(className);
         }
       }
@@ -1437,7 +1485,24 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
       }
       Set<Modifier> modifiers = Sets.newHashSet(Modifier.PUBLIC, Modifier.STATIC);
       w.beginMethod(methodType, methodName, modifiers, parameters.toArray(new String[0]));
-      f.funbody_.accept(this, w);
+      FunBody fbody = f.funbody_;
+      if (fbody instanceof BuiltinFunBody) {
+        logNotImplemented("builtin function body: %s %s", methodType, methodName);
+      } else if (fbody instanceof NormalFunBody) {
+        NormalFunBody nfb = (NormalFunBody) fbody;
+        PureExp pe = nfb.pureexp_;
+        if (pe instanceof Case) {
+          String caseStm = visitCase((Case) pe, methodType);
+          w.emitStatement("return %s", caseStm);
+        } else {
+          StringWriter sw = new StringWriter();
+          JavaWriter auxjw = new JavaWriter(sw);
+          pe.accept(this, auxjw);
+          String stm = sw.toString();
+          stm = refineFunctionalPureExpression(stm);
+          w.emitStatement("return %s", stm);
+        }
+      }
       w.endMethod();
       w.emitEmptyLine();
     } catch (IOException e) {
@@ -1553,7 +1618,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   @Override
   public Prog visit(Case p, JavaWriter w) {
     try {
-      String result = visitCase(p);
+      String result = visitCase(p, null);
       w.emitEmptyLine();
       w.emit(result, true);
       return prog;
@@ -1705,9 +1770,13 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   }
 
   @Override
-  public Prog visit(PUnderscore p, JavaWriter arg) {
-    logNotImplemented("#visit(%s)", p);
-    return prog;
+  public Prog visit(PUnderscore p, JavaWriter w) {
+    try {
+      w.emit("any()");
+      return prog;
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
   }
 
   @Override
@@ -1823,11 +1892,13 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 
   protected void emitDefaultImports(JavaWriter w) throws IOException {
     w.emitStaticImports(DEFAULT_STATIC_IMPORTS);
+    w.emitStaticImports(DEFAULT_STATIC_IMPORTS_PATTERNS);
     w.emitStaticImports(this.packageName + "." + FUNCTIONS_CLASS_NAME + ".*");
     for (String p : this.packageLevelImports) {
       w.emitStaticImports(this.packageName + "." + p + ".*");
     }
     w.emitImports(DEFAULT_IMPORTS);
+    w.emitImports(DEFAULT_IMPORTS_PATTERNS);
   }
 
   protected void visitAsyncMethodCall(AsyncMethCall amc, String resultVarType, String resultVarName,
@@ -1896,7 +1967,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   protected void visitStatementAssignmentExp(Exp exp, String varName, String varType, JavaWriter w)
       throws IOException {
     if (exp instanceof ExpP && ((ExpP) exp).pureexp_ instanceof Case) {
-      String caseStm = visitCase((Case) ((ExpP) exp).pureexp_);
+      String caseStm = visitCase((Case) ((ExpP) exp).pureexp_, varType);
       w.emitStatement("%s %s = (%s) %s", varType, varName, varType, caseStm);
     } else {
       StringWriter auxsw = new StringWriter();
@@ -1910,11 +1981,22 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
     }
   }
 
-  protected String visitCase(Case kase) {
+  protected String visitCase(Case kase, String expectedCaseType) {
     StringWriter auxsw = new StringWriter();
     kase.pureexp_.accept(this, new JavaWriter(auxsw));
     String kaseVar = auxsw.toString();
-    StringBuilder caseStm = new StringBuilder(String.format("match(%s)", kaseVar));
+    String type = expectedCaseType;
+    if (type == null) {
+      type = findVariableType(kaseVar);
+    }
+    if (type == null) {
+      type = "";
+    } else {
+      type = "(" + type + ")";
+    }
+    kaseVar = refineFunctionalPureExpression(kaseVar);
+    StringBuilder caseStm =
+        new StringBuilder(String.format("%s match((Object) %s)", type, kaseVar)).append(NEW_LINE);
     for (CaseBranch b : kase.listcasebranch_) {
       CaseBranc cb = (CaseBranc) b;
       bnfc.abs.Absyn.Pattern left = cb.pattern_;
@@ -1922,21 +2004,30 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
       auxsw = new StringWriter();
       right.accept(this, new JavaWriter(auxsw));
       String thenMatchValue = auxsw.toString();
+      String leftPattern = toMatchingString(left);
+      caseStm.append(".").append(String.format("when(%s)", leftPattern)).append(NEW_LINE);
       if (left instanceof PIdent) {
-        String v = ((PIdent) left).lident_;
-        caseStm.append(".").append(String.format("when(eq(%s))", v));
-        caseStm.append(".").append(String.format("get(() -> %s)", thenMatchValue));
+        caseStm.append(".").append(String.format("get(() -> %s %s)", type, thenMatchValue))
+            .append(NEW_LINE);
       } else if (left instanceof PLit) {
-        StringWriter litsw = new StringWriter();
-        left.accept(this, new JavaWriter(litsw));
-        String lit = litsw.toString();
-        caseStm.append(".").append(String.format("when(eq(%s))", lit));
-        caseStm.append(".").append(String.format("get(() -> %s)", thenMatchValue));
+        caseStm.append(".").append(String.format("get(() -> %s %s)", type, thenMatchValue))
+            .append(NEW_LINE);
       } else if (left instanceof PUnderscore) {
-        caseStm.append(".").append("when(any())");
-        String kaseVarLocal = kaseVar + "Local";
-        thenMatchValue = thenMatchValue.replace(kaseVar, kaseVarLocal);
-        caseStm.append(".").append(String.format("get(%s -> %s)", kaseVarLocal, thenMatchValue));
+        String kaseVarLocal = "var" + RANDOM.nextInt(1000);
+        if (thenMatchValue.contains(" " + kaseVar + " ")) {
+          thenMatchValue = thenMatchValue.replace(kaseVar, kaseVarLocal);
+        }
+        caseStm.append(".")
+            .append(String.format("get(%s -> %s %s)", kaseVarLocal, type, thenMatchValue))
+            .append(NEW_LINE);
+      } else if (left instanceof PSinglConstr) {
+        caseStm.append(".").append(String.format("get(() -> %s %s)", type, thenMatchValue))
+            .append(NEW_LINE);
+      } else if (left instanceof PParamConstr) {
+        String rightVarParam = leftPattern.contains("caseThat(") ? "ignored" : "";
+        caseStm.append(".")
+            .append(String.format("get((%s) -> %s %s)", rightVarParam, type, thenMatchValue))
+            .append(NEW_LINE);
       } else {
         logNotImplemented("case pattern: %s", left);
       }
@@ -1945,7 +2036,78 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
     return caseStm.toString();
   }
 
-  private void visitSingleConstrIdent(SinglConstrIdent sci, String parent,
+  private String toMatchingString(bnfc.abs.Absyn.Pattern p) {
+    if (p instanceof PUnderscore) {
+      return "any()";
+    }
+    if (p instanceof PIdent) {
+      return String.format("eq(%s)", ((PIdent) p).lident_);
+    }
+    if (p instanceof PLit) {
+      StringWriter sw = new StringWriter();
+      JavaWriter jw = new JavaWriter(sw);
+      PLit lit = (PLit) p;
+      lit.accept(this, jw);
+      return String.format("eq(%s)", sw.toString());
+    }
+    if (p instanceof PSinglConstr) {
+      PSinglConstr psc = (PSinglConstr) p;
+      String id = psc.uident_;
+      final boolean isExceptionClass = exceptionDeclaraions.contains(id);
+      final boolean isDataInstance = dataDeclarations.contains(id);
+      if (isDataInstance) {
+        return String.format("eq(%s.INSTANCE)", id);
+      }
+      return String.format("eq(%s)", id);
+    }
+    if (p instanceof PParamConstr) {
+      PParamConstr ppc = (PParamConstr) p;
+      String id = ppc.uident_;
+      final boolean isExceptionClass = exceptionDeclaraions.contains(id);
+      if (isExceptionClass) {
+        List<String> params = new ArrayList<>();
+        boolean anyPattern = false;
+        for (bnfc.abs.Absyn.Pattern paramPattern : ppc.listpattern_) {
+          StringWriter sw = new StringWriter();
+          JavaWriter auxjw = new JavaWriter(sw);
+          paramPattern.accept(this, auxjw);
+          String param = sw.toString();
+          if (param.contains("any()")) {
+            anyPattern = true;
+            break;
+          }
+          params.add(param);
+        }
+        if (anyPattern == false) {
+          String paramString = String.join(COMMA_SPACE, params);
+          return String.format("eq(new %s(%s))", id, paramString);
+        } else {
+          return String.format("caseThat(isA(%s.class))", id);
+        }
+      } else {
+        List<String> params = new ArrayList<>();
+        for (bnfc.abs.Absyn.Pattern paramPattern : ppc.listpattern_) {
+          params.add(toMatchingString(paramPattern));
+        }
+        String paramString = String.join(COMMA_SPACE, params);
+        return String.format("%s(%s)", id, paramString);
+      }
+    }
+    throw new IllegalArgumentException("Unknown pattern: " + p);
+  }
+
+  private String refineFunctionalPureExpression(String expr) {
+    // 1. Replace all occurrences of exceptions `E` with `new E`
+    String result = new String(expr);
+    for (String ex : this.exceptionDeclaraions) {
+      if (expr.contains(ex + "(")) {
+        result = result.replace(ex + "(", "new " + ex + "(");
+      }
+    }
+    return result;
+  }
+
+  private void visitSingleConstructorDataDecl(SinglConstrIdent sci, String parent,
       final boolean isParentInterface) throws IOException {
     String className = sci.uident_;
     JavaWriter cw = javaWriterSupplier.apply(className);
@@ -1960,13 +2122,14 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
           Collections.emptyList(), false);
     }
     cw.emitEmptyLine();
-    cw.emitField(className, "INSTANCE",
+    cw.emitField(className, DATA_DECL_INSTANCE_NAME,
         EnumSet.of(Modifier.PUBLIC, Modifier.STATIC, Modifier.FINAL), "new " + className + "()");
+    emitEqualsMethod(className, Collections.singletonList(DATA_DECL_INSTANCE_NAME), true, cw);
     cw.endType();
     cw.close();
   }
 
-  private void visitParamConstrIdent(ParamConstrIdent pci, String parent,
+  private void visitParametricConstructorDataDecl(ParamConstrIdent pci, String parent,
       final boolean isParentInterface) throws IOException {
     String className = pci.uident_;
     JavaWriter cw = javaWriterSupplier.apply(className);
@@ -1981,29 +2144,79 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
           Collections.emptyList(), false);
     }
     cw.emitEmptyLine();
-    for (ConstrType ct : pci.listconstrtype_) {
+    List<Entry<String, String>> fields = visitConstrType(pci.listconstrtype_, cw, false);
+    List<String> fieldNames = fields.stream().map(e -> e.getValue()).collect(Collectors.toList());
+    emitEqualsMethod(className, fieldNames, cw);
+    cw.endType();
+    cw.close();
+  }
+
+  private List<Entry<String, String>> visitConstrType(ListConstrType ctrs, JavaWriter w,
+      final boolean fieldAccessorMethods) throws IOException {
+    if (ctrs == null || ctrs.isEmpty()) {
+      return Collections.emptyList();
+    }
+    List<Map.Entry<String, String>> params = extractConstructorParameters(ctrs);
+    params.forEach(e -> {
+      try {
+        if (fieldAccessorMethods) {
+          w.emitField(e.getKey(), e.getValue(), EnumSet.of(Modifier.PRIVATE));
+        } else {
+          w.emitField(e.getKey(), e.getValue(), EnumSet.of(Modifier.PUBLIC, Modifier.FINAL));
+        }
+      } catch (IOException x) {
+        throw new RuntimeException(x);
+      }
+    });
+    w.emitEmptyLine();
+    List<String> tmp = new ArrayList<>();
+    params.forEach(e -> {
+      tmp.add(e.getKey());
+      tmp.add(e.getValue());
+    });
+    w.beginConstructor(EnumSet.of(Modifier.PUBLIC), tmp, Collections.emptyList());
+    params.forEach(e -> {
+      try {
+        w.emitStatement("this.%s = %s", e.getValue(), e.getValue());
+      } catch (IOException x) {
+        throw new RuntimeException(x);
+      }
+    });
+    w.endConstructor();
+    w.emitEmptyLine();
+
+    if (fieldAccessorMethods) {
+      params.forEach(e -> {
+        try {
+          w.beginMethod(e.getKey(), String.format("get%s", e.getValue()),
+              EnumSet.of(Modifier.PUBLIC), new String[0]);
+          w.emitStatement("return this.%s", e.getValue());
+          w.endMethod();
+          w.emitEmptyLine();
+        } catch (IOException x) {
+          throw new RuntimeException(x);
+        }
+      });
+    }
+    return params;
+  }
+
+  private List<Entry<String, String>> extractConstructorParameters(ListConstrType ctrs) {
+    List<Entry<String, String>> params = new ArrayList<>();
+    for (ConstrType ct : ctrs) {
       if (ct instanceof EmptyConstrType) {
         EmptyConstrType ect = (EmptyConstrType) ct;
         String type = getTypeName(ect.type_);
-        String fieldName = "_field_" + type.replace('.', '_');
-        cw.emitField(type, fieldName, EnumSet.of(Modifier.PUBLIC, Modifier.FINAL));
-        cw.emitEmptyLine();
-        cw.beginConstructor(EnumSet.of(Modifier.PUBLIC), type, "value");
-        cw.emitStatement("this.%s = %s", fieldName, "value");
-        cw.endConstructor();
+        String fieldName = createJavaFieldName(type);
+        params.add(new SimpleEntry<String, String>(type, fieldName));
       } else if (ct instanceof RecordConstrType) {
         RecordConstrType rct = (RecordConstrType) ct;
         String type = getTypeName(rct.type_);
         String fieldName = rct.lident_;
-        cw.emitField(type, fieldName, EnumSet.of(Modifier.PUBLIC, Modifier.FINAL));
-        cw.emitEmptyLine();
-        cw.beginConstructor(EnumSet.of(Modifier.PUBLIC), type, fieldName);
-        cw.emitStatement("this.%s = %s", fieldName, fieldName);
-        cw.endConstructor();
+        params.add(new SimpleEntry<String, String>(type, fieldName));
       }
     }
-    cw.endType();
-    cw.close();
+    return params;
   }
 
   protected List<String> getCalleeMethodParams(AsyncMethCall amc) {
@@ -2197,8 +2410,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
         w.beginType(identifier, kindName, modifiers, classParentType,
             implementsTypes.toArray(new String[0]));
         if (isActor) {
-          w.emitField("long", "serialVersionUID",
-              EnumSet.of(Modifier.PRIVATE, Modifier.STATIC, Modifier.FINAL), "1L");
+          emitSerialVersionUid(w);
         }
         return;
       case INTERFACE:
@@ -2288,6 +2500,9 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
     }
     if (decl instanceof DataParDecl) {
       return ((DataParDecl) decl).uident_;
+    }
+    if (decl instanceof ExceptionDecl) {
+      return getExceptionClassName(((ExceptionDecl) decl).constrident_);
     }
     if (decl == null) {
       return MAIN_CLASS_NAME;
@@ -2456,6 +2671,15 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
         }
       }
     }
+    // 6. Exceptions
+    for (Module module : program.listmodule_) {
+      Modul m = (Modul) module;
+      for (Decl decl : m.listdecl_) {
+        if (isAbsExceptionDecl(decl)) {
+          elements.get(AbsElementType.EXCEPTION).add(decl);
+        }
+      }
+    }
   }
 
   private boolean isAbsInterfaceDecl(Decl decl) {
@@ -2477,6 +2701,10 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 
   private boolean isAbsAbstractTypeDecl(Decl decl) {
     return decl instanceof TypeDecl || decl instanceof TypeParDecl;
+  }
+
+  private boolean isAbsExceptionDecl(Decl decl) {
+    return decl instanceof ExceptionDecl;
   }
 
   private String getRefinedClassName(String name) {
@@ -2567,6 +2795,41 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
     w.endMethod();
   }
 
+  private void emitEqualsMethod(String className, List<String> fieldNames, JavaWriter w)
+      throws IOException {
+    emitEqualsMethod(className, fieldNames, false, w);
+  }
+
+  private void emitEqualsMethod(String className, List<String> fieldNames,
+      final boolean staticFields, JavaWriter w) throws IOException {
+    w.emitEmptyLine();
+    w.beginMethod("boolean", "equals", EnumSet.of(Modifier.PUBLIC), "Object", "o");
+
+    w.beginControlFlow("if (o == null)");
+    w.emitStatement("return false");
+    w.endControlFlow();
+
+    w.beginControlFlow("if (this == o)");
+    w.emitStatement("return true");
+    w.endControlFlow();
+
+    w.beginControlFlow("if (o instanceof %s == false)", className);
+    w.emitStatement("return false");
+    w.endControlFlow();
+
+    w.emitStatement("%s x = (%s) o", className, className);
+    List<String> conditions = new ArrayList<>();
+    String owner1 = staticFields ? className : LITERAL_THIS;
+    String owner2 = "x";
+    for (String f : fieldNames) {
+      conditions.add(String.format("Objects.equals(%s.%s, %s.%s)", owner1, f, owner2, f));
+    }
+    String condition = String.join(" &&\n ", conditions);
+    w.emitStatement("return %s", condition);
+
+    w.endMethod();
+  }
+
   private boolean isBlockStatement(Stm s) {
     return s instanceof SIf || s instanceof SIfElse || s instanceof STryCatchFinally
         || s instanceof SWhile;
@@ -2584,6 +2847,26 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
       w.emitStatement("this.run()");
       w.emitEmptyLine();
     }
+  }
+
+  private String getExceptionClassName(ConstrIdent exConstrIdent) {
+    return exConstrIdent instanceof SinglConstrIdent ? ((SinglConstrIdent) exConstrIdent).uident_
+        : ((ParamConstrIdent) exConstrIdent).uident_;
+  }
+
+  private void emitSerialVersionUid(JavaWriter w) throws IOException {
+    w.emitField("long", "serialVersionUID",
+        EnumSet.of(Modifier.PRIVATE, Modifier.STATIC, Modifier.FINAL), "1L");
+    w.emitEmptyLine();
+  }
+
+  private String createJavaFieldName(String type) {
+    String simpleType = type;
+    int dotIndex = type.lastIndexOf(CHAR_DOT);
+    if (dotIndex > 0) {
+      simpleType = type.substring(dotIndex + 1);
+    }
+    return simpleType.replace(CHAR_DOT, CHAR_UNDERSCORE) + "Value";
   }
 
 }
