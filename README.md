@@ -51,7 +51,7 @@ The legend for the following tables:
 | Cosimo1 | :white_check_mark: | Cosimo2 | :heavy_exclamation_mark: Object's field reference to a "future" is changed; thus the future is lost. |
 | Cosimo3 | :heavy_exclamation_mark: Same as Cosimo2 | Cosimo4 | :white_check_mark: |
 | CosimoAsyncRun | :white_check_mark: | Equality | :white_check_mark: |
-| ExceptionCase | | ExceptionMod | |
+| ExceptionCase | :white_check_mark: | ExceptionMod | |
 | ExceptionPos | | Fail1 | :white_check_mark: |
 | Fail2 | :white_check_mark: | FieldToFunc | :white_check_mark: |
 | FixBugMonadicStyle | :white_check_mark: | ForeignImport | | 

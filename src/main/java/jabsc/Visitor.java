@@ -149,7 +149,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   private final EnumMap<AbsElementType, Set<Decl>> elements = new EnumMap<>(AbsElementType.class);
   private final Map<String, String> classNames = new HashMap<>();
   private final Set<String> packageLevelImports = new HashSet<>();
-  private final Set<String> dataDeclarations = new HashSet<>();
+  private final Map<String, String> dataDeclarations = new HashMap<>();
   private final Set<String> exceptionDeclaraions = new HashSet<>();
 
   /**
@@ -1438,28 +1438,16 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   public Prog visit(DataDecl dd, JavaWriter w) {
     try {
       w.emitEmptyLine();
-      String paraentDataInterface = dd.uident_;
+      String parentDataInterface = dd.uident_;
       // Define parent 'data' holder interface
-      beginElementKind(w, ElementKind.INTERFACE, paraentDataInterface, EnumSet.of(Modifier.PUBLIC),
+      beginElementKind(w, ElementKind.INTERFACE, parentDataInterface, EnumSet.of(Modifier.PUBLIC),
           null, null, false);
       w.emitEmptyLine();
       w.endType();
-      this.dataDeclarations.add(paraentDataInterface);
-      // Each data declaration as a subclass
+      this.dataDeclarations.put(dd.uident_, parentDataInterface);
+      // Each data declaration as an implementing class
       ListConstrIdent lci = dd.listconstrident_;
-      for (ConstrIdent ci : lci) {
-        if (ci instanceof ParamConstrIdent) {
-          ParamConstrIdent pci = (ParamConstrIdent) ci;
-          String className = pci.uident_;
-          visitParametricConstructorDataDecl(pci, paraentDataInterface, true);
-          this.dataDeclarations.add(className);
-        } else if (ci instanceof SinglConstrIdent) {
-          SinglConstrIdent sci = (SinglConstrIdent) ci;
-          String className = sci.uident_;
-          visitSingleConstructorDataDecl(sci, paraentDataInterface, true);
-          this.dataDeclarations.add(className);
-        }
-      }
+      visitDataDeclarationConstructors(parentDataInterface, lci, Collections.emptyList());
       return prog;
     } catch (IOException e) {
       throw new RuntimeException(e);
@@ -1467,9 +1455,23 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   }
 
   @Override
-  public Prog visit(DataParDecl p, JavaWriter arg) {
-    logNotImplemented("#visit(%s)", p);
-    return prog;
+  public Prog visit(DataParDecl dpd, JavaWriter w) {
+    try {
+      w.emitEmptyLine();
+      String parentDataInterface = dpd.uident_;
+      List<String> genericParams = dpd.listuident_;
+      // The parent data decl as an interface
+      beginElementKind(w, ElementKind.INTERFACE,
+          String.format("%s<%s>", parentDataInterface, String.join(COMMA_SPACE, genericParams)),
+          EnumSet.of(Modifier.PUBLIC), null, null, false);
+      w.emitEmptyLine();
+      w.endType();
+      this.dataDeclarations.put(parentDataInterface, parentDataInterface);
+      visitDataDeclarationConstructors(parentDataInterface, dpd.listconstrident_, genericParams);
+      return prog;
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
   }
 
   @Override
@@ -1499,7 +1501,6 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
           JavaWriter auxjw = new JavaWriter(sw);
           pe.accept(this, auxjw);
           String stm = sw.toString();
-          stm = refineFunctionalPureExpression(stm);
           w.emitStatement("return %s", stm);
         }
       }
@@ -1691,8 +1692,9 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
     try {
       String type = getQTypeName(cons.qtype_);
       String resolvedType = javaTypeTranslator.translateFunctionalType(type);
-      w.emit(resolvedType);
-      if (this.dataDeclarations.contains(resolvedType)) {
+      String refinedType = getRefindDataDeclName(resolvedType);
+      w.emit(refinedType);
+      if (this.dataDeclarations.containsKey(resolvedType)) {
         w.emit(".INSTANCE");
       }
       return prog;
@@ -1707,10 +1709,8 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
       String functionName = getQTypeName(cons.qtype_);
       ListPureExp params = cons.listpureexp_;
       List<String> parameters = getParameters(params);
-      w.emit(functionName);
-      w.emit("(");
-      w.emit(String.join(COMMA_SPACE, parameters));
-      w.emit(")");
+      String result = String.format("%s(%s)", functionName, String.join(COMMA_SPACE, parameters));
+      w.emit(refineFunctionalPureExpression(result));
       return prog;
     } catch (IOException e) {
       throw new RuntimeException(e);
@@ -1742,8 +1742,8 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   @Override
   public Prog visit(PSinglConstr p, JavaWriter w) {
     try {
-      w.emit(p.uident_);
-      if (this.dataDeclarations.contains(p.uident_)) {
+      w.emit(getRefindDataDeclName(p.uident_));
+      if (this.dataDeclarations.containsKey(p.uident_)) {
         w.emit(".INSTANCE");
       }
       return prog;
@@ -1994,7 +1994,6 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
     } else {
       type = "(" + type + ")";
     }
-    kaseVar = refineFunctionalPureExpression(kaseVar);
     StringBuilder caseStm =
         new StringBuilder(String.format("%s match((Object) %s)", type, kaseVar)).append(NEW_LINE);
     for (CaseBranch b : kase.listcasebranch_) {
@@ -2054,9 +2053,9 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
       PSinglConstr psc = (PSinglConstr) p;
       String id = psc.uident_;
       final boolean isExceptionClass = exceptionDeclaraions.contains(id);
-      final boolean isDataInstance = dataDeclarations.contains(id);
+      final boolean isDataInstance = dataDeclarations.containsKey(id);
       if (isDataInstance) {
-        return String.format("eq(%s.INSTANCE)", id);
+        return String.format("eq(%s.INSTANCE)", getRefindDataDeclName(id));
       }
       return String.format("eq(%s)", id);
     }
@@ -2097,28 +2096,38 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   }
 
   private String refineFunctionalPureExpression(String expr) {
-    // 1. Replace all occurrences of exceptions `E` with `new E`
     String result = new String(expr);
+    // 1. Replace all occurrences of exceptions `E` with `new E`
     for (String ex : this.exceptionDeclaraions) {
-      if (expr.contains(ex + "(")) {
-        result = result.replace(ex + "(", "new " + ex + "(");
+      String p1 = ex + "(";
+      String p2 = "new " + p1;
+      if (expr.contains(p1)) {
+        result = result.replace(p1, p2);
       }
     }
-    return result;
+    // 2. Replace all occurrences of data `D` with `new D`
+    for (String dd : this.dataDeclarations.keySet()) {
+      String p1 = dd + "(";
+      if (expr.contains(p1)) {
+        result = result.replace(p1, "new " + getRefindDataDeclName(dd) + "(");
+      }
+    }
+    return result.replace("new new ", "new ");
   }
 
-  private void visitSingleConstructorDataDecl(SinglConstrIdent sci, String parent,
-      final boolean isParentInterface) throws IOException {
-    String className = sci.uident_;
+  private void visitSingleConstructorDataDecl(SinglConstrIdent sci, String className, String parent,
+      List<String> classGenericParams, final boolean isParentInterface) throws IOException {
     JavaWriter cw = javaWriterSupplier.apply(className);
     cw.emitPackage(this.packageName);
     emitDefaultImports(cw);
     cw.emitEmptyLine();
+    String fullClassName = classGenericParams.isEmpty() ? className
+        : String.format("%s<%s>", className, String.join(COMMA_SPACE, classGenericParams));
     if (parent != null && isParentInterface) {
-      beginElementKind(cw, ElementKind.CLASS, className, EnumSet.of(Modifier.PUBLIC), null,
+      beginElementKind(cw, ElementKind.CLASS, fullClassName, EnumSet.of(Modifier.PUBLIC), null,
           Collections.singletonList(parent), false);
     } else if (parent != null && !isParentInterface) {
-      beginElementKind(cw, ElementKind.CLASS, className, EnumSet.of(Modifier.PUBLIC), parent,
+      beginElementKind(cw, ElementKind.CLASS, fullClassName, EnumSet.of(Modifier.PUBLIC), parent,
           Collections.emptyList(), false);
     }
     cw.emitEmptyLine();
@@ -2129,22 +2138,52 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
     cw.close();
   }
 
-  private void visitParametricConstructorDataDecl(ParamConstrIdent pci, String parent,
-      final boolean isParentInterface) throws IOException {
-    String className = pci.uident_;
+  private void visitDataDeclarationConstructors(String parentDataInterface, ListConstrIdent lci,
+      List<String> classGenericParams) throws IOException {
+    for (ConstrIdent ci : lci) {
+      if (ci instanceof ParamConstrIdent) {
+        ParamConstrIdent pci = (ParamConstrIdent) ci;
+        String className = pci.uident_;
+        if (parentDataInterface.equals(className)) {
+          className = className + "Impl";
+        }
+        visitParametricConstructorDataDecl(pci, className, parentDataInterface, classGenericParams,
+            true);
+        this.dataDeclarations.put(pci.uident_, className);
+      } else if (ci instanceof SinglConstrIdent) {
+        SinglConstrIdent sci = (SinglConstrIdent) ci;
+        String className = sci.uident_;
+        if (parentDataInterface.equals(className)) {
+          className = className + "Impl";
+        }
+        visitSingleConstructorDataDecl(sci, className, parentDataInterface, classGenericParams,
+            true);
+        this.dataDeclarations.put(sci.uident_, className);
+      }
+    }
+  }
+
+  private void visitParametricConstructorDataDecl(ParamConstrIdent pci, String className,
+      String parent, List<String> classGenericParams, final boolean isParentInterface)
+          throws IOException {
     JavaWriter cw = javaWriterSupplier.apply(className);
     cw.emitPackage(this.packageName);
     emitDefaultImports(cw);
     cw.emitEmptyLine();
+    List<Entry<String, String>> fields = extractConstructorParameters(pci.listconstrtype_);
+    List<String> actualFieldTypes =
+        fields.stream().map(e -> e.getKey()).collect(Collectors.toList());
+    String fullClassName = classGenericParams.isEmpty() ? className
+        : String.format("%s<%s>", className, String.join(COMMA_SPACE, actualFieldTypes));
     if (parent != null && isParentInterface) {
-      beginElementKind(cw, ElementKind.CLASS, className, EnumSet.of(Modifier.PUBLIC), null,
+      beginElementKind(cw, ElementKind.CLASS, fullClassName, EnumSet.of(Modifier.PUBLIC), null,
           Collections.singletonList(parent), false);
     } else if (parent != null && !isParentInterface) {
-      beginElementKind(cw, ElementKind.CLASS, className, EnumSet.of(Modifier.PUBLIC), parent,
+      beginElementKind(cw, ElementKind.CLASS, fullClassName, EnumSet.of(Modifier.PUBLIC), parent,
           Collections.emptyList(), false);
     }
     cw.emitEmptyLine();
-    List<Entry<String, String>> fields = visitConstrType(pci.listconstrtype_, cw, false);
+    visitConstrType(pci.listconstrtype_, cw, false);
     List<String> fieldNames = fields.stream().map(e -> e.getValue()).collect(Collectors.toList());
     emitEqualsMethod(className, fieldNames, cw);
     cw.endType();
@@ -2709,6 +2748,10 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 
   private String getRefinedClassName(String name) {
     return classNames.get(name);
+  }
+
+  private String getRefindDataDeclName(String name) {
+    return this.dataDeclarations.get(name);
   }
 
   private void logNotImplemented(String format, Object... args) {
