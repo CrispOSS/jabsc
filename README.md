@@ -42,33 +42,57 @@ The legend for the following tables:
 * :bangbang: ABS source fails to compile to *correct* Java.
 
 #### Tests: `compiler/must/`
-| Test | State | Test | State |
-|----|:----:|----|:----:|----|:----:|
-| Arith | :white_check_mark: | AsyncToSameCOG | :white_check_mark: |
-| AwaitOnThis | :white_check_mark: | AwaitOnThis2 | :white_check_mark: |
-| BenchLists | :white_check_mark: | BenchMaps | :white_check_mark: |
-| CatchClauseBugInOtherBackends | | ClassDisjointInterfs | :white_check_mark: |
-| Cosimo1 | :white_check_mark: | Cosimo2 | :heavy_exclamation_mark: Object's field reference to a "future" is changed; thus the future is lost. |
-| Cosimo3 | :heavy_exclamation_mark: Same as Cosimo2 | Cosimo4 | :white_check_mark: |
-| CosimoAsyncRun | :white_check_mark: | Equality | :white_check_mark: |
-| ExceptionCase | :white_check_mark: | ExceptionMod | |
-| ExceptionPos | | Fail1 | :white_check_mark: |
-| Fail2 | :white_check_mark: | FieldToFunc | :white_check_mark: |
-| FixBugMonadicStyle | :white_check_mark: | ForeignImport | | 
-| Futures | :white_check_mark: | HiddenMethod | :heavy_exclamation_mark: |
-| Inference | :bangbang: | InferenceNum | :bangbang: |
-| Interfaces | :white_check_mark: | LeaderElection | :white_check_mark: |
-| Module | :x: Multi-module in the same file not supported. | MultipleTasksPerObject | :white_check_mark: |
-| MultiScope | :white_check_mark: | NonMethods | :heavy_exclamation_mark: |
-| Null | :bangbang: | Parens | :white_check_mark: |
-| PingPong | :white_check_mark: | PromiseSimple | :x: No definitive semantics. |
-| PureCode | :x: | RunAndNonMethods | :white_check_mark: |
-| StatefulOO | :white_check_mark: | Subtyping | :white_check_mark: |
-| Subtyping2 | :white_check_mark: | TestAwait | :white_check_mark: |
-| TestMaps | :white_check_mark: | TestRefs | :white_check_mark: |
-| TestThis | :white_check_mark: | ThisSwitching | :white_check_mark: |
-| TypeSym | :x: | UpcastingInt | :x: |
-| While | :white_check_mark: | | |
+| Test | State | Comment |
+|----|:----:|----|
+| Arith | :white_check_mark: | |
+| AsyncToSameCOG | :white_check_mark: | |
+| AwaitOnThis | :white_check_mark: | |
+| AwaitOnThis2 | :white_check_mark: | |
+| BenchLists | :white_check_mark: | | 
+| BenchMaps | :white_check_mark: | |
+| CatchClauseBugInOtherBackends | :bangbang: | Unreachable code is generated. | 
+| ClassDisjointInterfs | :white_check_mark: | | 
+| Cosimo1 | :white_check_mark: | |
+| Cosimo2 | :heavy_exclamation_mark: | Object's field reference to a "future" is changed; thus the future is lost. |
+| Cosimo3 | :heavy_exclamation_mark: | Same as Cosimo2 |
+| Cosimo4 | :white_check_mark: | |
+| CosimoAsyncRun | :white_check_mark: | |
+| Equality | :white_check_mark: | |
+| ExceptionCase | :white_check_mark: | |
+| ExceptionMod | :bangbang: | Local variable is not final. Structural pattern matching on exceptions not supported. |
+| ExceptionPos | :bangbang: | Unreachable code is generated. |
+| Fail1 | :white_check_mark: | |
+| Fail2 | :white_check_mark: | |
+| FieldToFunc | :white_check_mark: | |
+| FixBugMonadicStyle | :white_check_mark: | | 
+| ForeignImport | | |
+| Futures | :white_check_mark: | |
+| HiddenMethod | :white_check_mark: | |
+| Inference | :bangbang: | |
+| InferenceNum | :bangbang: | |
+| Interfaces | :white_check_mark: | |
+| LeaderElection | :white_check_mark: | |
+| Module | :x: | Multi-module in the same file not supported. | 
+| MultipleTasksPerObject | :white_check_mark: | |
+| MultiScope | :white_check_mark: | | 
+| NonMethods | :white_check_mark: | |
+| Null | :bangbang: | Usage of Java keywords such as `null`. |
+| Parens | :white_check_mark: | |
+| PingPong | :white_check_mark: | |
+| PromiseSimple | :x: | No definitive semantics. |
+| PureCode | :x: | |
+| RunAndNonMethods | :white_check_mark: | |
+| StatefulOO | :white_check_mark: | |
+| Subtyping | :white_check_mark: | |
+| Subtyping2 | :white_check_mark: | |
+| TestAwait | :white_check_mark: | |
+| TestMaps | :white_check_mark: | | 
+| TestRefs | :white_check_mark: | |
+| TestThis | :white_check_mark: | |
+| ThisSwitching | :white_check_mark: | |
+| TypeSym | :x: | Parametric/Algebraic types not supported. |
+| UpcastingInt | :x: | Type information not available during compilation. |
+| While | :white_check_mark: | | 
 
 ## Benchmarks
 

@@ -208,7 +208,8 @@ public class Compiler implements Runnable {
     String pakkage = v.getQTypeName(((Modul) module).qtype_).toLowerCase();
     if (isJavaKeyword(pakkage)) {
       String newPakkage = pakkage + "_";
-      logger.warning(String.format("Java keyword is used: %s. Renamed: %s", pakkage, newPakkage));
+      logger.warning(
+          String.format("Java keyword is improperly used: %s. Renamed: %s", pakkage, newPakkage));
       return newPakkage;
     }
     return pakkage;

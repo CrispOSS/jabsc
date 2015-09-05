@@ -24,7 +24,6 @@ import java.util.concurrent.locks.Lock;
 import java.util.function.Function;
 import java.util.logging.Logger;
 import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import javax.lang.model.element.ElementKind;
@@ -839,7 +838,13 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
       StringWriter auxsw = new StringWriter();
       JavaWriter auxw = new JavaWriter(auxsw);
       st.pureexp_.accept(this, auxw);
-      w.emitStatement("throw " + auxsw.toString());
+      String newEx = auxsw.toString();
+      if (LITERAL_NULL.equals(newEx)) {
+        w.emitSingleLineComment("XXX jabsc: Cannot throw 'null'");
+        w.emitSingleLineComment("throw %s", newEx);
+      } else {
+        w.emitStatement("throw " + refineFunctionalPureExpression(newEx));
+      }
       return prog;
     } catch (IOException e) {
       throw new RuntimeException(e);
@@ -849,12 +854,24 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   @Override
   public Prog visit(STryCatchFinally stcf, JavaWriter w) {
     try {
-      w.beginControlFlow("try { ");
+      w.beginControlFlow("try");
       stcf.stm_.accept(this, w);
       w.endControlFlow();
-      for (CatchBranch cb : stcf.listcatchbranch_) {
-        cb.accept(this, w);
+      String exceptionVarName = "exception" + RANDOM.nextInt(100);
+      w.beginControlFlow(String.format("catch(Exception %s)", exceptionVarName));
+      for (CatchBranch c : stcf.listcatchbranch_) {
+        CatchBranc cb = (CatchBranc) c;
+        Pattern left = cb.pattern_;
+        String exceptionTypeName = findExceptionTypeName(left);
+        if (exceptionTypeName != null) {
+          w.beginControlFlow("if (%s instanceof %s)", exceptionVarName, exceptionTypeName);
+        } else {
+          w.beginControlFlow("if (%s == null)", exceptionVarName);
+        }
+        cb.stm_.accept(this, w);
+        w.endControlFlow();
       }
+      w.endControlFlow();
       stcf.maybefinally_.accept(this, w);
       return prog;
     } catch (IOException e) {
@@ -1198,10 +1215,10 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
       StringWriter auxsw = new StringWriter();
       JavaWriter auxw = new JavaWriter(auxsw);
       cb.pattern_.accept(this, auxw);
-      w.beginControlFlow("catch(%s)", auxsw.toString());
+      String stm = auxsw.toString();
+      w.beginControlFlow("catch(%s)", refineFunctionalPureExpression(stm));
       cb.stm_.accept(this, w);
       w.endControlFlow();
-      w.emit(auxsw.toString() + ".get()");
       return prog;
     } catch (IOException e) {
       throw new RuntimeException(e);
@@ -1211,7 +1228,6 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   @Override
   public Prog visit(JustFinally jf, JavaWriter w) {
     try {
-
       w.beginControlFlow("finally");
       jf.stm_.accept(this, w);
       w.endControlFlow();
@@ -1424,9 +1440,10 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
       } else if (ex instanceof ParamConstrIdent) {
         ParamConstrIdent cstr = (ParamConstrIdent) ex;
         fields = visitConstrType(cstr.listconstrtype_, w, true);
+        List<String> fieldNames =
+            fields.stream().map(e -> e.getValue()).collect(Collectors.toList());
+        emitEqualsMethod(className, fieldNames, w);
       }
-      List<String> fieldNames = fields.stream().map(e -> e.getValue()).collect(Collectors.toList());
-      emitEqualsMethod(className, fieldNames, w);
       w.endType();
       return prog;
     } catch (IOException e) {
@@ -1691,11 +1708,17 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   public Prog visit(ESinglConstr cons, JavaWriter w) {
     try {
       String type = getQTypeName(cons.qtype_);
+      final boolean isException = this.exceptionDeclaraions.contains(type);
       String resolvedType = javaTypeTranslator.translateFunctionalType(type);
-      String refinedType = getRefindDataDeclName(resolvedType);
-      w.emit(refinedType);
-      if (this.dataDeclarations.containsKey(resolvedType)) {
-        w.emit(".INSTANCE");
+      final boolean isData = resolvedType != null && this.dataDeclarations.containsKey(type);
+      if (isException) {
+        w.emit("new " + type + "()");
+      } else if (isData) {
+        String refinedType = getRefindDataDeclName(resolvedType);
+        w.emit(refinedType);
+        if (this.dataDeclarations.containsKey(resolvedType)) {
+          w.emit(".INSTANCE");
+        }
       }
       return prog;
     } catch (IOException e) {
@@ -1756,7 +1779,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   public Prog visit(PParamConstr p, JavaWriter w) {
     try {
       List<String> parameters = new ArrayList<>();
-      for (bnfc.abs.Absyn.Pattern pattern : p.listpattern_) {
+      for (Pattern pattern : p.listpattern_) {
         StringWriter sw = new StringWriter();
         pattern.accept(this, new JavaWriter(sw));
         parameters.add(sw.toString());
@@ -1994,38 +2017,50 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
     } else {
       type = "(" + type + ")";
     }
+    List<Entry<Pattern, PureExp>> cases = kase.listcasebranch_.stream().map(b -> (CaseBranc) b)
+        .map(cb -> new SimpleEntry<Pattern, PureExp>(cb.pattern_, cb.pureexp_))
+        .collect(Collectors.toList());
+    return visitCases(kaseVar, type, cases);
+  }
+
+  private String visitCases(String caseVariable, String caseVariableType,
+      List<Entry<Pattern, PureExp>> cases) {
     StringBuilder caseStm =
-        new StringBuilder(String.format("%s match((Object) %s)", type, kaseVar)).append(NEW_LINE);
-    for (CaseBranch b : kase.listcasebranch_) {
-      CaseBranc cb = (CaseBranc) b;
-      bnfc.abs.Absyn.Pattern left = cb.pattern_;
-      PureExp right = cb.pureexp_;
-      auxsw = new StringWriter();
+        new StringBuilder(String.format("%s match((Object) %s)", caseVariableType, caseVariable))
+            .append(NEW_LINE);
+    for (Entry<Pattern, PureExp> e : cases) {
+      Pattern left = e.getKey();
+      PureExp right = e.getValue();
+      StringWriter auxsw = new StringWriter();
       right.accept(this, new JavaWriter(auxsw));
       String thenMatchValue = auxsw.toString();
       String leftPattern = toMatchingString(left);
       caseStm.append(".").append(String.format("when(%s)", leftPattern)).append(NEW_LINE);
       if (left instanceof PIdent) {
-        caseStm.append(".").append(String.format("get(() -> %s %s)", type, thenMatchValue))
+        caseStm.append(".")
+            .append(String.format("get(() -> %s %s)", caseVariableType, thenMatchValue))
             .append(NEW_LINE);
       } else if (left instanceof PLit) {
-        caseStm.append(".").append(String.format("get(() -> %s %s)", type, thenMatchValue))
+        caseStm.append(".")
+            .append(String.format("get(() -> %s %s)", caseVariableType, thenMatchValue))
             .append(NEW_LINE);
       } else if (left instanceof PUnderscore) {
         String kaseVarLocal = "var" + RANDOM.nextInt(1000);
-        if (thenMatchValue.contains(" " + kaseVar + " ")) {
-          thenMatchValue = thenMatchValue.replace(kaseVar, kaseVarLocal);
+        if (thenMatchValue.contains(" " + caseVariable + " ")) {
+          thenMatchValue = thenMatchValue.replace(caseVariable, kaseVarLocal);
         }
         caseStm.append(".")
-            .append(String.format("get(%s -> %s %s)", kaseVarLocal, type, thenMatchValue))
+            .append(
+                String.format("get(%s -> %s %s)", kaseVarLocal, caseVariableType, thenMatchValue))
             .append(NEW_LINE);
       } else if (left instanceof PSinglConstr) {
-        caseStm.append(".").append(String.format("get(() -> %s %s)", type, thenMatchValue))
+        caseStm.append(".")
+            .append(String.format("get(() -> %s %s)", caseVariableType, thenMatchValue))
             .append(NEW_LINE);
       } else if (left instanceof PParamConstr) {
         String rightVarParam = leftPattern.contains("caseThat(") ? "ignored" : "";
-        caseStm.append(".")
-            .append(String.format("get((%s) -> %s %s)", rightVarParam, type, thenMatchValue))
+        caseStm.append(".").append(
+            String.format("get((%s) -> %s %s)", rightVarParam, caseVariableType, thenMatchValue))
             .append(NEW_LINE);
       } else {
         logNotImplemented("case pattern: %s", left);
@@ -2035,7 +2070,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
     return caseStm.toString();
   }
 
-  private String toMatchingString(bnfc.abs.Absyn.Pattern p) {
+  private String toMatchingString(Pattern p) {
     if (p instanceof PUnderscore) {
       return "any()";
     }
@@ -2066,7 +2101,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
       if (isExceptionClass) {
         List<String> params = new ArrayList<>();
         boolean anyPattern = false;
-        for (bnfc.abs.Absyn.Pattern paramPattern : ppc.listpattern_) {
+        for (Pattern paramPattern : ppc.listpattern_) {
           StringWriter sw = new StringWriter();
           JavaWriter auxjw = new JavaWriter(sw);
           paramPattern.accept(this, auxjw);
@@ -2085,7 +2120,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
         }
       } else {
         List<String> params = new ArrayList<>();
-        for (bnfc.abs.Absyn.Pattern paramPattern : ppc.listpattern_) {
+        for (Pattern paramPattern : ppc.listpattern_) {
           params.add(toMatchingString(paramPattern));
         }
         String paramString = String.join(COMMA_SPACE, params);
@@ -2770,7 +2805,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 
   private String stripGenericResponseType(String type) {
     String regex = "^(Response\\<)(.*)(\\>)$";
-    Pattern p = Pattern.compile(regex);
+    java.util.regex.Pattern p = java.util.regex.Pattern.compile(regex);
     Matcher m = p.matcher(type);
     if (m.matches()) {
       String innerType = m.group(2);
@@ -2904,12 +2939,54 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   }
 
   private String createJavaFieldName(String type) {
-    String simpleType = type;
-    int dotIndex = type.lastIndexOf(CHAR_DOT);
-    if (dotIndex > 0) {
-      simpleType = type.substring(dotIndex + 1);
+    String nonGenericType = stripGenericParameterType(type);
+    // 1. Try proper Java type
+    try {
+      Class<?> clazz = Class.forName(nonGenericType);
+      return clazz.getSimpleName() + "Value";
+    } catch (ClassNotFoundException e) {
+      // Ignore
     }
-    return simpleType.replace(CHAR_DOT, CHAR_UNDERSCORE) + "Value";
+    // 2. Try constructing a type from the string
+    String simpleType = nonGenericType;
+    int dotIndex = nonGenericType.lastIndexOf(CHAR_DOT);
+    if (dotIndex >= 0) {
+      simpleType = nonGenericType.substring(dotIndex + 1);
+    }
+    simpleType = simpleType.replace(CHAR_DOT, CHAR_UNDERSCORE) + "Value";
+    return simpleType;
+  }
+
+  private String stripGenericParameterType(String type) {
+    String regex = "^(\\w+)\\<(.*)\\>$";
+    java.util.regex.Pattern p = java.util.regex.Pattern.compile(regex);
+    Matcher m = p.matcher(type);
+    if (m.matches()) {
+      String outerType = m.group(1);
+      return outerType;
+    } else {
+      return type;
+    }
+  }
+
+  private String findExceptionTypeName(Pattern p) {
+    if (p instanceof PIdent) {
+      return ((PIdent) p).lident_;
+    }
+    if (p instanceof PLit) {
+      StringWriter sw = new StringWriter();
+      JavaWriter jw = new JavaWriter(sw);
+      ((PLit) p).literal_.accept(this, jw);
+      return sw.toString();
+    }
+    if (p instanceof PParamConstr) {
+      PParamConstr ppc = (PParamConstr) p;
+      return ppc.uident_;
+    }
+    if (p instanceof PSinglConstr) {
+      return ((PSinglConstr) p).uident_;
+    }
+    return null;
   }
 
 }
