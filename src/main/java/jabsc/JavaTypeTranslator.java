@@ -2,6 +2,7 @@ package jabsc;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Function;
 
 import abs.api.Response;
@@ -57,6 +58,7 @@ class JavaTypeTranslator implements Function<String, String> {
     types.put("ABS.StdLib.Map", Map.class.getName());
     types.put("Unit", "void");
     types.put("Fut", Response.class.getSimpleName());
+    types.put("Maybe", Optional.class.getSimpleName());
   }
 
   protected void fillFunctionalTypes(final Map<String, String> types) {

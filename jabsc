@@ -59,7 +59,7 @@ function log
 function task_clean
 {
    echo "Cleaning workspace ..."
-   mvn -q clean
+   mvn -q clean compile
    local exit_code=$?
    if [[ ${exit_code} -ne 0 ]]; then
       log_fail "mvn clean"

@@ -150,6 +150,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   private final Set<String> packageLevelImports = new HashSet<>();
   private final Map<String, String> dataDeclarations = new HashMap<>();
   private final Set<String> exceptionDeclaraions = new HashSet<>();
+  private final Set<String> staticImports = new HashSet<>();
 
   /**
    * Ctor.
@@ -187,6 +188,8 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   @Override
   public Prog visit(Modul m, JavaWriter w) {
     try {
+
+      m.listimport_.forEach(i -> i.accept(this, w));
 
       // Types
       for (Decl decl : elements.get(AbsElementType.TYPE)) {
@@ -1347,19 +1350,19 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   }
 
   @Override
-  public Prog visit(StarFromImport p, JavaWriter arg) {
-    logNotSupported("#visit(%s): %s", p, p.qtype_);
+  public Prog visit(StarFromImport sfi, JavaWriter w) {
+    String type = getQTypeName(sfi.qtype_);
+    this.staticImports.add(this.packageName + "." + type + ".*");
     return prog;
   }
 
   @Override
-  public Prog visit(ForeignImport p, JavaWriter arg) {
-    logNotSupported("#visit(%s)", p);
+  public Prog visit(ForeignImport fi, JavaWriter arg) {
     return prog;
   }
 
   @Override
-  public Prog visit(NormalImport p, JavaWriter arg) {
+  public Prog visit(NormalImport ni, JavaWriter arg) {
     return prog;
   }
 
@@ -1530,8 +1533,42 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   }
 
   @Override
-  public Prog visit(FunParDecl p, JavaWriter arg) {
-    logNotImplemented("#visit(%s)", p);
+  public Prog visit(FunParDecl fpd, JavaWriter w) {
+    try {
+      String methodName = fpd.lident_;
+      String methodType = getTypeName(fpd.type_);
+      List<String> parameters = new ArrayList<>();
+      for (Param param : fpd.listparam_) {
+        Par parameter = (Par) param;
+        parameters.add(getTypeName(parameter.type_));
+        parameters.add(parameter.lident_);
+      }
+      List<String> genericParameters = fpd.listuident_.stream().collect(Collectors.toList());
+      Set<Modifier> modifiers = Sets.newHashSet(Modifier.PUBLIC, Modifier.STATIC);
+      w.beginMethod("<" + String.join(COMMA_SPACE, genericParameters) + "> " + methodType,
+          methodName, modifiers, parameters.toArray(new String[0]));
+      FunBody fbody = fpd.funbody_;
+      if (fbody instanceof BuiltinFunBody) {
+        logNotImplemented("builtin function body: %s %s", methodType, methodName);
+      } else if (fbody instanceof NormalFunBody) {
+        NormalFunBody nfb = (NormalFunBody) fbody;
+        PureExp pe = nfb.pureexp_;
+        if (pe instanceof Case) {
+          String caseStm = visitCase((Case) pe, methodType);
+          w.emitStatement("return %s", caseStm);
+        } else {
+          StringWriter sw = new StringWriter();
+          JavaWriter auxjw = new JavaWriter(sw);
+          pe.accept(this, auxjw);
+          String stm = sw.toString();
+          w.emitStatement("return %s", stm);
+        }
+      }
+      w.endMethod();
+      w.emitEmptyLine();
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
     return prog;
   }
 
@@ -1907,9 +1944,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 
   protected void visitImports(final ListImport imports, JavaWriter w) throws IOException {
     emitDefaultImports(w);
-    for (Import imprt : imports) {
-      imprt.accept(this, w);
-    }
+    w.emitStaticImports(this.staticImports);
     w.emitEmptyLine();
   }
 
