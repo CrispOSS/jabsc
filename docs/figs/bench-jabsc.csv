@@ -1,0 +1,20 @@
+prog,exitstatus,realtime(s),usertime(s),systemtime(s),cpupercent,maxmemory(KB),contextswitches(forced), contextswitches(coop),pagefaults
+awaitonfield,0,2.18,10.98,0.44,522%,1509220,1684,7104,0
+prog,exitstatus,realtime(s),usertime(s),systemtime(s),cpupercent,maxmemory(KB),contextswitches(forced), contextswitches(coop),pagefaults
+awaitonfut,0,3.17,18.46,0.60,600%,1522476,3221,9479,0
+prog,exitstatus,realtime(s),usertime(s),systemtime(s),cpupercent,maxmemory(KB),contextswitches(forced), contextswitches(coop),pagefaults
+bang,0,0.65,2.14,0.13,350%,187768,203,2344,0
+prog,exitstatus,realtime(s),usertime(s),systemtime(s),cpupercent,maxmemory(KB),contextswitches(forced), contextswitches(coop),pagefaults
+benchlists,0,0.20,0.38,0.04,209%,75524,25,1023,0
+prog,exitstatus,realtime(s),usertime(s),systemtime(s),cpupercent,maxmemory(KB),contextswitches(forced), contextswitches(coop),pagefaults
+big,0,0.19,0.35,0.03,195%,110260,123,1516,0
+prog,exitstatus,realtime(s),usertime(s),systemtime(s),cpupercent,maxmemory(KB),contextswitches(forced), contextswitches(coop),pagefaults
+sequences,0,0.27,0.85,0.06,328%,114332,1281,5124,0
+prog,exitstatus,realtime(s),usertime(s),systemtime(s),cpupercent,maxmemory(KB),contextswitches(forced), contextswitches(coop),pagefaults
+serialmsg,0,0.30,0.77,0.08,281%,156340,425,2638,0
+prog,exitstatus,realtime(s),usertime(s),systemtime(s),cpupercent,maxmemory(KB),contextswitches(forced), contextswitches(coop),pagefaults
+stresstest,0,0.50,2.00,0.34,462%,180340,25237,32972,0
+prog,exitstatus,realtime(s),usertime(s),systemtime(s),cpupercent,maxmemory(KB),contextswitches(forced), contextswitches(coop),pagefaults
+syncasync,0,0.23,0.39,0.05,191%,107904,116,1354,0
+prog,exitstatus,realtime(s),usertime(s),systemtime(s),cpupercent,maxmemory(KB),contextswitches(forced), contextswitches(coop),pagefaults
+threadringcog,0,0.19,0.32,0.03,188%,67996,15,1050,0
