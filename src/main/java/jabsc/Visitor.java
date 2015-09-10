@@ -1713,10 +1713,10 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
       final boolean isData = resolvedType != null && this.dataDeclarations.containsKey(type);
       if (isException) {
         w.emit("new " + type + "()");
-      } else if (isData) {
+      } else {
         String refinedType = getRefindDataDeclName(resolvedType);
         w.emit(refinedType);
-        if (this.dataDeclarations.containsKey(resolvedType)) {
+        if (isData) {
           w.emit(".INSTANCE");
         }
       }
