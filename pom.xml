@@ -185,6 +185,21 @@
 			<artifactId>motif-hamcrest</artifactId>
 			<version>${version.motif}</version>
 		</dependency>
+		<dependency>
+			<groupId>com.aol.cyclops</groupId>
+			<artifactId>cyclops-pattern-matching</artifactId>
+			<version>5.1.1</version>
+		</dependency>
+		<dependency>
+			<groupId>com.aol.cyclops</groupId>
+			<artifactId>cyclops-core</artifactId>
+			<version>5.1.1</version>
+		</dependency>
+		<dependency>
+			<groupId>com.pogofish.jadt</groupId>
+			<artifactId>jADT-core</artifactId>
+			<version>0.3.0</version>
+		</dependency>
 	</dependencies>
 
 	<distributionManagement>

@@ -12,22 +12,32 @@ import java.nio.file.StandardOpenOption;
  */
 class DefaultJavaWriterSupplier implements JavaWriterSupplier {
 
-  private final Compiler compiler;
+  private final PathResolver pathResolver;
   private final String packageName;
+  private final String extension;
   private final Path outputDirectory;
 
-  public DefaultJavaWriterSupplier(Compiler compiler, String packageName, Path outputDirectory) {
-    this.compiler = compiler;
+  public DefaultJavaWriterSupplier(PathResolver pathResolver, String packageName,
+      Path outputDirectory) {
+    this(pathResolver, packageName, ".java", outputDirectory);
+  }
+
+  public DefaultJavaWriterSupplier(PathResolver pathResolver, String packageName, String extension,
+      Path outputDirectory) {
+    this.pathResolver = pathResolver;
     this.packageName = packageName;
+    this.extension = extension;
     this.outputDirectory = outputDirectory;
   }
 
   @Override
   public JavaWriter apply(String typeName) {
     try {
-      Path fqdnOutputDirectory = compiler.resolveOutputDirectory(packageName, outputDirectory);
-      return new JavaWriter(Files.newBufferedWriter(fqdnOutputDirectory.resolve(typeName + ".java"),
-          StandardOpenOption.CREATE, StandardOpenOption.WRITE));
+      Path fqdnOutputDirectory =
+          this.pathResolver.resolveOutputDirectory(packageName, outputDirectory);
+      return new JavaWriter(
+          Files.newBufferedWriter(fqdnOutputDirectory.resolve(typeName + this.extension),
+              StandardOpenOption.CREATE, StandardOpenOption.WRITE));
     } catch (IOException e) {
       throw new IllegalArgumentException("Cannot create Java writer for " + typeName, e);
     }

@@ -26,13 +26,16 @@ class JavaTypeTranslator implements Function<String, String> {
   public String apply(String absType) {
     String javaType = translateJava(absType);
     if (javaType != null) {
+//      System.out.println(String.format("1> %s => %s", absType, javaType));
       return javaType;
     }
     String type = translateAbstract(absType);
     if (type == null) {
+//      System.out.println(String.format("2> %s => %s", absType, type));
       return absType;
     }
     javaType = translateJava(type);
+//    System.out.println(String.format("3> %s => %s => %s", absType, type, javaType));
     return javaType == null ? type : javaType;
   }
 

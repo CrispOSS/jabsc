@@ -145,8 +145,9 @@ public class Compiler implements Runnable {
     final String packageName = getPackageName(prog);
     final Path sourcePath = createSourcePath(packageName, source, outputDirectory);
     final Visitor visitor = new Visitor(packageName, prog,
-        new DefaultJavaWriterSupplier(this, packageName, outputDirectory),
-        new JavaTypeTranslator());
+        new DefaultJavaWriterSupplier(PathResolver.DEFAULT_PATH_RESOLVER, packageName,
+            outputDirectory),
+        new JavaTypeTranslator(), outputDirectory);
     Files.createDirectories(sourcePath.getParent());
     try (final Writer writer = createWriter(sourcePath)) {
       JavaWriter jw = new JavaWriter(writer);
@@ -204,7 +205,7 @@ public class Compiler implements Runnable {
    */
   protected String getPackageName(final Prog prog) {
     Module module = prog.listmodule_.iterator().next();
-    Visitor v = new Visitor(null, prog, null, new JavaTypeTranslator());
+    Visitor v = new Visitor(null, prog, null, new JavaTypeTranslator(), null);
     String pakkage = v.getQTypeName(((Modul) module).qtype_).toLowerCase();
     if (isJavaKeyword(pakkage)) {
       String newPakkage = pakkage + "_";
@@ -221,14 +222,7 @@ public class Compiler implements Runnable {
    * @return
    */
   protected Path resolveOutputDirectory(String packageName, Path outputDirectory) {
-    if (packageName == null || packageName.isEmpty()) {
-      return outputDirectory;
-    }
-    String[] parts = packageName.split("\\.");
-    for (String packagePart : parts) {
-      outputDirectory = outputDirectory.resolve(packagePart);
-    }
-    return outputDirectory;
+    return PathResolver.DEFAULT_PATH_RESOLVER.resolveOutputDirectory(packageName, outputDirectory);
   }
 
   /**
