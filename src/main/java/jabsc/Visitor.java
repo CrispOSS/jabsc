@@ -44,6 +44,9 @@ import com.pogofish.jadt.JADT;
 import abs.api.Actor;
 import abs.api.Functional;
 import abs.api.Response;
+import abs.api.CloudProvider;
+import abs.api.DeploymentComponent;
+
 import bnfc.abs.AbstractVisitor;
 import bnfc.abs.Absyn.*;
 
@@ -111,18 +114,25 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
       Collection.class.getPackage().getName() + ".*", Function.class.getPackage().getName() + ".*",
       Callable.class.getPackage().getName() + ".*", AtomicLong.class.getPackage().getName() + ".*",
       Lock.class.getPackage().getName() + ".*", Actor.class.getPackage().getName() + ".*",
-      Functional.class.getPackage().getName() + ".*"};
-  private static final String[] DEFAULT_IMPORTS_PATTERNS =
-      new String[] {"com.leacox.motif.function.*", "com.leacox.motif.matching.*",
-          "com.leacox.motif.cases.*", "com.leacox.motif.caseclass.*"};
-  private static final String[] DEFAULT_STATIC_IMPORTS = new String[] {
-      Functional.class.getPackage().getName() + "." + Functional.class.getSimpleName() + ".*"};
-  private static final String[] DEFAULT_STATIC_IMPORTS_PATTERNS =
-      new String[] {"com.leacox.motif.Motif.*", "com.leacox.motif.cases.ListConsCases.*",
-          "com.leacox.motif.cases.Case1Cases.*", "com.leacox.motif.cases.Case2Cases.*",
-          "com.leacox.motif.cases.Case3Cases.*", "com.leacox.motif.MatchesAny.*",
-          "com.leacox.motif.hamcrest.CaseThatCases.*", "com.leacox.motif.MatchesExact.eq",
-          "org.hamcrest.CoreMatchers.*"};
+      Functional.class.getPackage().getName() + ".*",
+      CloudProvider.class.getPackage().getName() + ".*",
+      DeploymentComponent.class.getPackage().getName() + ".*"};
+  private static final String[] DEFAULT_IMPORTS_PATTERNS = new String[] {
+      "com.leacox.motif.function.*", "com.leacox.motif.matching.*", "com.leacox.motif.cases.*",
+      "com.leacox.motif.caseclass.*"};
+  private static final String[] DEFAULT_STATIC_IMPORTS =
+      new String[] {
+          Functional.class.getPackage().getName() + "." + Functional.class.getSimpleName() + ".*",
+          CloudProvider.class.getPackage().getName() + "." + CloudProvider.class.getSimpleName()
+              + ".*",
+          DeploymentComponent.class.getPackage().getName() + "."
+              + DeploymentComponent.class.getSimpleName() + ".*"};
+  private static final String[] DEFAULT_STATIC_IMPORTS_PATTERNS = new String[] {
+      "com.leacox.motif.Motif.*", "com.leacox.motif.cases.ListConsCases.*",
+      "com.leacox.motif.cases.Case1Cases.*", "com.leacox.motif.cases.Case2Cases.*",
+      "com.leacox.motif.cases.Case3Cases.*", "com.leacox.motif.MatchesAny.*",
+      "com.leacox.motif.hamcrest.CaseThatCases.*", "com.leacox.motif.MatchesExact.eq",
+      "org.hamcrest.CoreMatchers.*"};
 
   // Internal Fields
 
@@ -137,15 +147,15 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   private final Path outputDirectory;
 
   // Internal state
-  private final Multimap<String, MethodDefinition> methods =
-      Multimaps.newSetMultimap(new HashMap<>(), new Supplier<Set<MethodDefinition>>() {
+  private final Multimap<String, MethodDefinition> methods = Multimaps.newSetMultimap(
+      new HashMap<>(), new Supplier<Set<MethodDefinition>>() {
         @Override
         public Set<MethodDefinition> get() {
           return new HashSet<>();
         }
       });
-  private final Multimap<String, VarDefinition> variables =
-      Multimaps.newSetMultimap(new HashMap<>(), new Supplier<Set<VarDefinition>>() {
+  private final Multimap<String, VarDefinition> variables = Multimaps.newSetMultimap(
+      new HashMap<>(), new Supplier<Set<VarDefinition>>() {
         @Override
         public Set<VarDefinition> get() {
           return new HashSet<>();
@@ -210,8 +220,9 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
       // Data
       for (Decl decl : elements.get(AbsElementType.DATA)) {
         String name = getTopLevelDeclIdentifier(decl);
-        JavaWriterSupplier jadtWriterSupplier = new DefaultJavaWriterSupplier(
-            PathResolver.DEFAULT_PATH_RESOLVER, packageName, ".jadt", outputDirectory);
+        JavaWriterSupplier jadtWriterSupplier =
+            new DefaultJavaWriterSupplier(PathResolver.DEFAULT_PATH_RESOLVER, packageName, ".jadt",
+                outputDirectory);
         StringWriter jadt = new StringWriter();
         PrintWriter pw = new PrintWriter(jadt);
 
@@ -240,8 +251,8 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
                 if (ct instanceof EmptyConstrType) {
                 } else if (ct instanceof RecordConstrType) {
                   RecordConstrType rct = (RecordConstrType) ct;
-                  constrParams
-                      .add(String.format("final %s %s", getTypeName(rct.type_), rct.lident_));
+                  constrParams.add(String
+                      .format("final %s %s", getTypeName(rct.type_), rct.lident_));
                 }
               }
               String pciType =
@@ -270,8 +281,8 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
                   constrParams.add(String.format("final %s %sValue", type, typeName));
                 } else if (ct instanceof RecordConstrType) {
                   RecordConstrType rct = (RecordConstrType) ct;
-                  constrParams
-                      .add(String.format("final %s %s", getTypeName(rct.type_), rct.lident_));
+                  constrParams.add(String
+                      .format("final %s %s", getTypeName(rct.type_), rct.lident_));
                 }
               }
               String pciType =
@@ -285,8 +296,9 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
         String simpleName = stripGenericParameterType(name);
         Path jadtOutputDirectory =
             PathResolver.DEFAULT_PATH_RESOLVER.resolveOutputDirectory("", this.outputDirectory);
-        try (Writer jadtWriter = Files.newBufferedWriter(
-            jadtOutputDirectory.resolve(simpleName + ".jadt"), StandardOpenOption.CREATE)) {
+        try (Writer jadtWriter =
+            Files.newBufferedWriter(jadtOutputDirectory.resolve(simpleName + ".jadt"),
+                StandardOpenOption.CREATE)) {
           jadtWriter.write(jadt.toString());
         }
         JADT.main(new String[] {jadtOutputDirectory.toAbsolutePath().toString(),
@@ -1978,9 +1990,19 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   }
 
   @Override
-  public Prog visit(Spawns p, JavaWriter arg) {
-    logNotImplemented("#visit(%s)", p);
+  public Prog visit(Spawns p, JavaWriter w) {
+    try{
+    StringWriter sw = new StringWriter();
+    StringWriter sw2 = new StringWriter();
+    
+    New np = new New(p.type_, p.listpureexp_);
+    visit(np, new JavaWriter(sw));
+    p.pureexp_.accept(this, new JavaWriter(sw2));
+    w.emitStatement("%s.context.newActor(toString(), %s)",sw2,sw);
     return prog;
+    }catch (IOException e) {
+      throw new RuntimeException(e);
+    }
   }
 
   @Override
@@ -2087,24 +2109,26 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
     }
   }
 
-  protected void visitAsyncMethodCall(AsyncMethCall amc, String resultVarType, String resultVarName,
-      final boolean isDefined, JavaWriter w) throws IOException {
+  protected void visitAsyncMethodCall(AsyncMethCall amc, String resultVarType,
+      String resultVarName, final boolean isDefined, JavaWriter w) throws IOException {
     String calleeId = getCalleeId(amc);
     List<String> params = getCalleeMethodParams(amc);
     String methodName = amc.lident_;
     String varDefType = findVariableType(resultVarName);
-    String potentialReturnType = resultVarType != null ? resultVarType
-        : varDefType != null ? varDefType
+    String potentialReturnType =
+        resultVarType != null ? resultVarType : varDefType != null ? varDefType
             : findMethodReturnType(methodName, findVariableType(calleeId), params);
     String msgVarName = createMessageVariableName(calleeId);
-    String msgStatement = generateMessageStatement(msgVarName, potentialReturnType,
-        generateJavaMethodInvocation(calleeId, methodName, params));
+    String msgStatement =
+        generateMessageStatement(msgVarName, potentialReturnType,
+            generateJavaMethodInvocation(calleeId, methodName, params));
     w.emit(msgStatement, true);
     w.emitStatementEnd();
     String responseVarName =
         resultVarName != null ? resultVarName : createMessageResponseVariableName(msgVarName);
-    String sendStm = generateMessageInvocationStatement(calleeId, isDefined, resultVarType,
-        msgVarName, responseVarName);
+    String sendStm =
+        generateMessageInvocationStatement(calleeId, isDefined, resultVarType, msgVarName,
+            responseVarName);
     w.emit(sendStm, true);
     w.emitStatementEnd();
   }
@@ -2115,15 +2139,18 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
     List<String> params = getCalleeMethodParams(smc);
     String msgVarName = createMessageVariableName(calleeId);
     String methodName = smc.lident_;
-    String potentialReturnType = resultVarType != null ? resultVarType
-        : findMethodReturnType(methodName, findVariableType(calleeId), params);
-    String msgStatement = generateMessageStatement(msgVarName, potentialReturnType,
-        generateJavaMethodInvocation(calleeId, methodName, params));
+    String potentialReturnType =
+        resultVarType != null ? resultVarType : findMethodReturnType(methodName,
+            findVariableType(calleeId), params);
+    String msgStatement =
+        generateMessageStatement(msgVarName, potentialReturnType,
+            generateJavaMethodInvocation(calleeId, methodName, params));
     w.emit(msgStatement, true);
     w.emitStatementEnd();
     String responseVarName = createMessageResponseVariableName(msgVarName);
-    String sendStm = generateMessageInvocationStatement(calleeId, isDefined, resultVarType,
-        msgVarName, responseVarName);
+    String sendStm =
+        generateMessageInvocationStatement(calleeId, isDefined, resultVarType, msgVarName,
+            responseVarName);
     w.emit(sendStm, true);
     w.emitStatementEnd();
     if (resultVarName != null && resultVarType != null) {
@@ -2140,8 +2167,9 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
     String calleeId = getCalleeId(smc);
     List<String> params = getCalleeMethodParams(smc);
     String methodName = smc.lident_;
-    String potentialReturnType = resultVarName != null ? resultVarType
-        : findMethodReturnType(methodName, findVariableType(calleeId), params);
+    String potentialReturnType =
+        resultVarName != null ? resultVarType : findMethodReturnType(methodName,
+            findVariableType(calleeId), params);
     String javaMethodCall = generateJavaMethodInvocation(calleeId, methodName, params);
     if (isDefined && resultVarName != null) {
       w.emit(String.format("%s %s = %s", potentialReturnType, resultVarName, javaMethodCall), true);
@@ -2182,9 +2210,10 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
     } else {
       type = "(" + type + ")";
     }
-    List<Entry<Pattern, PureExp>> cases = kase.listcasebranch_.stream().map(b -> (CaseBranc) b)
-        .map(cb -> new SimpleEntry<Pattern, PureExp>(cb.pattern_, cb.pureexp_))
-        .collect(Collectors.toList());
+    List<Entry<Pattern, PureExp>> cases =
+        kase.listcasebranch_.stream().map(b -> (CaseBranc) b)
+            .map(cb -> new SimpleEntry<Pattern, PureExp>(cb.pattern_, cb.pureexp_))
+            .collect(Collectors.toList());
     return visitCases(kaseVar, type, cases);
   }
 
@@ -2315,14 +2344,16 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
     return result.replace("new new ", "new ");
   }
 
-  private void visitSingleConstructorDataDecl(SinglConstrIdent sci, String className, String parent,
-      List<String> classGenericParams, final boolean isParentInterface) throws IOException {
+  private void visitSingleConstructorDataDecl(SinglConstrIdent sci, String className,
+      String parent, List<String> classGenericParams, final boolean isParentInterface)
+      throws IOException {
     JavaWriter cw = javaWriterSupplier.apply(className);
     cw.emitPackage(this.packageName);
     emitDefaultImports(cw);
     cw.emitEmptyLine();
-    String fullClassName = classGenericParams.isEmpty() ? className
-        : String.format("%s<%s>", className, String.join(COMMA_SPACE, classGenericParams));
+    String fullClassName =
+        classGenericParams.isEmpty() ? className : String.format("%s<%s>", className,
+            String.join(COMMA_SPACE, classGenericParams));
     if (parent != null && isParentInterface) {
       beginElementKind(cw, ElementKind.CLASS, fullClassName, EnumSet.of(Modifier.PUBLIC), null,
           Collections.singletonList(parent), false);
@@ -2365,7 +2396,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 
   private void visitParametricConstructorDataDecl(ParamConstrIdent pci, String className,
       String parent, List<String> classGenericParams, final boolean isParentInterface)
-          throws IOException {
+      throws IOException {
     JavaWriter cw = javaWriterSupplier.apply(className);
     cw.emitPackage(this.packageName);
     emitDefaultImports(cw);
@@ -2373,8 +2404,9 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
     List<Entry<String, String>> fields = extractConstructorParameters(pci.listconstrtype_);
     List<String> actualFieldTypes =
         fields.stream().map(e -> e.getKey()).collect(Collectors.toList());
-    String fullClassName = classGenericParams.isEmpty() ? className
-        : String.format("%s<%s>", className, String.join(COMMA_SPACE, actualFieldTypes));
+    String fullClassName =
+        classGenericParams.isEmpty() ? className : String.format("%s<%s>", className,
+            String.join(COMMA_SPACE, actualFieldTypes));
     if (parent != null && isParentInterface) {
       beginElementKind(cw, ElementKind.CLASS, fullClassName, EnumSet.of(Modifier.PUBLIC), null,
           Collections.singletonList(parent), false);
@@ -2527,8 +2559,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
    * @return a string in Java representing a lambda expression
    *         for a {@link Runnable} or a {@link Callable}
    */
-  protected String generateMessageStatement(String msgVarName, String returnType,
-      String expression) {
+  protected String generateMessageStatement(String msgVarName, String returnType, String expression) {
     String actualReturnType = resolveMessageType(returnType);
     return String.format("%s %s = () -> %s", actualReturnType, msgVarName, expression);
   }
@@ -2555,8 +2586,9 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
     if (isDefined && !responseVarName.startsWith("msg_")) {
       return String.format("%s = %s(%s, %s)", responseVarName, method, target, msgVarName);
     }
-    String returnType = msgReturnType == null || isVoid(msgReturnType) ? VOID_WRAPPER_CLASS_NAME
-        : stripGenericResponseType(msgReturnType);
+    String returnType =
+        msgReturnType == null || isVoid(msgReturnType) ? VOID_WRAPPER_CLASS_NAME
+            : stripGenericResponseType(msgReturnType);
     return String.format("Response<%s> %s = %s(%s, %s)", returnType, responseVarName, method,
         target, msgVarName);
   }
@@ -2612,7 +2644,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 
   protected void beginElementKind(JavaWriter w, ElementKind kind, String identifier,
       Set<Modifier> modifiers, String classParentType, Collection<String> implementingInterfaces)
-          throws IOException {
+      throws IOException {
     beginElementKind(w, kind, identifier, modifiers, classParentType, implementingInterfaces, true);
   }
 
@@ -2991,6 +3023,10 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
     return msgVarName + "_response";
   }
 
+  private String createPropertiesVariableName(String serverID) {
+    return serverID + "_response";
+  }
+
   private boolean isVoid(String type) {
     return isLiteralPrimitiveVoid(type) || isGenericVoid(type);
   }
@@ -3085,8 +3121,9 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
     // Check for 'run' method
     final String fqClassName = this.packageName + "." + className;
     final String methodName = "run";
-    boolean definesMethod = methods.get(fqClassName).stream()
-        .anyMatch(md -> md.matches(methodName, Collections.emptyList()));
+    boolean definesMethod =
+        methods.get(fqClassName).stream()
+            .anyMatch(md -> md.matches(methodName, Collections.emptyList()));
     if (definesMethod) {
       w.emitEmptyLine();
       w.emitSingleLineComment("Call 'run' method");
