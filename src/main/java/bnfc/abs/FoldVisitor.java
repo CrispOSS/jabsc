@@ -219,6 +219,7 @@ public abstract class FoldVisitor<R,A> implements AllVisitor<R,A> {
     }
     public R visit(bnfc.abs.Absyn.InterfDecl p, A arg) {
       R r = leaf(arg);
+      r = combine(p.ann_.accept(this, arg), r, arg);
       for (MethSignat x : p.listmethsignat_)
       {
         r = combine(x.accept(this, arg), r, arg);
@@ -227,6 +228,7 @@ public abstract class FoldVisitor<R,A> implements AllVisitor<R,A> {
     }
     public R visit(bnfc.abs.Absyn.ExtendsDecl p, A arg) {
       R r = leaf(arg);
+      r = combine(p.ann_.accept(this, arg), r, arg);
       for (QType x : p.listqtype_)
       {
         r = combine(x.accept(this, arg), r, arg);
@@ -239,6 +241,7 @@ public abstract class FoldVisitor<R,A> implements AllVisitor<R,A> {
     }
     public R visit(bnfc.abs.Absyn.ClassDecl p, A arg) {
       R r = leaf(arg);
+      r = combine(p.ann_.accept(this, arg), r, arg);
       for (ClassBody x : p.listclassbody_1)
       {
         r = combine(x.accept(this, arg), r, arg);
@@ -252,6 +255,7 @@ public abstract class FoldVisitor<R,A> implements AllVisitor<R,A> {
     }
     public R visit(bnfc.abs.Absyn.ClassParamDecl p, A arg) {
       R r = leaf(arg);
+      r = combine(p.ann_.accept(this, arg), r, arg);
       for (Param x : p.listparam_)
       {
         r = combine(x.accept(this, arg), r, arg);
@@ -269,6 +273,7 @@ public abstract class FoldVisitor<R,A> implements AllVisitor<R,A> {
     }
     public R visit(bnfc.abs.Absyn.ClassImplements p, A arg) {
       R r = leaf(arg);
+      r = combine(p.ann_.accept(this, arg), r, arg);
       for (QType x : p.listqtype_)
       {
         r = combine(x.accept(this, arg), r, arg);
@@ -286,6 +291,7 @@ public abstract class FoldVisitor<R,A> implements AllVisitor<R,A> {
     }
     public R visit(bnfc.abs.Absyn.ClassParamImplements p, A arg) {
       R r = leaf(arg);
+      r = combine(p.ann_.accept(this, arg), r, arg);
       for (Param x : p.listparam_)
       {
         r = combine(x.accept(this, arg), r, arg);
@@ -869,9 +875,19 @@ public abstract class FoldVisitor<R,A> implements AllVisitor<R,A> {
     }
 
 /* Ann */
+    public R visit(bnfc.abs.Absyn.NoAnn p, A arg) {
+      R r = leaf(arg);
+      return r;
+    }
     public R visit(bnfc.abs.Absyn.SimpleAnn p, A arg) {
       R r = leaf(arg);
       r = combine(p.pureexp_.accept(this, arg), r, arg);
+      return r;
+    }
+    public R visit(bnfc.abs.Absyn.MappedAnn p, A arg) {
+      R r = leaf(arg);
+      r = combine(p.literal_1.accept(this, arg), r, arg);
+      r = combine(p.literal_2.accept(this, arg), r, arg);
       return r;
     }
 

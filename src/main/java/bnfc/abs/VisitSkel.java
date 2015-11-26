@@ -202,12 +202,14 @@ public class VisitSkel
       return null;
     }    public R visit(bnfc.abs.Absyn.InterfDecl p, A arg)
     { /* Code For InterfDecl Goes Here */
+      p.ann_.accept(new AnnVisitor<R,A>(), arg);
       //p.uident_;
       for (MethSignat x: p.listmethsignat_)
       { /* ... */ }
       return null;
     }    public R visit(bnfc.abs.Absyn.ExtendsDecl p, A arg)
     { /* Code For ExtendsDecl Goes Here */
+      p.ann_.accept(new AnnVisitor<R,A>(), arg);
       //p.uident_;
       for (QType x: p.listqtype_)
       { /* ... */ }
@@ -216,6 +218,7 @@ public class VisitSkel
       return null;
     }    public R visit(bnfc.abs.Absyn.ClassDecl p, A arg)
     { /* Code For ClassDecl Goes Here */
+      p.ann_.accept(new AnnVisitor<R,A>(), arg);
       //p.uident_;
       for (ClassBody x: p.listclassbody_1)
       { /* ... */ }
@@ -225,6 +228,7 @@ public class VisitSkel
       return null;
     }    public R visit(bnfc.abs.Absyn.ClassParamDecl p, A arg)
     { /* Code For ClassParamDecl Goes Here */
+      p.ann_.accept(new AnnVisitor<R,A>(), arg);
       //p.uident_;
       for (Param x: p.listparam_)
       { /* ... */ }
@@ -236,6 +240,7 @@ public class VisitSkel
       return null;
     }    public R visit(bnfc.abs.Absyn.ClassImplements p, A arg)
     { /* Code For ClassImplements Goes Here */
+      p.ann_.accept(new AnnVisitor<R,A>(), arg);
       //p.uident_;
       for (QType x: p.listqtype_)
       { /* ... */ }
@@ -247,6 +252,7 @@ public class VisitSkel
       return null;
     }    public R visit(bnfc.abs.Absyn.ClassParamImplements p, A arg)
     { /* Code For ClassParamImplements Goes Here */
+      p.ann_.accept(new AnnVisitor<R,A>(), arg);
       //p.uident_;
       for (Param x: p.listparam_)
       { /* ... */ }
@@ -761,9 +767,17 @@ public class VisitSkel
   }
   public class AnnVisitor<R,A> implements Ann.Visitor<R,A>
   {
-    public R visit(bnfc.abs.Absyn.SimpleAnn p, A arg)
+    public R visit(bnfc.abs.Absyn.NoAnn p, A arg)
+    { /* Code For NoAnn Goes Here */
+      return null;
+    }    public R visit(bnfc.abs.Absyn.SimpleAnn p, A arg)
     { /* Code For SimpleAnn Goes Here */
       p.pureexp_.accept(new PureExpVisitor<R,A>(), arg);
+      return null;
+    }    public R visit(bnfc.abs.Absyn.MappedAnn p, A arg)
+    { /* Code For MappedAnn Goes Here */
+      p.literal_1.accept(new LiteralVisitor<R,A>(), arg);
+      p.literal_2.accept(new LiteralVisitor<R,A>(), arg);
       return null;
     }
   }

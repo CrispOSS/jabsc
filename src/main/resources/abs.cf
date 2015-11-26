@@ -70,16 +70,16 @@ BuiltinFunBody. FunBody ::= "builtin" ;
 NormalFunBody. FunBody ::= PureExp ;
 
 -- Declarations (Interface)
-InterfDecl. Decl ::= "interface" UIdent "{" [MethSignat] "}" ;
-ExtendsDecl. Decl ::= "interface" UIdent "extends" [QType] "{" [MethSignat] "}" ;
+InterfDecl. Decl ::= Ann "interface" UIdent "{" [MethSignat] "}" ;
+ExtendsDecl. Decl ::= Ann "interface" UIdent "extends" [QType] "{" [MethSignat] "}" ;
 MethSig. MethSignat ::= Type LIdent "(" [Param] ")" ;
 terminator MethSignat ";" ;
 
 -- Declarations (Class)
-ClassDecl. Decl ::= "class" UIdent "{" [ClassBody] MaybeBlock [ClassBody] "}" ;
-ClassParamDecl. Decl ::= "class" UIdent "(" [Param] ")" "{" [ClassBody] MaybeBlock [ClassBody]  "}" ;
-ClassImplements. Decl ::= "class" UIdent "implements" [QType] "{" [ClassBody] MaybeBlock [ClassBody]  "}" ;
-ClassParamImplements. Decl ::= "class" UIdent "(" [Param] ")" "implements" [QType]  "{" [ClassBody] MaybeBlock [ClassBody]  "}" ;
+ClassDecl. Decl ::= Ann "class" UIdent "{" [ClassBody] MaybeBlock [ClassBody] "}" ;
+ClassParamDecl. Decl ::= Ann "class" UIdent "(" [Param] ")" "{" [ClassBody] MaybeBlock [ClassBody]  "}" ;
+ClassImplements. Decl ::= Ann "class" UIdent "implements" [QType] "{" [ClassBody] MaybeBlock [ClassBody]  "}" ;
+ClassParamImplements. Decl ::= Ann "class" UIdent "(" [Param] ")" "implements" [QType]  "{" [ClassBody] MaybeBlock [ClassBody]  "}" ;
 FieldClassBody. ClassBody ::= Type LIdent ";" ;
 FieldAssignClassBody. ClassBody ::= Type LIdent "=" PureExp ";" ;
 MethClassBody. ClassBody ::= Type LIdent "(" [Param] ")" Block ;
@@ -191,12 +191,15 @@ Get. EffExp ::= PureExp "." "get" ;
 Spawns. EffExp ::= PureExp "spawns" Type "(" [PureExp] ")" ;
 
 --Annotations (turned off because we don't make use of them)
+NoAnn. Ann ::= ;
 SimpleAnn. Ann ::= "[" PureExp "]";
+MappedAnn. Ann ::= "[" Literal ":" Literal "]";
 separator Ann "" ;
 AnnDec. AnnDecl ::= [Ann] Decl;
 terminator AnnDecl "" ;
 AnnTyp. AnnType ::= [Ann] Type;
 separator AnnType "," ;
+
 -- there are more places where annotations can be put
 
 --TODO: Deltas

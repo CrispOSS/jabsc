@@ -206,7 +206,7 @@ public class Compiler implements Runnable {
   protected String getPackageName(final Prog prog) {
     Module module = prog.listmodule_.iterator().next();
     Visitor v = new Visitor(null, prog, null, new JavaTypeTranslator(), null);
-    String pakkage = v.getQTypeName(((Modul) module).qtype_).toLowerCase();
+    String pakkage = v.getQTypeName(((Modul) module).qtype_,false).toLowerCase();
     if (isJavaKeyword(pakkage)) {
       String newPakkage = pakkage + "_";
       logger.warning(

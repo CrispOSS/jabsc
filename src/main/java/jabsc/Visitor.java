@@ -44,9 +44,6 @@ import com.pogofish.jadt.JADT;
 import abs.api.Actor;
 import abs.api.Functional;
 import abs.api.Response;
-import abs.api.CloudProvider;
-import abs.api.DeploymentComponent;
-
 import bnfc.abs.AbstractVisitor;
 import bnfc.abs.Absyn.*;
 
@@ -107,6 +104,12 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   private static final String FUNCTIONS_CLASS_NAME = "Functions";
   private static final String MAIN_CLASS_NAME = "Main";
   private static final String COMMA_SPACE = ", ";
+  private static final String METHOD_GET = "geT";
+  private static final String EXTERN = "JavaExternClass";
+  private static final String STATIC = "JavaStaticClass";
+
+
+
   private static final String NEW_LINE = StandardSystemProperty.LINE_SEPARATOR.value();
   private static final String ABS_API_ACTOR_CLASS = Actor.class.getName();
   private static final Set<Modifier> DEFAULT_MODIFIERS = Collections.singleton(Modifier.PUBLIC);
@@ -115,18 +118,20 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
       Callable.class.getPackage().getName() + ".*", AtomicLong.class.getPackage().getName() + ".*",
       Lock.class.getPackage().getName() + ".*", Actor.class.getPackage().getName() + ".*",
       Functional.class.getPackage().getName() + ".*",
-      CloudProvider.class.getPackage().getName() + ".*",
-      DeploymentComponent.class.getPackage().getName() + ".*"};
+  // CloudProvider.class.getPackage().getName() + ".*",
+  // DeploymentComponent.class.getPackage().getName() + ".*"
+      };
   private static final String[] DEFAULT_IMPORTS_PATTERNS = new String[] {
       "com.leacox.motif.function.*", "com.leacox.motif.matching.*", "com.leacox.motif.cases.*",
       "com.leacox.motif.caseclass.*"};
-  private static final String[] DEFAULT_STATIC_IMPORTS =
-      new String[] {
-          Functional.class.getPackage().getName() + "." + Functional.class.getSimpleName() + ".*",
-          CloudProvider.class.getPackage().getName() + "." + CloudProvider.class.getSimpleName()
-              + ".*",
-          DeploymentComponent.class.getPackage().getName() + "."
-              + DeploymentComponent.class.getSimpleName() + ".*"};
+  private static final String[] DEFAULT_STATIC_IMPORTS = new String[] {Functional.class
+      .getPackage().getName() + "." + Functional.class.getSimpleName() + ".*",
+  // CloudProvider.class.getPackage().getName() + "." +
+  // CloudProvider.class.getSimpleName()
+  // + ".*",
+  // DeploymentComponent.class.getPackage().getName() + "."
+  // + DeploymentComponent.class.getSimpleName() + ".*"
+      };
   private static final String[] DEFAULT_STATIC_IMPORTS_PATTERNS = new String[] {
       "com.leacox.motif.Motif.*", "com.leacox.motif.cases.ListConsCases.*",
       "com.leacox.motif.cases.Case1Cases.*", "com.leacox.motif.cases.Case2Cases.*",
@@ -197,7 +202,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
     Prog program = (Prog) p;
     buildProgramDeclarationTypes(program);
     for (Module module : program.listmodule_) {
-      moduleNames.add(getQTypeName(((Modul) module).qtype_));
+      moduleNames.add(getQTypeName(((Modul) module).qtype_, false));
       modules.push(module);
       module.accept(this, w);
       modules.pop();
@@ -373,6 +378,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   public Prog visit(InterfDecl id, JavaWriter w) {
     try {
       final String identifier = id.uident_;
+      visitJavaAnnDecl(id.ann_, id.uident_);
       beginElementKind(w, ElementKind.INTERFACE, identifier, DEFAULT_MODIFIERS, null, null);
       this.classes.push(identifier);
       w.emitEmptyLine();
@@ -389,8 +395,9 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   public Prog visit(ExtendsDecl ed, JavaWriter w) {
     try {
       final String identifier = ed.uident_;
+      visitJavaAnnDecl(ed.ann_, ed.uident_);
       beginElementKind(w, ElementKind.INTERFACE, identifier, DEFAULT_MODIFIERS, null,
-          toList(ed.listqtype_));
+          toList(ed.listqtype_, true));
       this.classes.push(identifier);
       w.emitEmptyLine();
       ed.listmethsignat_.forEach(sig -> sig.accept(this, w));
@@ -410,8 +417,10 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
     try {
       final String identifier = p.uident_;
       final String className = getRefinedClassName(identifier);
+      visitJavaAnnDecl(p.ann_, p.uident_);
       beginElementKind(w, ElementKind.CLASS, className, DEFAULT_MODIFIERS, null, null);
       this.classes.push(className);
+
       w.emitEmptyLine();
       for (ClassBody cb : p.listclassbody_1) {
         cb.accept(this, w);
@@ -427,6 +436,8 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
       emitToStringMethod(w);
       w.endType();
       this.classes.pop();
+
+
       return prog;
     } catch (IOException e) {
       throw new RuntimeException(e);
@@ -438,8 +449,9 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
     try {
       final String identifier = ci.uident_;
       String className = getRefinedClassName(identifier);
+      visitJavaAnnDecl(ci.ann_, ci.uident_);
       beginElementKind(w, ElementKind.CLASS, className, DEFAULT_MODIFIERS, null,
-          toList(ci.listqtype_));
+          toList(ci.listqtype_, true));
       this.classes.push(className);
       w.emitEmptyLine();
       for (ClassBody cb : ci.listclassbody_1) {
@@ -456,6 +468,8 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
       emitToStringMethod(w);
       w.endType();
       this.classes.pop();
+
+
       return prog;
     } catch (IOException e) {
       throw new RuntimeException(e);
@@ -467,6 +481,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
     try {
       final String identifier = cpd.uident_;
       String className = getRefinedClassName(identifier);
+      visitJavaAnnDecl(cpd.ann_, cpd.uident_);
       beginElementKind(w, ElementKind.CLASS, className, DEFAULT_MODIFIERS, null, null);
       this.classes.push(className);
       w.emitEmptyLine();
@@ -508,8 +523,9 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
     try {
       final String identifier = cpi.uident_;
       String className = getRefinedClassName(identifier);
+      visitJavaAnnDecl(cpi.ann_, cpi.uident_);
       beginElementKind(w, ElementKind.CLASS, className, DEFAULT_MODIFIERS, null,
-          toList(cpi.listqtype_));
+          toList(cpi.listqtype_, true));
       this.classes.push(className);
       w.emitEmptyLine();
       List<String> parameters = new ArrayList<>();
@@ -561,7 +577,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   public Prog visit(MethSig ms, JavaWriter w) {
     try {
       String returnType = getTypeName(ms.type_);
-      String name = ms.lident_;
+      String name = ms.lident_.equals(METHOD_GET) ? "get" : ms.lident_;
       List<String> parameters = new ArrayList<>();
       List<String> parameterTypes = new ArrayList<>();
       for (Param param : ms.listparam_) {
@@ -586,6 +602,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
     try {
       String fieldType = getTypeName(p.type_);
       String fieldName = p.lident_;
+
       emitField(w, fieldType, fieldName, null, false);
       createVarDefinition(fieldName, fieldType);
       w.emitEmptyLine();
@@ -617,7 +634,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   public Prog visit(MethClassBody mcb, JavaWriter w) {
     try {
       String returnType = getTypeName(mcb.type_);
-      String name = mcb.lident_;
+      String name = mcb.lident_.equals(METHOD_GET) ? "get" : mcb.lident_;
       List<String> parameters = new ArrayList<>();
       List<String> parameterTypes = new ArrayList<>();
       for (Param param : mcb.listparam_) {
@@ -876,12 +893,12 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
           visitAsyncMethodCall(amc, varType, varName, false, w);
         } else if (effExp instanceof SyncMethCall) {
           SyncMethCall smc = (SyncMethCall) effExp;
-          visitSyncMethodCall_Sync(smc, varType, varName, true, w);
+          visitSyncMethodCall_Sync(smc, varType, varName, false, w);
         } else if (effExp instanceof ThisSyncMethCall) {
           ThisSyncMethCall tsmc = (ThisSyncMethCall) effExp;
           SyncMethCall smc =
               new SyncMethCall(new ELit(new LThis()), tsmc.lident_, tsmc.listpureexp_);
-          visitSyncMethodCall_Sync(smc, varType, varName, true, w);
+          visitSyncMethodCall_Sync(smc, varType, varName, false, w);
         } else {
           visitStatementAssignmentExp(exp, varName, varType, w);
         }
@@ -1235,7 +1252,8 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   @Override
   public Prog visit(EVar v, JavaWriter w) {
     try {
-      w.emit(v.lident_);
+      
+      w.emit(translate(v.lident_));
     } catch (IOException x) {
       throw new RuntimeException(x);
     }
@@ -1364,7 +1382,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   @Override
   public Prog visit(LInt i, JavaWriter w) {
     try {
-      w.emit(Long.toString(i.integer_) + "L");
+      w.emit(Long.toString(i.integer_));
       return prog;
     } catch (IOException x) {
       throw new RuntimeException(x);
@@ -1385,6 +1403,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   @Override
   public Prog visit(LStr s, JavaWriter w) {
     try {
+
       w.emit("\"" + s.string_ + "\"");
       return prog;
     } catch (IOException x) {
@@ -1466,7 +1485,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 
   @Override
   public Prog visit(StarFromImport sfi, JavaWriter w) {
-    String type = getQTypeName(sfi.qtype_);
+    String type = getQTypeName(sfi.qtype_, false);
     this.staticImports.add(this.packageName + "." + type + ".*");
     return prog;
   }
@@ -1880,7 +1899,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   @Override
   public Prog visit(ESinglConstr cons, JavaWriter w) {
     try {
-      String type = getQTypeName(cons.qtype_);
+      String type = getQTypeName(cons.qtype_, false);
       final boolean isException = this.exceptionDeclaraions.contains(type);
       String resolvedType = javaTypeTranslator.translateFunctionalType(type);
       final boolean isData = resolvedType != null && this.dataDeclarations.containsKey(type);
@@ -1902,7 +1921,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   @Override
   public Prog visit(EParamConstr cons, JavaWriter w) {
     try {
-      String functionName = getQTypeName(cons.qtype_);
+      String functionName = getQTypeName(cons.qtype_, false);
       ListPureExp params = cons.listpureexp_;
       List<String> parameters = getParameters(params);
       String result = String.format("%s(%s)", functionName, String.join(COMMA_SPACE, parameters));
@@ -1991,16 +2010,16 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 
   @Override
   public Prog visit(Spawns p, JavaWriter w) {
-    try{
-    StringWriter sw = new StringWriter();
-    StringWriter sw2 = new StringWriter();
-    
-    New np = new New(p.type_, p.listpureexp_);
-    visit(np, new JavaWriter(sw));
-    p.pureexp_.accept(this, new JavaWriter(sw2));
-    w.emitStatement("%s.context.newActor(toString(), %s)",sw2,sw);
-    return prog;
-    }catch (IOException e) {
+    try {
+      StringWriter sw = new StringWriter();
+      StringWriter sw2 = new StringWriter();
+
+      New np = new New(p.type_, p.listpureexp_);
+      visit(np, new JavaWriter(sw));
+      p.pureexp_.accept(this, new JavaWriter(sw2));
+      w.emitStatement("%s.context.newActor(toString(), %s)", sw2, sw);
+      return prog;
+    } catch (IOException e) {
       throw new RuntimeException(e);
     }
   }
@@ -2008,6 +2027,18 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   @Override
   public Prog visit(SimpleAnn p, JavaWriter arg) {
     logNotImplemented("#visit(%s)", p);
+    return prog;
+  }
+
+  @Override
+  public Prog visit(NoAnn p, JavaWriter arg) {
+    // TODO Auto-generated method stub
+    return prog;
+  }
+
+  @Override
+  public Prog visit(MappedAnn p, JavaWriter arg) {
+    // TODO Auto-generated method stub
     return prog;
   }
 
@@ -2113,7 +2144,8 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
       String resultVarName, final boolean isDefined, JavaWriter w) throws IOException {
     String calleeId = getCalleeId(amc);
     List<String> params = getCalleeMethodParams(amc);
-    String methodName = amc.lident_;
+    String methodName = amc.lident_.equals(METHOD_GET) ? "get" : amc.lident_;
+
     String varDefType = findVariableType(resultVarName);
     String potentialReturnType =
         resultVarType != null ? resultVarType : varDefType != null ? varDefType
@@ -2138,7 +2170,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
     String calleeId = getCalleeId(smc);
     List<String> params = getCalleeMethodParams(smc);
     String msgVarName = createMessageVariableName(calleeId);
-    String methodName = smc.lident_;
+    String methodName = smc.lident_.equals(METHOD_GET) ? "get" : smc.lident_;
     String potentialReturnType =
         resultVarType != null ? resultVarType : findMethodReturnType(methodName,
             findVariableType(calleeId), params);
@@ -2166,13 +2198,18 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
       String resultVarName, boolean isDefined, JavaWriter w) throws IOException {
     String calleeId = getCalleeId(smc);
     List<String> params = getCalleeMethodParams(smc);
-    String methodName = smc.lident_;
+    String methodName = smc.lident_.equals(METHOD_GET) ? "get" : smc.lident_;
     String potentialReturnType =
         resultVarName != null ? resultVarType : findMethodReturnType(methodName,
             findVariableType(calleeId), params);
     String javaMethodCall = generateJavaMethodInvocation(calleeId, methodName, params);
-    if (isDefined && resultVarName != null) {
-      w.emit(String.format("%s %s = %s", potentialReturnType, resultVarName, javaMethodCall), true);
+    if (resultVarName != null) {
+      if (isDefined)
+        w.emit(String.format("%s = %s", resultVarName, javaMethodCall), true);
+      else
+        w.emit(String.format("%s %s = %s", potentialReturnType, resultVarName, javaMethodCall),
+            true);
+
     } else {
       w.emit(javaMethodCall, true);
     }
@@ -2185,6 +2222,11 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
       String caseStm = visitCase((Case) ((ExpP) exp).pureexp_, varType);
       w.emit(String.format("%s %s = (%s) %s", varType, varName, varType, caseStm), true);
     } else {
+      if (exp instanceof ExpE && ((ExpE) exp).effexp_ instanceof New) {
+        New n = (New) (((ExpE) exp).effexp_);
+        verifyJavaStatic(getTypeName(n.type_), varName);
+      }
+
       StringWriter auxsw = new StringWriter();
       JavaWriter auxw = new JavaWriter(auxsw);
       exp.accept(this, auxw);
@@ -2205,7 +2247,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
     if (type == null) {
       type = findVariableType(kaseVar);
     }
-    if (type == null) {
+    if (type == null) {   
       type = "";
     } else {
       type = "(" + type + ")";
@@ -2216,6 +2258,31 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
             .collect(Collectors.toList());
     return visitCases(kaseVar, type, cases);
   }
+
+  protected void visitJavaAnnDecl(Ann ann_, String uident_) {
+    if (ann_ instanceof MappedAnn) {
+      final MappedAnn ma = (MappedAnn) ann_;
+      if (ma.literal_1 instanceof LStr && ma.literal_2 instanceof LStr) {
+        LStr s1 = (LStr) ma.literal_1;
+        LStr s2 = (LStr) ma.literal_2;
+        if (s1.string_.contains(EXTERN))
+          javaTypeTranslator.registerAbstractType(uident_, s2.string_);
+        if (s1.string_.contains(STATIC)) {
+          javaTypeTranslator.registerStaticType(uident_, s2.string_);
+        }
+      }
+    }
+  }
+
+  protected void verifyJavaStatic(String fieldType, String fieldName) {
+    if (javaTypeTranslator.inStaticTypes(fieldType)) {
+      javaTypeTranslator.registerAbstractType(fieldName,
+          javaTypeTranslator.translateStaticType(fieldType));
+      
+    }
+  }
+
+
 
   private String visitCases(String caseVariable, String caseVariableType,
       List<Entry<Pattern, PureExp>> cases) {
@@ -2263,6 +2330,8 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
     caseStm.append(String.format(".match(%s).get()", caseVariable));
     return caseStm.toString();
   }
+
+
 
   private String toMatchingString(Pattern p) {
     if (p instanceof PUnderscore) {
@@ -2597,7 +2666,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
    * @param qtype
    * @return
    */
-  protected String getQTypeName(QType qtype) {
+  protected String getQTypeName(QType qtype, boolean isTopLevel) {
     if (qtype instanceof QTyp) {
       QTyp qtyp = (QTyp) qtype;
       StringBuilder sb = new StringBuilder();
@@ -2607,7 +2676,10 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
         sb.append(".");
         sb.append(((QTypeSegmen) it.next()).uident_);
       }
-      return translate(sb.toString());
+      if (!isTopLevel)
+        return translate(sb.toString());
+      else
+        return sb.toString();
     }
     return null;
   }
@@ -2616,8 +2688,9 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
    * @param qtypes
    * @return
    */
-  protected List<String> toList(ListQType qtypes) {
-    return qtypes.stream().map(qtype -> getQTypeName(qtype)).collect(Collectors.toList());
+  protected List<String> toList(ListQType qtypes, boolean isTopLevel) {
+    return qtypes.stream().map(qtype -> getQTypeName(qtype, isTopLevel))
+        .collect(Collectors.toList());
   }
 
   /**
@@ -2799,11 +2872,11 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
     if (type instanceof TSimple) {
       TSimple ts = (TSimple) type;
       QType qtype_ = ts.qtype_;
-      return getQTypeName(qtype_);
+      return getQTypeName(qtype_, false);
     }
     if (type instanceof TGen) {
       TGen tg = (TGen) type;
-      StringBuilder sQ = new StringBuilder(getQTypeName(tg.qtype_));
+      StringBuilder sQ = new StringBuilder(getQTypeName(tg.qtype_, false));
       sQ.append("<");
       List<String> gTypes = new ArrayList<String>();
       for (Type t : tg.listtype_) {
@@ -2852,7 +2925,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
     if (current == null) {
       throw new IllegalStateException("No current module is available.");
     }
-    String clazz = getQTypeName(((Modul) current).qtype_);
+    String clazz = getQTypeName(((Modul) current).qtype_, false);
     String fqClassName = this.packageName + "." + clazz;
     VarDefinition vd = new VarDefinition(varName, varType);
     variables.put(fqClassName, vd);
@@ -3196,12 +3269,12 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 
   private String toString(Type type) {
     if (type instanceof TSimple) {
-      return getQTypeName(((TSimple) type).qtype_);
+      return getQTypeName(((TSimple) type).qtype_, false);
     }
     if (type instanceof TGen) {
       List<String> types =
           ((TGen) type).listtype_.stream().map(t -> toString(t)).collect(Collectors.toList());
-      return String.format("%s<%s>", getQTypeName(((TGen) type).qtype_),
+      return String.format("%s<%s>", getQTypeName(((TGen) type).qtype_, false),
           String.join(COMMA_SPACE, types));
     }
     throw new IllegalArgumentException(type.toString());
