@@ -92,6 +92,5 @@ class JavaTypeTranslator implements Function<String, String> {
     return this.staticTypes.containsKey(stType);
   }
   
-  
 
 }

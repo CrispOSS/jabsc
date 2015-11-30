@@ -17,6 +17,7 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -168,7 +169,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
       });
   private final Stack<Module> modules = new Stack<>();
   private final Stack<String> classes = new Stack<>();
-  private final EnumMap<AbsElementType, Set<Decl>> elements = new EnumMap<>(AbsElementType.class);
+  private final EnumMap<AbsElementType, List<Decl>> elements = new EnumMap<>(AbsElementType.class);
   private final Map<String, String> classNames = new HashMap<>();
   private final Set<String> packageLevelImports = new HashSet<>();
   private final Map<String, String> dataDeclarations = new HashMap<>();
@@ -523,6 +524,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
     try {
       final String identifier = cpi.uident_;
       String className = getRefinedClassName(identifier);
+      System.out.println(className);
       visitJavaAnnDecl(cpi.ann_, cpi.uident_);
       beginElementKind(w, ElementKind.CLASS, className, DEFAULT_MODIFIERS, null,
           toList(cpi.listqtype_, true));
@@ -1252,7 +1254,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
   @Override
   public Prog visit(EVar v, JavaWriter w) {
     try {
-      
+
       w.emit(translate(v.lident_));
     } catch (IOException x) {
       throw new RuntimeException(x);
@@ -2247,7 +2249,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
     if (type == null) {
       type = findVariableType(kaseVar);
     }
-    if (type == null) {   
+    if (type == null) {
       type = "";
     } else {
       type = "(" + type + ")";
@@ -2278,7 +2280,6 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
     if (javaTypeTranslator.inStaticTypes(fieldType)) {
       javaTypeTranslator.registerAbstractType(fieldName,
           javaTypeTranslator.translateStaticType(fieldType));
-      
     }
   }
 
@@ -2963,7 +2964,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 
     elements.clear();
     for (AbsElementType t : EnumSet.allOf(AbsElementType.class)) {
-      elements.put(t, new HashSet<>());
+      elements.put(t, new LinkedList<>());
     }
 
     // 1. Interfaces
