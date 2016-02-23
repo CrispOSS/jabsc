@@ -17,6 +17,9 @@ class JavaTypeTranslator implements Function<String, String> {
   private final Map<String, String> abstractTypes = new HashMap<>();
   private final Map<String, String> functionalTypes = new HashMap<>();
   private final Map<String, String> staticTypes = new HashMap<>();
+  private final Map<String, String> remoteNames = new HashMap<>();
+  
+  
   
 
   public JavaTypeTranslator() {
@@ -41,6 +44,10 @@ class JavaTypeTranslator implements Function<String, String> {
     return javaType == null ? type : javaType;
   }
 
+  protected String getRemoteName(String variable){
+    return remoteNames.get(variable);
+  }
+  
   protected String translateFunctionalType(String type) {
     if (this.functionalTypes.containsKey(type)) {
       return this.functionalTypes.get(type);
@@ -59,6 +66,8 @@ class JavaTypeTranslator implements Function<String, String> {
   private String translateAbstract(String absType) {
     return abstractTypes.get(absType);
   }
+  
+  
   
 
   protected void fillABSTypes(final Map<String, String> types) {
@@ -81,8 +90,13 @@ class JavaTypeTranslator implements Function<String, String> {
 
   protected void registerAbstractType(String absType, String defType) {
     this.abstractTypes.put(absType, defType);
-    System.out.println(this.abstractTypes);
+    //System.out.println(this.abstractTypes);
   }
+  
+  protected void deRegisterAbstractType(String absType) {
+	    this.abstractTypes.remove(absType);
+	    //System.out.println(this.abstractTypes);
+	  }
   
   protected void registerStaticType(String stType, String defType) {
     this.staticTypes.put(stType, defType);
@@ -91,6 +105,12 @@ class JavaTypeTranslator implements Function<String, String> {
   protected boolean inStaticTypes(String stType) {
     return this.staticTypes.containsKey(stType);
   }
+  
+  protected void registerRemoteName(String stName, String remoteName) {
+    this.remoteNames.put(stName, remoteName);
+  }
+  
+  
   
 
 }

@@ -503,6 +503,15 @@ public abstract class FoldVisitor<R,A> implements AllVisitor<R,A> {
       r = combine(p.maybefinally_.accept(this, arg), r, arg);
       return r;
     }
+    public R visit(bnfc.abs.Absyn.SCase p, A arg) {
+      R r = leaf(arg);
+      r = combine(p.pureexp_.accept(this, arg), r, arg);
+      for (CatchBranch x : p.listcatchbranch_)
+      {
+        r = combine(x.accept(this, arg), r, arg);
+      }
+      return r;
+    }
     public R visit(bnfc.abs.Absyn.SPrint p, A arg) {
       R r = leaf(arg);
       r = combine(p.pureexp_.accept(this, arg), r, arg);

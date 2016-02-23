@@ -444,6 +444,12 @@ public class VisitSkel
       { /* ... */ }
       p.maybefinally_.accept(new MaybeFinallyVisitor<R,A>(), arg);
       return null;
+    }    public R visit(bnfc.abs.Absyn.SCase p, A arg)
+    { /* Code For SCase Goes Here */
+      p.pureexp_.accept(new PureExpVisitor<R,A>(), arg);
+      for (CatchBranch x: p.listcatchbranch_)
+      { /* ... */ }
+      return null;
     }    public R visit(bnfc.abs.Absyn.SPrint p, A arg)
     { /* Code For SPrint Goes Here */
       p.pureexp_.accept(new PureExpVisitor<R,A>(), arg);
