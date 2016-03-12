@@ -638,6 +638,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 
 			emitField(w, fieldType, fieldName, null, false);
 			createVarDefinition(fieldName, fieldType);
+			verifyJavaStatic(fieldType, fieldName);
 			w.emitEmptyLine();
 			return prog;
 		} catch (IOException e) {
@@ -825,6 +826,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 			String fieldName = p.lident_;
 			emitField(w, fieldType, fieldName, null, false);
 			createVarDefinition(fieldName, fieldType);
+			verifyJavaStatic(fieldType, fieldName);
 			w.emitEmptyLine();
 			return prog;
 		} catch (IOException e) {
@@ -1057,7 +1059,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 		}
 	}
 
-	@Override
+	/*@Override
 	public Prog visit(SCase p, JavaWriter w) {
 		try {
 			StringWriter auxsw = new StringWriter();
@@ -1108,7 +1110,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 		} catch (IOException e) {
 			throw new RuntimeException(e);
 		}
-	}
+	}*/
 
 	@Override
 	public Prog visit(ExpE ee, JavaWriter w) {
@@ -1481,7 +1483,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	@Override
 	public Prog visit(LInt i, JavaWriter w) {
 		try {
-			w.emit(Long.toString(i.integer_));
+			w.emit(Long.toString(i.integer_) + "L");
 			return prog;
 		} catch (IOException x) {
 			throw new RuntimeException(x);
@@ -2348,14 +2350,6 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 			w.emit(String.format("%s %s = (%s) %s", varType, varName, varType,
 					caseStm), true);
 		} else {
-			if (exp instanceof ExpE) {
-				if (((ExpE) exp).effexp_ instanceof New) {
-					New n = (New) (((ExpE) exp).effexp_);
-					verifyJavaStatic(getTypeName(n.type_), varName);
-				}
-
-			}
-
 			if ((exp instanceof ExpE) && ((ExpE) exp).effexp_ instanceof Spawns) {
 				if (((ExpE) exp).effexp_ instanceof Spawns) {
 					try {

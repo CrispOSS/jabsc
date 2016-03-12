@@ -112,7 +112,6 @@ SAssert. Stm ::= "assert" PureExp ";" ;
 SAwait.  Stm ::= "await" Guard ";" ;
 SThrow. Stm ::= "throw" PureExp ";" ;
 STryCatchFinally. Stm ::= "try" Stm "catch" "{" [CatchBranch] "}" MaybeFinally ;
-SCase. Stm ::= "caseS" PureExp "{" [CatchBranch] "}";
 CatchBranc. CatchBranch ::= Pattern "=>" Stm ;
 terminator CatchBranch "" ; -- can be empty, and does not have to be terminated by ";"
 JustFinally. MaybeFinally ::= "finally" Stm ;
