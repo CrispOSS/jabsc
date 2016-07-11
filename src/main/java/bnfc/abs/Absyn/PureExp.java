@@ -19,18 +19,15 @@ public abstract class PureExp implements java.io.Serializable {
     public R visit(bnfc.abs.Absyn.ELogNeg p, A arg);
     public R visit(bnfc.abs.Absyn.EIntNeg p, A arg);
     public R visit(bnfc.abs.Absyn.EFunCall p, A arg);
-    public R visit(bnfc.abs.Absyn.EQualFunCall p, A arg);
     public R visit(bnfc.abs.Absyn.ENaryFunCall p, A arg);
-    public R visit(bnfc.abs.Absyn.ENaryQualFunCall p, A arg);
     public R visit(bnfc.abs.Absyn.EVar p, A arg);
-    public R visit(bnfc.abs.Absyn.EThis p, A arg);
-    public R visit(bnfc.abs.Absyn.EQualVar p, A arg);
+    public R visit(bnfc.abs.Absyn.EField p, A arg);
     public R visit(bnfc.abs.Absyn.ESinglConstr p, A arg);
     public R visit(bnfc.abs.Absyn.EParamConstr p, A arg);
     public R visit(bnfc.abs.Absyn.ELit p, A arg);
-    public R visit(bnfc.abs.Absyn.Let p, A arg);
-    public R visit(bnfc.abs.Absyn.If p, A arg);
-    public R visit(bnfc.abs.Absyn.Case p, A arg);
+    public R visit(bnfc.abs.Absyn.ELet p, A arg);
+    public R visit(bnfc.abs.Absyn.EIf p, A arg);
+    public R visit(bnfc.abs.Absyn.ECase p, A arg);
 
   }
 

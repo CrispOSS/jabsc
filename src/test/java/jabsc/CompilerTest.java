@@ -8,12 +8,16 @@ import java.nio.file.Paths;
 import org.junit.Assert;
 import org.junit.Test;
 
+
+
 public class CompilerTest {
 
-  private URL uri = getClass().getResource("abs/IPrime.abs");
+  private URL uri = getClass().getResource("abs/");
   private Path outputDirectory = Paths.get("./target").resolve("generated");
   private Path tmpDirectory = Paths.get("java.io.tmpdir");
 
+  
+  
   @Test
   public void resolveOutputDirectory() throws Exception {
     Compiler compiler = new Compiler(Paths.get(uri.toURI()), outputDirectory);

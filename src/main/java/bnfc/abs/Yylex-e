@@ -24,17 +24,17 @@ IDENT = ({LETTER}|{DIGIT}|['_])
 %state STRING
 %state ESCAPED
 %%
-<YYINITIAL>, { return new Symbol(sym._SYMB_0); }
-<YYINITIAL>; { return new Symbol(sym._SYMB_1); }
-<YYINITIAL>\* { return new Symbol(sym._SYMB_2); }
-<YYINITIAL>_ { return new Symbol(sym._SYMB_3); }
-<YYINITIAL>< { return new Symbol(sym._SYMB_4); }
-<YYINITIAL>> { return new Symbol(sym._SYMB_5); }
-<YYINITIAL>\. { return new Symbol(sym._SYMB_6); }
+<YYINITIAL>\. { return new Symbol(sym._SYMB_0); }
+<YYINITIAL>, { return new Symbol(sym._SYMB_1); }
+<YYINITIAL>< { return new Symbol(sym._SYMB_2); }
+<YYINITIAL>> { return new Symbol(sym._SYMB_3); }
+<YYINITIAL>_ { return new Symbol(sym._SYMB_4); }
+<YYINITIAL>; { return new Symbol(sym._SYMB_5); }
+<YYINITIAL>\* { return new Symbol(sym._SYMB_6); }
 <YYINITIAL>= { return new Symbol(sym._SYMB_7); }
-<YYINITIAL>\( { return new Symbol(sym._SYMB_8); }
-<YYINITIAL>\) { return new Symbol(sym._SYMB_9); }
-<YYINITIAL>\| { return new Symbol(sym._SYMB_10); }
+<YYINITIAL>\| { return new Symbol(sym._SYMB_8); }
+<YYINITIAL>\( { return new Symbol(sym._SYMB_9); }
+<YYINITIAL>\) { return new Symbol(sym._SYMB_10); }
 <YYINITIAL>\{ { return new Symbol(sym._SYMB_11); }
 <YYINITIAL>\} { return new Symbol(sym._SYMB_12); }
 <YYINITIAL>=> { return new Symbol(sym._SYMB_13); }
@@ -55,46 +55,50 @@ IDENT = ({LETTER}|{DIGIT}|['_])
 <YYINITIAL>\] { return new Symbol(sym._SYMB_28); }
 <YYINITIAL>\! { return new Symbol(sym._SYMB_29); }
 <YYINITIAL>: { return new Symbol(sym._SYMB_30); }
-<YYINITIAL>False { return new Symbol(sym._SYMB_31); }
-<YYINITIAL>True { return new Symbol(sym._SYMB_32); }
-<YYINITIAL>assert { return new Symbol(sym._SYMB_33); }
-<YYINITIAL>await { return new Symbol(sym._SYMB_34); }
-<YYINITIAL>builtin { return new Symbol(sym._SYMB_35); }
-<YYINITIAL>case { return new Symbol(sym._SYMB_36); }
-<YYINITIAL>catch { return new Symbol(sym._SYMB_37); }
-<YYINITIAL>class { return new Symbol(sym._SYMB_38); }
-<YYINITIAL>data { return new Symbol(sym._SYMB_39); }
-<YYINITIAL>def { return new Symbol(sym._SYMB_40); }
-<YYINITIAL>else { return new Symbol(sym._SYMB_41); }
-<YYINITIAL>exception { return new Symbol(sym._SYMB_42); }
-<YYINITIAL>export { return new Symbol(sym._SYMB_43); }
-<YYINITIAL>extends { return new Symbol(sym._SYMB_44); }
-<YYINITIAL>fimport { return new Symbol(sym._SYMB_45); }
-<YYINITIAL>finally { return new Symbol(sym._SYMB_46); }
-<YYINITIAL>from { return new Symbol(sym._SYMB_47); }
-<YYINITIAL>get { return new Symbol(sym._SYMB_48); }
-<YYINITIAL>if { return new Symbol(sym._SYMB_49); }
-<YYINITIAL>implements { return new Symbol(sym._SYMB_50); }
-<YYINITIAL>import { return new Symbol(sym._SYMB_51); }
-<YYINITIAL>in { return new Symbol(sym._SYMB_52); }
-<YYINITIAL>interface { return new Symbol(sym._SYMB_53); }
-<YYINITIAL>let { return new Symbol(sym._SYMB_54); }
-<YYINITIAL>local { return new Symbol(sym._SYMB_55); }
-<YYINITIAL>module { return new Symbol(sym._SYMB_56); }
-<YYINITIAL>new { return new Symbol(sym._SYMB_57); }
+<YYINITIAL>assert { return new Symbol(sym._SYMB_31); }
+<YYINITIAL>await { return new Symbol(sym._SYMB_32); }
+<YYINITIAL>builtin { return new Symbol(sym._SYMB_33); }
+<YYINITIAL>case { return new Symbol(sym._SYMB_34); }
+<YYINITIAL>catch { return new Symbol(sym._SYMB_35); }
+<YYINITIAL>class { return new Symbol(sym._SYMB_36); }
+<YYINITIAL>data { return new Symbol(sym._SYMB_37); }
+<YYINITIAL>def { return new Symbol(sym._SYMB_38); }
+<YYINITIAL>duration { return new Symbol(sym._SYMB_39); }
+<YYINITIAL>else { return new Symbol(sym._SYMB_40); }
+<YYINITIAL>exception { return new Symbol(sym._SYMB_41); }
+<YYINITIAL>export { return new Symbol(sym._SYMB_42); }
+<YYINITIAL>extends { return new Symbol(sym._SYMB_43); }
+<YYINITIAL>fimport { return new Symbol(sym._SYMB_44); }
+<YYINITIAL>finally { return new Symbol(sym._SYMB_45); }
+<YYINITIAL>from { return new Symbol(sym._SYMB_46); }
+<YYINITIAL>get { return new Symbol(sym._SYMB_47); }
+<YYINITIAL>if { return new Symbol(sym._SYMB_48); }
+<YYINITIAL>implements { return new Symbol(sym._SYMB_49); }
+<YYINITIAL>import { return new Symbol(sym._SYMB_50); }
+<YYINITIAL>in { return new Symbol(sym._SYMB_51); }
+<YYINITIAL>interface { return new Symbol(sym._SYMB_52); }
+<YYINITIAL>let { return new Symbol(sym._SYMB_53); }
+<YYINITIAL>local { return new Symbol(sym._SYMB_54); }
+<YYINITIAL>module { return new Symbol(sym._SYMB_55); }
+<YYINITIAL>new { return new Symbol(sym._SYMB_56); }
+<YYINITIAL>now { return new Symbol(sym._SYMB_57); }
 <YYINITIAL>null { return new Symbol(sym._SYMB_58); }
-<YYINITIAL>println { return new Symbol(sym._SYMB_59); }
-<YYINITIAL>return { return new Symbol(sym._SYMB_60); }
-<YYINITIAL>skip { return new Symbol(sym._SYMB_61); }
-<YYINITIAL>spawns { return new Symbol(sym._SYMB_62); }
-<YYINITIAL>suspend { return new Symbol(sym._SYMB_63); }
-<YYINITIAL>then { return new Symbol(sym._SYMB_64); }
-<YYINITIAL>this { return new Symbol(sym._SYMB_65); }
-<YYINITIAL>thisDC { return new Symbol(sym._SYMB_66); }
-<YYINITIAL>throw { return new Symbol(sym._SYMB_67); }
-<YYINITIAL>try { return new Symbol(sym._SYMB_68); }
-<YYINITIAL>type { return new Symbol(sym._SYMB_69); }
-<YYINITIAL>while { return new Symbol(sym._SYMB_70); }
+<YYINITIAL>print { return new Symbol(sym._SYMB_59); }
+<YYINITIAL>println { return new Symbol(sym._SYMB_60); }
+<YYINITIAL>pro_give { return new Symbol(sym._SYMB_61); }
+<YYINITIAL>pro_new { return new Symbol(sym._SYMB_62); }
+<YYINITIAL>pro_try { return new Symbol(sym._SYMB_63); }
+<YYINITIAL>readln { return new Symbol(sym._SYMB_64); }
+<YYINITIAL>return { return new Symbol(sym._SYMB_65); }
+<YYINITIAL>skip { return new Symbol(sym._SYMB_66); }
+<YYINITIAL>suspend { return new Symbol(sym._SYMB_67); }
+<YYINITIAL>then { return new Symbol(sym._SYMB_68); }
+<YYINITIAL>this { return new Symbol(sym._SYMB_69); }
+<YYINITIAL>thisDC { return new Symbol(sym._SYMB_70); }
+<YYINITIAL>throw { return new Symbol(sym._SYMB_71); }
+<YYINITIAL>try { return new Symbol(sym._SYMB_72); }
+<YYINITIAL>type { return new Symbol(sym._SYMB_73); }
+<YYINITIAL>while { return new Symbol(sym._SYMB_74); }
 <YYINITIAL>"//"[^\n]*\n { /* BNFC single-line comment */ }
 <YYINITIAL>"/*" { yybegin(COMMENT); }
 <COMMENT>"*/" { yybegin(YYINITIAL); }
@@ -102,8 +106,8 @@ IDENT = ({LETTER}|{DIGIT}|['_])
 <COMMENT>[\n] { }
 
 
-<YYINITIAL>{CAPITAL}({LETTER}|{DIGIT}|_|')* { return new Symbol(sym.UIdent, yytext().intern()); }
-<YYINITIAL>{SMALL}({LETTER}|{DIGIT}|_|')* { return new Symbol(sym.LIdent, yytext().intern()); }
+<YYINITIAL>{CAPITAL}({LETTER}|{DIGIT}|_)* { return new Symbol(sym.U, yytext().intern()); }
+<YYINITIAL>{SMALL}({LETTER}|{DIGIT}|_)* { return new Symbol(sym.L, yytext().intern()); }
 
 <YYINITIAL>"\"" { yybegin(STRING); }
 <STRING>\\ { yybegin(ESCAPED); }
@@ -116,7 +120,7 @@ IDENT = ({LETTER}|{DIGIT}|['_])
 <ESCAPED>.  { pstring += yytext(); yybegin(STRING); }
 
 
-
+<YYINITIAL>{DIGIT}+"."{DIGIT}+("e"(\-)?{DIGIT}+)? { return new Symbol(sym._DOUBLE_, new Double(yytext())); }
 <YYINITIAL>{DIGIT}+ { return new Symbol(sym._INTEGER_, new Integer(yytext())); }
 
 <YYINITIAL>[ \t\r\n\f] { /* ignore white space. */ }

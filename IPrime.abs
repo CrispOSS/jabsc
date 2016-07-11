@@ -1,0 +1,78 @@
+module IPrime;
+
+interface IPrime {
+	Int divide (Int n);
+}
+
+interface ISieve {
+	Unit sieve(Int n);
+}
+
+class Sieve(Int bound) implements ISieve {
+	Int n = 0;
+	IPrime two;
+	{
+		two = new Prime(2);
+		n = 3;
+	}
+	
+	Unit sieve(Int n){
+		if(n < bound){
+			Int a = n;
+			Fut<Int> f = two!divide(a) ;
+			await f?;
+			{
+			this.sieve(n+1);
+			}
+		}
+	}
+	
+	Unit sieve() {
+		while (n < bound) {
+			Int a = n;
+			Fut<Int> f = two!divide(a) ;
+			await f?;
+			{
+				n = n + 1;
+				println(n);
+				await f?;
+				{
+					n=n+1;
+					println(n);
+				}
+			}
+		}
+		
+	}
+	
+	
+}
+
+class Prime (Int p) implements IPrime {
+	IPrime next;
+	
+							
+	Int divide (Int n) {
+		if ( (n % p) != 0) {
+			if (next != null) {
+				Int a = n;
+				Fut<Int> f = next!divide (a);
+				
+			}
+			else {
+				next = new Prime(n);
+				println(n);
+			}
+		}
+		
+		return -1;
+	}
+}
+
+{
+String testString = "test";
+Int bound = 10000;
+ISieve s = new Sieve(bound);
+s.sieve(3);
+
+}

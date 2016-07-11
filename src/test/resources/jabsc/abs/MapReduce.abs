@@ -1,0 +1,403 @@
+module MapReduce;
+export *;
+
+// * Prefix indexing
+
+// A model of a MapReduce job.  The input is a list of docments
+// represented as a pair of (filename, contents), where contents is a
+// wordlist.  The output is a list of (prefix, filenames), giving the
+// occurrences of all prefixes of all words.
+
+def Int numNodes() =4;
+def Int nb_pairs_per_map() = 1;
+def Bool increasing_map_size() = False;
+
+// Note we use lists where the paper says "set" since the authors mean
+// multisets in many cases, especially in the reduce phase.
+interface IWorker {
+  // invoked by MapReduce component
+  List<Pair<String, Pair<Int, String>>> invokeMap(String key, List<String> value);
+  // invoked by MapReduce component
+  List<Pair<String, Pair<Int, String>>> invokeReduce(String key, List<Pair<Int, String>> value);
+}
+
+interface IMapReduce {
+  // invoked by client
+  List<Pair<String, Pair<Int, String>>> mapReduce(List<Pair<String, String>> entries);
+  // invoked by workers
+  Unit finished(Worker w);
+}
+
+class Worker(MapReduce master) implements IWorker {
+  List<Pair<String, Pair<Int, String>>> mapResults = EmptyList;
+  List<Pair<String, Pair<Int, String>>> reduceResults = EmptyList;
+
+  // begin customizable section ------------------
+
+  // map and reduce should not change the state of the object and should not
+  // contain any cost annotations.
+  Unit map(String key, String value) {
+  	
+  	String raw_value = value;
+  	
+  	Int comma_index = 0;
+  	Bool comma_found = False;
+  	while (~(comma_found)) {
+  		String letter = substr(raw_value, comma_index, 1);
+  		if (letter == ";") {
+  			comma_found = True;
+  		}
+  		else {
+  			comma_index = comma_index + 1;
+  		}
+  	}
+  	
+  	String pattern = substr(value, 0, comma_index);
+  	String content = substr(value, comma_index + 1, strlen(value) - strlen(pattern) - 1);
+  	
+  	suspend;
+  	
+  	Int current_matching_length = 0;
+  	String current_matching_string = "";
+  	Int max_matching_length = 0;
+  	String max_matching_string = "";
+  	
+  	Int current_index = 0;
+  	Int pattern_index = 0;
+  	Int content_index = 0;
+  	
+  	while (pattern_index < strlen(pattern)) {
+  		
+  		while (content_index < strlen(content)) {
+  		
+  			Bool matching = True;
+  			while (matching && pattern_index + current_index < strlen(pattern) && content_index + current_index < strlen(content)) {
+  			
+  				String pattern_letter = substr(pattern, pattern_index + current_index, 1);
+  				String content_letter = substr(content, content_index + current_index, 1);
+  				
+  				if (~(pattern_letter == content_letter)) {
+  					matching = False;
+  				}
+  				else {
+  					current_matching_length = current_matching_length + 1;
+  					current_matching_string = current_matching_string + content_letter;
+  					if (current_matching_length > max_matching_length) {
+  						max_matching_length = current_matching_length;
+  						max_matching_string = current_matching_string;
+  					}
+  					current_index = current_index + 1;
+  				}
+  			}
+  			current_index = 0;
+  			current_matching_length = 0;
+  			current_matching_string = "";
+  			content_index = content_index + 1;
+  		}
+  		content_index = 0;
+  		pattern_index = pattern_index + 1;
+  	}
+  	
+  	this.emitMapResult(pattern, Pair(max_matching_length, key + ";" + max_matching_string));
+  	
+    /*String content = value;
+    Int maxIndex = strlen(content) - 1;
+    Int cursor = 0;
+    while (cursor <= maxIndex) {
+    	String letter = substr(content, cursor, 1);
+    	Int occurrences = lookupDefault(letterOccurrences, letter, 0);
+    	if (occurrences == 0) {
+    		seenLetters = insertElement(seenLetters, letter);
+    		letterOccurrences = put(letterOccurrences, letter, 1);
+    	}
+    	else {
+    		occurrences = occurrences + 1;
+    		letterOccurrences = put(letterOccurrences, letter, occurrences);
+    	}
+    	cursor = cursor + 1;
+    }
+    while (hasNext(seenLetters)) {
+    	Pair<Set<String>, String> nextSeenLetters = next(seenLetters);
+    	seenLetters = fst(nextSeenLetters);
+    	String seenLetter = snd(nextSeenLetters);
+    	this.emitMapResult(seenLetter, lookupDefault(letterOccurrences, seenLetter, 0));
+    }
+    
+    //PADDING begin
+    Int repeat = 0;
+    Int counter = 0;
+    while (counter < repeat) {  
+ 	Int begin = 0;
+	Int end = begin;
+	Int max_prefix_length = 50;
+	Int max = strlen(content);
+	while (begin <max) {
+    	// removing white spaces
+    	Bool white_space = True;
+    	while (white_space) {
+    		if (substr(content, begin, 1) == " ") {
+    			begin = begin + 1;
+    			if (begin >= max) {
+    				white_space = False;
+    			}
+    		}
+    		else {
+    			white_space = False;
+    		}
+   	 	}
+   	 	
+		if (begin < max) {
+			// emiting all prefixes from this word boundary
+			end = begin + 1;
+    		Bool prefix_done = False;
+    		while (~prefix_done) {
+    			//this.emitMapResult(substr(content, begin, end - begin), key);
+    			end = end + 1;
+    			if (end > max || end - begin > max_prefix_length) {
+    				prefix_done = True;
+    			}
+    		}
+    		
+    		// going to the next word
+			Bool word_finished = False;
+			while(~word_finished) {
+				if (substr(content, begin, 1) != " ") {
+					begin = begin + 1;
+    				if (begin >= max) {
+    					word_finished = True;
+    				}
+    			}
+    			else {
+    				word_finished = True;
+    			}
+    		}
+    	}
+    }
+    counter = counter + 1;
+    }*/
+	// PADDING END
+  }
+  
+  Unit reduce(String key, List<Pair<Int, String>> value) {
+    // Remove duplicates in occurrence list: convert into set.
+    List<Pair<Int, String>> results = value;
+    Int max = 0;
+    String match = "";
+    while (~(isEmpty(results))) {
+      Pair<Int, String> local_max = head(results);
+      if (fst(local_max) > max) { 
+      	max = fst(local_max);
+      	match = snd(local_max);
+      }
+      results = tail(results);
+    }
+    this.emitReduceResult(key, Pair(max, match));
+  }
+
+  // These methods can be overridden in deltas to contain cost
+  // annotations relating to the respective phases of the map or reduce
+  // step.  Any side effects should only be on state introduced in the
+  // same delta that replaced the default method.
+  Unit onMapStart(String key, List<String> value) {
+    skip;
+  }
+  Unit onMapEmit(String key, Pair<Int, String> value) {
+    skip;
+  }
+  Unit onMapFinish() {
+    skip;
+  }
+  Unit onReduceStart(String key, List<Pair<Int, String>> value) {
+    skip;
+  }
+  Unit onReduceEmit(String key, Pair<Int, String> value) {
+    skip;
+  }
+  Unit onReduceFinish() {
+    skip;
+  }
+  // end customizable section---------------------
+
+  List<Pair<String, Pair<Int, String>>> invokeMap(String key, List<String> value) {
+    mapResults = EmptyList;
+    List<String> entries = value;
+    this.onMapStart(key, entries);
+    while (~(isEmpty(entries))) {
+    	String entry = head(entries);
+    	entries = tail(entries);  	
+    	this.map(key, entry);
+    }
+    this.onMapFinish();
+    master!finished(this);
+    List<Pair<String, Pair<Int, String>>> result = mapResults;
+    mapResults = EmptyList;
+    return result;
+  }
+
+  List<Pair<String, Pair<Int, String>>> invokeReduce(String key, List<Pair<Int, String>> value) {
+    reduceResults = EmptyList;
+    this.onReduceStart(key, value);
+    this.reduce(key, value);
+    this.onReduceFinish();
+    master!finished(this);
+    List<Pair<String, Pair<Int, String>>> result = reduceResults;
+    reduceResults = EmptyList;
+    return result;
+  }
+
+  Unit emitMapResult(String key, Pair<Int, String> value) {
+    this.onMapEmit(key, value);
+    mapResults = Cons(Pair(key, value), mapResults);
+  }
+  Unit emitReduceResult(String key, Pair<Int, String> value) {
+    this.onReduceEmit(key, value);
+    reduceResults = Cons(Pair(key, value), reduceResults);
+  }
+}
+
+// This class contains the MapReduce machinery.  Any deployment
+// decisions (number of machines, etc.) can be customized via deltas.
+class MapReduce implements IMapReduce {
+  Set<Worker> workers = EmptySet;
+  Int nWorkers = 0;
+
+  // begin customizable section ------------------
+
+  // This method obtains a Worker object.  Any VM creation, load
+  // balancing, accounting etc. goes on here.  Any side effects should
+  // only modify state that is introduced in the same delta.
+  Worker getWorker() {
+    if (nWorkers < numNodes()) {
+      Worker w = new Worker(this);
+      workers = insertElement(workers, w);
+      nWorkers = nWorkers + 1;
+    }
+    await ~(emptySet(workers));
+    {
+    Worker w = take(workers);
+    workers = remove(workers, w);
+    return w;
+    }
+  }
+
+
+  // This method registers a worker as idle.  It is called by the worker
+  // itself.  Any side effects should only modify state that is
+  // introduced in the same delta.
+  Unit finished(Worker w) {
+    workers = insertElement(workers, w);
+  }
+  // end customizable section---------------------
+
+  List<Pair<String, Pair<Int, String>>> mapReduce(List<Pair<String, String>> items) {
+    List<Fut<List<Pair<String, Pair<Int, String>>>>> fMapResults = EmptyList;
+    Map<String, List<Pair<Int, String>>> intermediates = EmptyMap;
+    List<Fut<List<Pair<String, Pair<Int, String>>>>> fReduceResults = EmptyList;
+    List<Pair<String, Pair<Int, String>>> result = EmptyList;
+
+
+	Int incMapCounter = 0;
+	Int current_nb_pairs_per_map = nb_pairs_per_map();
+    while (~isEmpty(items)) {
+      Int counter = 0;
+      String key = "";
+      List<String> value = EmptyList;
+      while (counter < current_nb_pairs_per_map && ~isEmpty(items)) {
+      	Pair<String, String> item = head(items);
+      	items = tail(items);
+      	key = key + fst(item);
+      	value = Cons(snd(item), value);
+      	counter = counter + 1;
+      }
+      // "Map, written by the user, takes an input pair and produces a
+      // set of intermediate key/value pairs." [MapReduce, pg. 2]
+      String key1 = key;
+	  List<String> value1 = value;
+	  Worker w = this.getWorker();
+      Fut<List<Pair<String, Pair<Int, String>>>> fMap = w!invokeMap(key1, value1);
+      fMapResults = Cons(fMap, fMapResults);
+      if (increasing_map_size()) {
+      	incMapCounter = incMapCounter + 1;
+      	if (incMapCounter == numNodes()) {
+      		current_nb_pairs_per_map = current_nb_pairs_per_map * 2;
+      		incMapCounter = 0;
+      	}
+      }
+    }
+    return loop1(fMapResults, intermediates);    
+    
+  }
+  
+  List<Pair<String, Pair<Int, String>>> loop1(List<Fut<List<Pair<String, Pair<Int, String>>>>> fMapResults, Map<String, List<Pair<Int, String>>> intermediates){
+  	if (~(isEmpty(fMapResults))) {
+	      // "The MapReduce library groups together all intermediate values
+	      // associated with the same intermediate key I ..." [ditto]
+	      Fut<List<Pair<String, Pair<Int, String>>>> fMapResult = head(fMapResults);
+	      await fMapResult?;
+	      	{
+		      List<Pair<String, Pair<Int, String>>> mapResult = fMapResult.get;		      
+		      Map<String, List<Pair<Int, String>>> temporary= EmptyMap; 
+		      
+		      if(~isEmpty(mapResult)) {
+		        Pair<String, Pair<Int, String>> keyValuePair = head(mapResult);
+		        mapResult = tail(mapResult);
+		        List<Pair<Int, String>> inter = lookupDefault(intermediates, fst(keyValuePair), Nil);
+		        temporary = put(intermediates, fst(keyValuePair), Cons(snd(keyValuePair), inter));
+		      }
+		      
+		      while (~isEmpty(mapResult)) {
+		        Pair<String, Pair<Int, String>> keyValuePair = head(mapResult);
+		        mapResult = tail(mapResult);
+		        List<Pair<Int, String>> inter = lookupDefault(intermediates, fst(keyValuePair), Nil);
+		        temporary = put(temporary, fst(keyValuePair), Cons(snd(keyValuePair), inter));
+		      }
+		      return loop1(tail(fMapResults), temporary);
+		  	}
+	}
+	else{
+		List<Fut<List<Pair<String, Pair<Int, String>>>>> fReduceResults = EmptyList;
+	// "... and passes them to the Reduce function.  The Reduce
+	    // function, also written by the user, accepts an intermediate key I
+	    // and a set of values for that key. It merges together these values
+	    // to form a possibly smaller set of values.  Typically just zero or
+	    // one outpout value is produced per Reduce invocation." [ditto]
+	    Set<String> keys = keys(intermediates);
+	    while(~emptySet(keys)) {
+	      String key = take(keys);
+	      keys = remove(keys, key);
+	      List<Pair<Int, String>> values = lookupUnsafe(intermediates, key);
+	      Worker w = this.getWorker();
+	      Fut<List<Pair<String, Pair<Int, String>>>> fReduce = w!invokeReduce(key, values);
+	      fReduceResults = Cons(fReduce, fReduceResults);
+	      //fReduceResults = insertElement(fReduceResults, fReduce);
+	    }
+	    return loop2(fReduceResults);
+	}
+  }
+  
+  List<Pair<String, Pair<Int, String>>> loop2(List<Fut<List<Pair<String, Pair<Int, String>>>>> fReduceResults){
+  	if(~(isEmpty(fReduceResults))) {
+      Fut<List<Pair<String, Pair<Int, String>>>> fReduceResult = head(fReduceResults);
+      await fReduceResult?;
+      {
+	      List<Pair<String, Pair<Int, String>>> reduceResult = fReduceResult.get;
+	      String key = fst(head(reduceResult));
+	      Pair<Int, String> value = snd(head(reduceResult));
+	      return Cons(Pair(key, value), loop2(tail(fReduceResults)));
+	      
+	   }
+    }
+    else{
+    	return EmptyList;
+    }
+  }
+}
+
+
+
+// Local Variables:
+// abs-use-timed-interpreter: t
+// abs-indent: 2
+// End:
+
+ 

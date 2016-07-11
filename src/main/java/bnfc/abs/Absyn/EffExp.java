@@ -8,9 +8,12 @@ public abstract class EffExp implements java.io.Serializable {
     public R visit(bnfc.abs.Absyn.SyncMethCall p, A arg);
     public R visit(bnfc.abs.Absyn.ThisSyncMethCall p, A arg);
     public R visit(bnfc.abs.Absyn.AsyncMethCall p, A arg);
-    public R visit(bnfc.abs.Absyn.ThisAsyncMethCall p, A arg);
+    public R visit(bnfc.abs.Absyn.AwaitMethCall p, A arg);
     public R visit(bnfc.abs.Absyn.Get p, A arg);
-    public R visit(bnfc.abs.Absyn.Spawns p, A arg);
+    public R visit(bnfc.abs.Absyn.Readln p, A arg);
+    public R visit(bnfc.abs.Absyn.ProNew p, A arg);
+    public R visit(bnfc.abs.Absyn.ProTry p, A arg);
+    public R visit(bnfc.abs.Absyn.Now p, A arg);
 
   }
 

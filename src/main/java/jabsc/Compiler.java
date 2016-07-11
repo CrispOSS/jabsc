@@ -20,10 +20,13 @@ import com.google.common.collect.Sets;
 
 import bnfc.abs.Yylex;
 import bnfc.abs.parser;
-import bnfc.abs.Absyn.Modul;
+import bnfc.abs.Absyn.Mod;
 import bnfc.abs.Absyn.Module;
 import bnfc.abs.Absyn.Prog;
 import bnfc.abs.Absyn.Program;
+
+
+
 
 /**
  * Entry point to ABS to Java compiler.
@@ -150,7 +153,7 @@ public class Compiler implements Runnable {
         new JavaTypeTranslator(), outputDirectory);
     Files.createDirectories(sourcePath.getParent());
     try (final Writer writer = createWriter(sourcePath)) {
-      JavaWriter jw = new JavaWriter(writer);
+      JavaWriter jw = new JavaWriter(writer,false);
       prog.accept(visitor, jw);
       return sourcePath;
     }
@@ -206,7 +209,7 @@ public class Compiler implements Runnable {
   protected String getPackageName(final Prog prog) {
     Module module = prog.listmodule_.iterator().next();
     Visitor v = new Visitor(null, prog, null, new JavaTypeTranslator(), null);
-    String pakkage = v.getQTypeName(((Modul) module).qtype_,false).toLowerCase();
+    String pakkage = v.getQTypeName(((Mod) module).qu_,false).toLowerCase();
     if (isJavaKeyword(pakkage)) {
       String newPakkage = pakkage + "_";
       logger.warning(

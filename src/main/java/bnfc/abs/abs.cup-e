@@ -22,47 +22,39 @@ public void unrecovered_syntax_error(java_cup.runtime.Symbol cur_token) throws j
 
 :}
 
-nonterminal bnfc.abs.Absyn.AnyIdent AnyIdent;
-nonterminal bnfc.abs.Absyn.ListAnyIdent ListAnyIdent;
+nonterminal bnfc.abs.Absyn.Literal Literal;
+nonterminal bnfc.abs.Absyn.QU QU;
+nonterminal bnfc.abs.Absyn.QL QL;
+nonterminal bnfc.abs.Absyn.QA QA;
+nonterminal bnfc.abs.Absyn.ListU ListU;
+nonterminal bnfc.abs.Absyn.ListQU ListQU;
+nonterminal bnfc.abs.Absyn.ListQA ListQA;
+nonterminal bnfc.abs.Absyn.T T;
+nonterminal bnfc.abs.Absyn.ListT ListT;
+nonterminal bnfc.abs.Absyn.FormalPar FormalPar;
+nonterminal bnfc.abs.Absyn.ListFormalPar ListFormalPar;
 nonterminal bnfc.abs.Absyn.Program Program;
-nonterminal bnfc.abs.Absyn.ListModule ListModule;
 nonterminal bnfc.abs.Absyn.Module Module;
+nonterminal bnfc.abs.Absyn.ListModule ListModule;
 nonterminal bnfc.abs.Absyn.Export Export;
 nonterminal bnfc.abs.Absyn.ListExport ListExport;
 nonterminal bnfc.abs.Absyn.Import Import;
 nonterminal bnfc.abs.Absyn.ListImport ListImport;
-nonterminal bnfc.abs.Absyn.ImportType ImportType;
-nonterminal bnfc.abs.Absyn.Type Type;
-nonterminal bnfc.abs.Absyn.ListType ListType;
-nonterminal bnfc.abs.Absyn.ListQType ListQType;
-nonterminal bnfc.abs.Absyn.QType QType;
-nonterminal bnfc.abs.Absyn.QTypeSegment QTypeSegment;
-nonterminal bnfc.abs.Absyn.ListQTypeSegment ListQTypeSegment;
-nonterminal bnfc.abs.Absyn.TType TType;
-nonterminal bnfc.abs.Absyn.TTypeSegment TTypeSegment;
-nonterminal bnfc.abs.Absyn.ListTTypeSegment ListTTypeSegment;
-nonterminal bnfc.abs.Absyn.ListDecl ListDecl;
+nonterminal bnfc.abs.Absyn.IsForeign IsForeign;
 nonterminal bnfc.abs.Absyn.Decl Decl;
-nonterminal bnfc.abs.Absyn.ConstrIdent ConstrIdent;
-nonterminal bnfc.abs.Absyn.ConstrType ConstrType;
-nonterminal bnfc.abs.Absyn.ListConstrType ListConstrType;
-nonterminal bnfc.abs.Absyn.ListUIdent ListUIdent;
 nonterminal bnfc.abs.Absyn.ListConstrIdent ListConstrIdent;
+nonterminal bnfc.abs.Absyn.ConstrIdent ConstrIdent;
+nonterminal bnfc.abs.Absyn.ListConstrType ListConstrType;
+nonterminal bnfc.abs.Absyn.ConstrType ConstrType;
 nonterminal bnfc.abs.Absyn.FunBody FunBody;
-nonterminal bnfc.abs.Absyn.MethSignat MethSignat;
-nonterminal bnfc.abs.Absyn.ListMethSignat ListMethSignat;
-nonterminal bnfc.abs.Absyn.ClassBody ClassBody;
+nonterminal bnfc.abs.Absyn.ListMethSig ListMethSig;
+nonterminal bnfc.abs.Absyn.MethSig MethSig;
 nonterminal bnfc.abs.Absyn.ListClassBody ListClassBody;
-nonterminal bnfc.abs.Absyn.Block Block;
-nonterminal bnfc.abs.Absyn.MaybeBlock MaybeBlock;
-nonterminal bnfc.abs.Absyn.ListParam ListParam;
-nonterminal bnfc.abs.Absyn.Param Param;
-nonterminal bnfc.abs.Absyn.ListStm ListStm;
+nonterminal bnfc.abs.Absyn.ClassBody ClassBody;
 nonterminal bnfc.abs.Absyn.Stm Stm;
-nonterminal bnfc.abs.Absyn.CatchBranch CatchBranch;
-nonterminal bnfc.abs.Absyn.ListCatchBranch ListCatchBranch;
-nonterminal bnfc.abs.Absyn.MaybeFinally MaybeFinally;
-nonterminal bnfc.abs.Absyn.Guard Guard;
+nonterminal bnfc.abs.Absyn.SCaseBranch SCaseBranch;
+nonterminal bnfc.abs.Absyn.ListSCaseBranch ListSCaseBranch;
+nonterminal bnfc.abs.Absyn.AwaitGuard AwaitGuard;
 nonterminal bnfc.abs.Absyn.Exp Exp;
 nonterminal bnfc.abs.Absyn.ListPureExp ListPureExp;
 nonterminal bnfc.abs.Absyn.PureExp PureExp;
@@ -73,30 +65,32 @@ nonterminal bnfc.abs.Absyn.PureExp PureExp4;
 nonterminal bnfc.abs.Absyn.PureExp PureExp5;
 nonterminal bnfc.abs.Absyn.PureExp PureExp6;
 nonterminal bnfc.abs.Absyn.PureExp PureExp7;
-nonterminal bnfc.abs.Absyn.CaseBranch CaseBranch;
-nonterminal bnfc.abs.Absyn.ListCaseBranch ListCaseBranch;
+nonterminal bnfc.abs.Absyn.ECaseBranch ECaseBranch;
+nonterminal bnfc.abs.Absyn.ListECaseBranch ListECaseBranch;
 nonterminal bnfc.abs.Absyn.ListPattern ListPattern;
 nonterminal bnfc.abs.Absyn.Pattern Pattern;
-nonterminal bnfc.abs.Absyn.Literal Literal;
 nonterminal bnfc.abs.Absyn.EffExp EffExp;
 nonterminal bnfc.abs.Absyn.Ann Ann;
 nonterminal bnfc.abs.Absyn.ListAnn ListAnn;
+nonterminal bnfc.abs.Absyn.Ann_ Ann_;
+nonterminal bnfc.abs.Absyn.AnnStm AnnStm;
+nonterminal bnfc.abs.Absyn.ListAnnStm ListAnnStm;
 nonterminal bnfc.abs.Absyn.AnnDecl AnnDecl;
 nonterminal bnfc.abs.Absyn.ListAnnDecl ListAnnDecl;
-nonterminal bnfc.abs.Absyn.AnnType AnnType;
-nonterminal bnfc.abs.Absyn.ListAnnType ListAnnType;
+nonterminal bnfc.abs.Absyn.MaybeFinally MaybeFinally;
+nonterminal bnfc.abs.Absyn.MaybeBlock MaybeBlock;
 
-terminal _SYMB_0;    //   ,
-terminal _SYMB_1;    //   ;
-terminal _SYMB_2;    //   *
-terminal _SYMB_3;    //   _
-terminal _SYMB_4;    //   <
-terminal _SYMB_5;    //   >
-terminal _SYMB_6;    //   .
+terminal _SYMB_0;    //   .
+terminal _SYMB_1;    //   ,
+terminal _SYMB_2;    //   <
+terminal _SYMB_3;    //   >
+terminal _SYMB_4;    //   _
+terminal _SYMB_5;    //   ;
+terminal _SYMB_6;    //   *
 terminal _SYMB_7;    //   =
-terminal _SYMB_8;    //   (
-terminal _SYMB_9;    //   )
-terminal _SYMB_10;    //   |
+terminal _SYMB_8;    //   |
+terminal _SYMB_9;    //   (
+terminal _SYMB_10;    //   )
 terminal _SYMB_11;    //   {
 terminal _SYMB_12;    //   }
 terminal _SYMB_13;    //   =>
@@ -117,220 +111,215 @@ terminal _SYMB_27;    //   [
 terminal _SYMB_28;    //   ]
 terminal _SYMB_29;    //   !
 terminal _SYMB_30;    //   :
-terminal _SYMB_31;    //   False
-terminal _SYMB_32;    //   True
-terminal _SYMB_33;    //   assert
-terminal _SYMB_34;    //   await
-terminal _SYMB_35;    //   builtin
-terminal _SYMB_36;    //   case
-terminal _SYMB_37;    //   catch
-terminal _SYMB_38;    //   class
-terminal _SYMB_39;    //   data
-terminal _SYMB_40;    //   def
-terminal _SYMB_41;    //   else
-terminal _SYMB_42;    //   exception
-terminal _SYMB_43;    //   export
-terminal _SYMB_44;    //   extends
-terminal _SYMB_45;    //   fimport
-terminal _SYMB_46;    //   finally
-terminal _SYMB_47;    //   from
-terminal _SYMB_48;    //   get
-terminal _SYMB_49;    //   if
-terminal _SYMB_50;    //   implements
-terminal _SYMB_51;    //   import
-terminal _SYMB_52;    //   in
-terminal _SYMB_53;    //   interface
-terminal _SYMB_54;    //   let
-terminal _SYMB_55;    //   local
-terminal _SYMB_56;    //   module
-terminal _SYMB_57;    //   new
+terminal _SYMB_31;    //   assert
+terminal _SYMB_32;    //   await
+terminal _SYMB_33;    //   builtin
+terminal _SYMB_34;    //   case
+terminal _SYMB_35;    //   catch
+terminal _SYMB_36;    //   class
+terminal _SYMB_37;    //   data
+terminal _SYMB_38;    //   def
+terminal _SYMB_39;    //   duration
+terminal _SYMB_40;    //   else
+terminal _SYMB_41;    //   exception
+terminal _SYMB_42;    //   export
+terminal _SYMB_43;    //   extends
+terminal _SYMB_44;    //   fimport
+terminal _SYMB_45;    //   finally
+terminal _SYMB_46;    //   from
+terminal _SYMB_47;    //   get
+terminal _SYMB_48;    //   if
+terminal _SYMB_49;    //   implements
+terminal _SYMB_50;    //   import
+terminal _SYMB_51;    //   in
+terminal _SYMB_52;    //   interface
+terminal _SYMB_53;    //   let
+terminal _SYMB_54;    //   local
+terminal _SYMB_55;    //   module
+terminal _SYMB_56;    //   new
+terminal _SYMB_57;    //   now
 terminal _SYMB_58;    //   null
-terminal _SYMB_59;    //   println
-terminal _SYMB_60;    //   return
-terminal _SYMB_61;    //   skip
-terminal _SYMB_62;    //   spawns
-terminal _SYMB_63;    //   suspend
-terminal _SYMB_64;    //   then
-terminal _SYMB_65;    //   this
-terminal _SYMB_66;    //   thisDC
-terminal _SYMB_67;    //   throw
-terminal _SYMB_68;    //   try
-terminal _SYMB_69;    //   type
-terminal _SYMB_70;    //   while
+terminal _SYMB_59;    //   print
+terminal _SYMB_60;    //   println
+terminal _SYMB_61;    //   pro_give
+terminal _SYMB_62;    //   pro_new
+terminal _SYMB_63;    //   pro_try
+terminal _SYMB_64;    //   readln
+terminal _SYMB_65;    //   return
+terminal _SYMB_66;    //   skip
+terminal _SYMB_67;    //   suspend
+terminal _SYMB_68;    //   then
+terminal _SYMB_69;    //   this
+terminal _SYMB_70;    //   thisDC
+terminal _SYMB_71;    //   throw
+terminal _SYMB_72;    //   try
+terminal _SYMB_73;    //   type
+terminal _SYMB_74;    //   while
 
 terminal String _STRING_;
 
 terminal Integer _INTEGER_;
+terminal Double _DOUBLE_;
 
 
-
-terminal String UIdent;
-terminal String LIdent;
+terminal String U;
+terminal String L;
 
 
 start with Program;
 
 
-AnyIdent ::= LIdent:p_1  {: RESULT = new bnfc.abs.Absyn.AnyIden(p_1); :} 
-  | UIdent:p_1  {: RESULT = new bnfc.abs.Absyn.AnyTyIden(p_1); :}
+Literal ::= _SYMB_58  {: RESULT = new bnfc.abs.Absyn.LNull(); :} 
+  | _SYMB_69  {: RESULT = new bnfc.abs.Absyn.LThis(); :}
+  | _STRING_:p_1  {: RESULT = new bnfc.abs.Absyn.LStr(p_1); :}
+  | _INTEGER_:p_1  {: RESULT = new bnfc.abs.Absyn.LInt(p_1); :}
+  | _DOUBLE_:p_1  {: RESULT = new bnfc.abs.Absyn.LFloat(p_1); :}
+  | _SYMB_70  {: RESULT = new bnfc.abs.Absyn.LThisDC(); :}
 ;
-ListAnyIdent ::= AnyIdent:p_1  {: RESULT = new bnfc.abs.Absyn.ListAnyIdent(); RESULT.addLast(p_1); :} 
-  | AnyIdent:p_1 _SYMB_0 ListAnyIdent:p_3  {: RESULT = p_3; p_3.addFirst(p_1); :}
+QU ::= U:p_1  {: RESULT = new bnfc.abs.Absyn.U_(p_1); :} 
+  | U:p_1 _SYMB_0 QU:p_3  {: RESULT = new bnfc.abs.Absyn.QU_(p_1,p_3); :}
+;
+QL ::= L:p_1  {: RESULT = new bnfc.abs.Absyn.L_(p_1); :} 
+  | U:p_1 _SYMB_0 QL:p_3  {: RESULT = new bnfc.abs.Absyn.QL_(p_1,p_3); :}
+;
+QA ::= L:p_1  {: RESULT = new bnfc.abs.Absyn.LA(p_1); :} 
+  | U:p_1  {: RESULT = new bnfc.abs.Absyn.UA(p_1); :}
+  | U:p_1 _SYMB_0 QA:p_3  {: RESULT = new bnfc.abs.Absyn.QA_(p_1,p_3); :}
+;
+ListU ::= U:p_1  {: RESULT = new bnfc.abs.Absyn.ListU(); RESULT.addLast(p_1); :} 
+  | U:p_1 _SYMB_1 ListU:p_3  {: RESULT = p_3; p_3.addFirst(p_1); :}
+;
+ListQU ::= QU:p_1  {: RESULT = new bnfc.abs.Absyn.ListQU(); RESULT.addLast(p_1); :} 
+  | QU:p_1 _SYMB_1 ListQU:p_3  {: RESULT = p_3; p_3.addFirst(p_1); :}
+;
+ListQA ::= QA:p_1  {: RESULT = new bnfc.abs.Absyn.ListQA(); RESULT.addLast(p_1); :} 
+  | QA:p_1 _SYMB_1 ListQA:p_3  {: RESULT = p_3; p_3.addFirst(p_1); :}
+;
+T ::= QU:p_1  {: RESULT = new bnfc.abs.Absyn.TSimple(p_1); :} 
+  | QU:p_1 _SYMB_2 ListT:p_3 _SYMB_3  {: RESULT = new bnfc.abs.Absyn.TPoly(p_1,p_3); :}
+  | _SYMB_4  {: RESULT = new bnfc.abs.Absyn.TInfer(); :}
+;
+ListT ::= T:p_1  {: RESULT = new bnfc.abs.Absyn.ListT(); RESULT.addLast(p_1); :} 
+  | T:p_1 _SYMB_1 ListT:p_3  {: RESULT = p_3; p_3.addFirst(p_1); :}
+;
+FormalPar ::= T:p_1 L:p_2  {: RESULT = new bnfc.abs.Absyn.FormalParameter(p_1,p_2); :} 
+;
+ListFormalPar ::=  /* empty */  {: RESULT = new bnfc.abs.Absyn.ListFormalPar(); :} 
+  | FormalPar:p_1  {: RESULT = new bnfc.abs.Absyn.ListFormalPar(); RESULT.addLast(p_1); :}
+  | FormalPar:p_1 _SYMB_1 ListFormalPar:p_3  {: RESULT = p_3; p_3.addFirst(p_1); :}
 ;
 Program ::= ListModule:p_1  {: RESULT = new bnfc.abs.Absyn.Prog(p_1); :} 
+;
+Module ::= _SYMB_55 QU:p_2 _SYMB_5 ListExport:p_4 ListImport:p_5 ListAnnDecl:p_6 MaybeBlock:p_7  {: RESULT = new bnfc.abs.Absyn.Mod(p_2,p_4,p_5,p_6,p_7); :} 
 ;
 ListModule ::=  /* empty */  {: RESULT = new bnfc.abs.Absyn.ListModule(); :} 
   | ListModule:p_1 Module:p_2  {: RESULT = p_1; p_1.addLast(p_2); :}
 ;
-Module ::= _SYMB_56 QType:p_2 _SYMB_1 ListExport:p_4 ListImport:p_5 ListDecl:p_6 MaybeBlock:p_7  {: RESULT = new bnfc.abs.Absyn.Modul(p_2,p_4,p_5,p_6,p_7); :} 
-;
-Export ::= _SYMB_43 ListAnyIdent:p_2  {: RESULT = new bnfc.abs.Absyn.AnyExport(p_2); :} 
-  | _SYMB_43 ListAnyIdent:p_2 _SYMB_47 QType:p_4  {: RESULT = new bnfc.abs.Absyn.AnyFromExport(p_2,p_4); :}
-  | _SYMB_43 _SYMB_2  {: RESULT = new bnfc.abs.Absyn.StarExport(); :}
-  | _SYMB_43 _SYMB_2 _SYMB_47 QType:p_4  {: RESULT = new bnfc.abs.Absyn.StarFromExport(p_4); :}
+Export ::= _SYMB_42 _SYMB_6  {: RESULT = new bnfc.abs.Absyn.StarExport(); :} 
+  | _SYMB_42 _SYMB_6 _SYMB_46 QU:p_4  {: RESULT = new bnfc.abs.Absyn.StarFromExport(p_4); :}
+  | _SYMB_42 ListQA:p_2  {: RESULT = new bnfc.abs.Absyn.AnyExport(p_2); :}
+  | _SYMB_42 ListQA:p_2 _SYMB_46 QU:p_4  {: RESULT = new bnfc.abs.Absyn.AnyFromExport(p_2,p_4); :}
 ;
 ListExport ::=  /* empty */  {: RESULT = new bnfc.abs.Absyn.ListExport(); :} 
-  | ListExport:p_1 Export:p_2 _SYMB_1  {: RESULT = p_1; p_1.addLast(p_2); :}
+  | ListExport:p_1 Export:p_2 _SYMB_5  {: RESULT = p_1; p_1.addLast(p_2); :}
 ;
-Import ::= ImportType:p_1 TType:p_2 AnyIdent:p_3  {: RESULT = new bnfc.abs.Absyn.AnyImport(p_1,p_2,p_3); :} 
-  | ImportType:p_1 ListAnyIdent:p_2 _SYMB_47 QType:p_4  {: RESULT = new bnfc.abs.Absyn.AnyFromImport(p_1,p_2,p_4); :}
-  | ImportType:p_1 _SYMB_2 _SYMB_47 QType:p_4  {: RESULT = new bnfc.abs.Absyn.StarFromImport(p_1,p_4); :}
+Import ::= IsForeign:p_1 _SYMB_6 _SYMB_46 QU:p_4  {: RESULT = new bnfc.abs.Absyn.StarFromImport(p_1,p_4); :} 
+  | IsForeign:p_1 ListQA:p_2  {: RESULT = new bnfc.abs.Absyn.AnyImport(p_1,p_2); :}
+  | IsForeign:p_1 ListQA:p_2 _SYMB_46 QU:p_4  {: RESULT = new bnfc.abs.Absyn.AnyFromImport(p_1,p_2,p_4); :}
 ;
 ListImport ::=  /* empty */  {: RESULT = new bnfc.abs.Absyn.ListImport(); :} 
-  | ListImport:p_1 Import:p_2 _SYMB_1  {: RESULT = p_1; p_1.addLast(p_2); :}
+  | ListImport:p_1 Import:p_2 _SYMB_5  {: RESULT = p_1; p_1.addLast(p_2); :}
 ;
-ImportType ::= _SYMB_45  {: RESULT = new bnfc.abs.Absyn.ForeignImport(); :} 
-  | _SYMB_51  {: RESULT = new bnfc.abs.Absyn.NormalImport(); :}
+IsForeign ::= _SYMB_50  {: RESULT = new bnfc.abs.Absyn.NoForeign(); :} 
+  | _SYMB_44  {: RESULT = new bnfc.abs.Absyn.YesForeign(); :}
 ;
-Type ::= _SYMB_3  {: RESULT = new bnfc.abs.Absyn.TUnderscore(); :} 
-  | QType:p_1  {: RESULT = new bnfc.abs.Absyn.TSimple(p_1); :}
-  | QType:p_1 _SYMB_4 ListType:p_3 _SYMB_5  {: RESULT = new bnfc.abs.Absyn.TGen(p_1,p_3); :}
+Decl ::= _SYMB_73 U:p_2 _SYMB_7 T:p_4 _SYMB_5  {: RESULT = new bnfc.abs.Absyn.DType(p_2,p_4); :} 
+  | _SYMB_73 U:p_2 _SYMB_2 ListU:p_4 _SYMB_3 _SYMB_7 T:p_7 _SYMB_5  {: RESULT = new bnfc.abs.Absyn.DTypePoly(p_2,p_4,p_7); :}
+  | _SYMB_37 U:p_2 _SYMB_7 ListConstrIdent:p_4 _SYMB_5  {: RESULT = new bnfc.abs.Absyn.DData(p_2,p_4); :}
+  | _SYMB_37 U:p_2 _SYMB_2 ListU:p_4 _SYMB_3 _SYMB_7 ListConstrIdent:p_7 _SYMB_5  {: RESULT = new bnfc.abs.Absyn.DDataPoly(p_2,p_4,p_7); :}
+  | _SYMB_38 T:p_2 L:p_3 _SYMB_9 ListFormalPar:p_5 _SYMB_10 _SYMB_7 FunBody:p_8 _SYMB_5  {: RESULT = new bnfc.abs.Absyn.DFun(p_2,p_3,p_5,p_8); :}
+  | _SYMB_38 T:p_2 L:p_3 _SYMB_2 ListU:p_5 _SYMB_3 _SYMB_9 ListFormalPar:p_8 _SYMB_10 _SYMB_7 FunBody:p_11 _SYMB_5  {: RESULT = new bnfc.abs.Absyn.DFunPoly(p_2,p_3,p_5,p_8,p_11); :}
+  | _SYMB_52 U:p_2 _SYMB_11 ListMethSig:p_4 _SYMB_12  {: RESULT = new bnfc.abs.Absyn.DInterf(p_2,p_4); :}
+  | _SYMB_52 U:p_2 _SYMB_43 ListQU:p_4 _SYMB_11 ListMethSig:p_6 _SYMB_12  {: RESULT = new bnfc.abs.Absyn.DExtends(p_2,p_4,p_6); :}
+  | _SYMB_36 U:p_2 _SYMB_11 ListClassBody:p_4 MaybeBlock:p_5 ListClassBody:p_6 _SYMB_12  {: RESULT = new bnfc.abs.Absyn.DClass(p_2,p_4,p_5,p_6); :}
+  | _SYMB_36 U:p_2 _SYMB_9 ListFormalPar:p_4 _SYMB_10 _SYMB_11 ListClassBody:p_7 MaybeBlock:p_8 ListClassBody:p_9 _SYMB_12  {: RESULT = new bnfc.abs.Absyn.DClassPar(p_2,p_4,p_7,p_8,p_9); :}
+  | _SYMB_36 U:p_2 _SYMB_49 ListQU:p_4 _SYMB_11 ListClassBody:p_6 MaybeBlock:p_7 ListClassBody:p_8 _SYMB_12  {: RESULT = new bnfc.abs.Absyn.DClassImplements(p_2,p_4,p_6,p_7,p_8); :}
+  | _SYMB_36 U:p_2 _SYMB_9 ListFormalPar:p_4 _SYMB_10 _SYMB_49 ListQU:p_7 _SYMB_11 ListClassBody:p_9 MaybeBlock:p_10 ListClassBody:p_11 _SYMB_12  {: RESULT = new bnfc.abs.Absyn.DClassParImplements(p_2,p_4,p_7,p_9,p_10,p_11); :}
+  | _SYMB_41 ConstrIdent:p_2 _SYMB_5  {: RESULT = new bnfc.abs.Absyn.DException(p_2); :}
 ;
-ListType ::= Type:p_1  {: RESULT = new bnfc.abs.Absyn.ListType(); RESULT.addLast(p_1); :} 
-  | Type:p_1 _SYMB_0 ListType:p_3  {: RESULT = p_3; p_3.addFirst(p_1); :}
+ListConstrIdent ::= ConstrIdent:p_1  {: RESULT = new bnfc.abs.Absyn.ListConstrIdent(); RESULT.addLast(p_1); :} 
+  | ConstrIdent:p_1 _SYMB_8 ListConstrIdent:p_3  {: RESULT = p_3; p_3.addFirst(p_1); :}
 ;
-ListQType ::= QType:p_1  {: RESULT = new bnfc.abs.Absyn.ListQType(); RESULT.addLast(p_1); :} 
-  | QType:p_1 _SYMB_0 ListQType:p_3  {: RESULT = p_3; p_3.addFirst(p_1); :}
-;
-QType ::= ListQTypeSegment:p_1  {: RESULT = new bnfc.abs.Absyn.QTyp(p_1); :} 
-;
-QTypeSegment ::= UIdent:p_1  {: RESULT = new bnfc.abs.Absyn.QTypeSegmen(p_1); :} 
-;
-ListQTypeSegment ::= QTypeSegment:p_1  {: RESULT = new bnfc.abs.Absyn.ListQTypeSegment(); RESULT.addLast(p_1); :} 
-  | QTypeSegment:p_1 _SYMB_6 ListQTypeSegment:p_3  {: RESULT = p_3; p_3.addFirst(p_1); :}
-;
-TType ::= ListTTypeSegment:p_1  {: RESULT = new bnfc.abs.Absyn.TTyp(p_1); :} 
-;
-TTypeSegment ::= UIdent:p_1  {: RESULT = new bnfc.abs.Absyn.TTypeSegmen(p_1); :} 
-;
-ListTTypeSegment ::= TTypeSegment:p_1 _SYMB_6  {: RESULT = new bnfc.abs.Absyn.ListTTypeSegment(); RESULT.addLast(p_1); :} 
-  | TTypeSegment:p_1 _SYMB_6 ListTTypeSegment:p_3  {: RESULT = p_3; p_3.addFirst(p_1); :}
-;
-ListDecl ::=  /* empty */  {: RESULT = new bnfc.abs.Absyn.ListDecl(); :} 
-  | ListDecl:p_1 Decl:p_2  {: RESULT = p_1; p_1.addLast(p_2); :}
-;
-Decl ::= _SYMB_69 UIdent:p_2 _SYMB_7 Type:p_4 _SYMB_1  {: RESULT = new bnfc.abs.Absyn.TypeDecl(p_2,p_4); :} 
-  | _SYMB_69 UIdent:p_2 _SYMB_4 ListUIdent:p_4 _SYMB_5 _SYMB_7 Type:p_7 _SYMB_1  {: RESULT = new bnfc.abs.Absyn.TypeParDecl(p_2,p_4,p_7); :}
-  | _SYMB_42 ConstrIdent:p_2 _SYMB_1  {: RESULT = new bnfc.abs.Absyn.ExceptionDecl(p_2); :}
-  | _SYMB_39 UIdent:p_2 _SYMB_7 ListConstrIdent:p_4 _SYMB_1  {: RESULT = new bnfc.abs.Absyn.DataDecl(p_2,p_4); :}
-  | _SYMB_39 UIdent:p_2 _SYMB_4 ListUIdent:p_4 _SYMB_5 _SYMB_7 ListConstrIdent:p_7 _SYMB_1  {: RESULT = new bnfc.abs.Absyn.DataParDecl(p_2,p_4,p_7); :}
-  | _SYMB_40 Type:p_2 LIdent:p_3 _SYMB_8 ListParam:p_5 _SYMB_9 _SYMB_7 FunBody:p_8 _SYMB_1  {: RESULT = new bnfc.abs.Absyn.FunDecl(p_2,p_3,p_5,p_8); :}
-  | _SYMB_40 Type:p_2 LIdent:p_3 _SYMB_4 ListUIdent:p_5 _SYMB_5 _SYMB_8 ListParam:p_8 _SYMB_9 _SYMB_7 FunBody:p_11 _SYMB_1  {: RESULT = new bnfc.abs.Absyn.FunParDecl(p_2,p_3,p_5,p_8,p_11); :}
-  | Ann:p_1 _SYMB_53 UIdent:p_3 _SYMB_11 ListMethSignat:p_5 _SYMB_12  {: RESULT = new bnfc.abs.Absyn.InterfDecl(p_1,p_3,p_5); :}
-  | Ann:p_1 _SYMB_53 UIdent:p_3 _SYMB_44 ListQType:p_5 _SYMB_11 ListMethSignat:p_7 _SYMB_12  {: RESULT = new bnfc.abs.Absyn.ExtendsDecl(p_1,p_3,p_5,p_7); :}
-  | Ann:p_1 _SYMB_38 UIdent:p_3 _SYMB_11 ListClassBody:p_5 MaybeBlock:p_6 ListClassBody:p_7 _SYMB_12  {: RESULT = new bnfc.abs.Absyn.ClassDecl(p_1,p_3,p_5,p_6,p_7); :}
-  | Ann:p_1 _SYMB_38 UIdent:p_3 _SYMB_8 ListParam:p_5 _SYMB_9 _SYMB_11 ListClassBody:p_8 MaybeBlock:p_9 ListClassBody:p_10 _SYMB_12  {: RESULT = new bnfc.abs.Absyn.ClassParamDecl(p_1,p_3,p_5,p_8,p_9,p_10); :}
-  | Ann:p_1 _SYMB_38 UIdent:p_3 _SYMB_50 ListQType:p_5 _SYMB_11 ListClassBody:p_7 MaybeBlock:p_8 ListClassBody:p_9 _SYMB_12  {: RESULT = new bnfc.abs.Absyn.ClassImplements(p_1,p_3,p_5,p_7,p_8,p_9); :}
-  | Ann:p_1 _SYMB_38 UIdent:p_3 _SYMB_8 ListParam:p_5 _SYMB_9 _SYMB_50 ListQType:p_8 _SYMB_11 ListClassBody:p_10 MaybeBlock:p_11 ListClassBody:p_12 _SYMB_12  {: RESULT = new bnfc.abs.Absyn.ClassParamImplements(p_1,p_3,p_5,p_8,p_10,p_11,p_12); :}
-;
-ConstrIdent ::= UIdent:p_1  {: RESULT = new bnfc.abs.Absyn.SinglConstrIdent(p_1); :} 
-  | UIdent:p_1 _SYMB_8 ListConstrType:p_3 _SYMB_9  {: RESULT = new bnfc.abs.Absyn.ParamConstrIdent(p_1,p_3); :}
-;
-ConstrType ::= Type:p_1  {: RESULT = new bnfc.abs.Absyn.EmptyConstrType(p_1); :} 
-  | Type:p_1 LIdent:p_2  {: RESULT = new bnfc.abs.Absyn.RecordConstrType(p_1,p_2); :}
+ConstrIdent ::= U:p_1  {: RESULT = new bnfc.abs.Absyn.SinglConstrIdent(p_1); :} 
+  | U:p_1 _SYMB_9 ListConstrType:p_3 _SYMB_10  {: RESULT = new bnfc.abs.Absyn.ParamConstrIdent(p_1,p_3); :}
 ;
 ListConstrType ::=  /* empty */  {: RESULT = new bnfc.abs.Absyn.ListConstrType(); :} 
   | ConstrType:p_1  {: RESULT = new bnfc.abs.Absyn.ListConstrType(); RESULT.addLast(p_1); :}
-  | ConstrType:p_1 _SYMB_0 ListConstrType:p_3  {: RESULT = p_3; p_3.addFirst(p_1); :}
+  | ConstrType:p_1 _SYMB_1 ListConstrType:p_3  {: RESULT = p_3; p_3.addFirst(p_1); :}
 ;
-ListUIdent ::= UIdent:p_1  {: RESULT = new bnfc.abs.Absyn.ListUIdent(); RESULT.addLast(p_1); :} 
-  | UIdent:p_1 _SYMB_0 ListUIdent:p_3  {: RESULT = p_3; p_3.addFirst(p_1); :}
+ConstrType ::= T:p_1  {: RESULT = new bnfc.abs.Absyn.EmptyConstrType(p_1); :} 
+  | T:p_1 L:p_2  {: RESULT = new bnfc.abs.Absyn.RecordConstrType(p_1,p_2); :}
 ;
-ListConstrIdent ::= ConstrIdent:p_1  {: RESULT = new bnfc.abs.Absyn.ListConstrIdent(); RESULT.addLast(p_1); :} 
-  | ConstrIdent:p_1 _SYMB_10 ListConstrIdent:p_3  {: RESULT = p_3; p_3.addFirst(p_1); :}
-;
-FunBody ::= _SYMB_35  {: RESULT = new bnfc.abs.Absyn.BuiltinFunBody(); :} 
+FunBody ::= _SYMB_33  {: RESULT = new bnfc.abs.Absyn.BuiltinFunBody(); :} 
   | PureExp:p_1  {: RESULT = new bnfc.abs.Absyn.NormalFunBody(p_1); :}
 ;
-MethSignat ::= Type:p_1 LIdent:p_2 _SYMB_8 ListParam:p_4 _SYMB_9  {: RESULT = new bnfc.abs.Absyn.MethSig(p_1,p_2,p_4); :} 
+ListMethSig ::=  /* empty */  {: RESULT = new bnfc.abs.Absyn.ListMethSig(); :} 
+  | ListMethSig:p_1 MethSig:p_2 _SYMB_5  {: RESULT = p_1; p_1.addLast(p_2); :}
 ;
-ListMethSignat ::=  /* empty */  {: RESULT = new bnfc.abs.Absyn.ListMethSignat(); :} 
-  | ListMethSignat:p_1 MethSignat:p_2 _SYMB_1  {: RESULT = p_1; p_1.addLast(p_2); :}
-;
-ClassBody ::= Type:p_1 LIdent:p_2 _SYMB_1  {: RESULT = new bnfc.abs.Absyn.FieldClassBody(p_1,p_2); :} 
-  | Type:p_1 LIdent:p_2 _SYMB_7 PureExp:p_4 _SYMB_1  {: RESULT = new bnfc.abs.Absyn.FieldAssignClassBody(p_1,p_2,p_4); :}
-  | Type:p_1 LIdent:p_2 _SYMB_8 ListParam:p_4 _SYMB_9 Block:p_6  {: RESULT = new bnfc.abs.Absyn.MethClassBody(p_1,p_2,p_4,p_6); :}
+MethSig ::= ListAnn:p_1 T:p_2 L:p_3 _SYMB_9 ListFormalPar:p_5 _SYMB_10  {: RESULT = new bnfc.abs.Absyn.MethSignature(p_1,p_2,p_3,p_5); :} 
 ;
 ListClassBody ::=  /* empty */  {: RESULT = new bnfc.abs.Absyn.ListClassBody(); :} 
   | ListClassBody:p_1 ClassBody:p_2  {: RESULT = p_1; p_1.addLast(p_2); :}
 ;
-Block ::= _SYMB_11 ListStm:p_2 _SYMB_12  {: RESULT = new bnfc.abs.Absyn.Bloc(p_2); :} 
+ClassBody ::= T:p_1 L:p_2 _SYMB_5  {: RESULT = new bnfc.abs.Absyn.FieldClassBody(p_1,p_2); :} 
+  | T:p_1 L:p_2 _SYMB_7 PureExp:p_4 _SYMB_5  {: RESULT = new bnfc.abs.Absyn.FieldAssignClassBody(p_1,p_2,p_4); :}
+  | T:p_1 L:p_2 _SYMB_9 ListFormalPar:p_4 _SYMB_10 _SYMB_11 ListAnnStm:p_7 _SYMB_12  {: RESULT = new bnfc.abs.Absyn.MethClassBody(p_1,p_2,p_4,p_7); :}
 ;
-MaybeBlock ::= Block:p_1  {: RESULT = new bnfc.abs.Absyn.JustBlock(p_1); :} 
-  |  /* empty */  {: RESULT = new bnfc.abs.Absyn.NoBlock(); :}
+Stm ::= _SYMB_66 _SYMB_5  {: RESULT = new bnfc.abs.Absyn.SSkip(); :} 
+  | _SYMB_67 _SYMB_5  {: RESULT = new bnfc.abs.Absyn.SSuspend(); :}
+  | _SYMB_65 Exp:p_2 _SYMB_5  {: RESULT = new bnfc.abs.Absyn.SReturn(p_2); :}
+  | _SYMB_31 PureExp:p_2 _SYMB_5  {: RESULT = new bnfc.abs.Absyn.SAssert(p_2); :}
+  | _SYMB_32 AwaitGuard:p_2 _SYMB_5  {: RESULT = new bnfc.abs.Absyn.SAwait(p_2); :}
+  | L:p_1 _SYMB_7 Exp:p_3 _SYMB_5  {: RESULT = new bnfc.abs.Absyn.SAss(p_1,p_3); :}
+  | _SYMB_69 _SYMB_0 L:p_3 _SYMB_7 Exp:p_5 _SYMB_5  {: RESULT = new bnfc.abs.Absyn.SFieldAss(p_3,p_5); :}
+  | T:p_1 L:p_2 _SYMB_5  {: RESULT = new bnfc.abs.Absyn.SDec(p_1,p_2); :}
+  | T:p_1 L:p_2 _SYMB_7 Exp:p_4 _SYMB_5  {: RESULT = new bnfc.abs.Absyn.SDecAss(p_1,p_2,p_4); :}
+  | _SYMB_74 _SYMB_9 PureExp:p_3 _SYMB_10 AnnStm:p_5  {: RESULT = new bnfc.abs.Absyn.SWhile(p_3,p_5); :}
+  | _SYMB_48 _SYMB_9 PureExp:p_3 _SYMB_10 Stm:p_5  {: RESULT = new bnfc.abs.Absyn.SIf(p_3,p_5); :}
+  | _SYMB_48 _SYMB_9 PureExp:p_3 _SYMB_10 Stm:p_5 _SYMB_40 Stm:p_7  {: RESULT = new bnfc.abs.Absyn.SIfElse(p_3,p_5,p_7); :}
+  | _SYMB_34 PureExp:p_2 _SYMB_11 ListSCaseBranch:p_4 _SYMB_12  {: RESULT = new bnfc.abs.Absyn.SCase(p_2,p_4); :}
+  | _SYMB_11 ListAnnStm:p_2 _SYMB_12  {: RESULT = new bnfc.abs.Absyn.SBlock(p_2); :}
+  | Exp:p_1 _SYMB_5  {: RESULT = new bnfc.abs.Absyn.SExp(p_1); :}
+  | _SYMB_59 PureExp:p_2 _SYMB_5  {: RESULT = new bnfc.abs.Absyn.SPrint(p_2); :}
+  | _SYMB_60 PureExp:p_2 _SYMB_5  {: RESULT = new bnfc.abs.Absyn.SPrintln(p_2); :}
+  | _SYMB_71 PureExp:p_2 _SYMB_5  {: RESULT = new bnfc.abs.Absyn.SThrow(p_2); :}
+  | _SYMB_72 AnnStm:p_2 _SYMB_35 _SYMB_11 ListSCaseBranch:p_5 _SYMB_12 MaybeFinally:p_7  {: RESULT = new bnfc.abs.Absyn.STryCatchFinally(p_2,p_5,p_7); :}
+  | PureExp:p_1 _SYMB_0 _SYMB_61 _SYMB_9 PureExp:p_5 _SYMB_10 _SYMB_5  {: RESULT = new bnfc.abs.Absyn.SGive(p_1,p_5); :}
+  | _SYMB_39 _SYMB_9 PureExp:p_3 _SYMB_1 PureExp:p_5 _SYMB_10 _SYMB_5  {: RESULT = new bnfc.abs.Absyn.SDuration(p_3,p_5); :}
 ;
-ListParam ::=  /* empty */  {: RESULT = new bnfc.abs.Absyn.ListParam(); :} 
-  | Param:p_1  {: RESULT = new bnfc.abs.Absyn.ListParam(); RESULT.addLast(p_1); :}
-  | Param:p_1 _SYMB_0 ListParam:p_3  {: RESULT = p_3; p_3.addFirst(p_1); :}
+SCaseBranch ::= Pattern:p_1 _SYMB_13 AnnStm:p_3  {: RESULT = new bnfc.abs.Absyn.SCaseB(p_1,p_3); :} 
 ;
-Param ::= Type:p_1 LIdent:p_2  {: RESULT = new bnfc.abs.Absyn.Par(p_1,p_2); :} 
+ListSCaseBranch ::= SCaseBranch:p_1  {: RESULT = new bnfc.abs.Absyn.ListSCaseBranch(); RESULT.addLast(p_1); :} 
+  | SCaseBranch:p_1 ListSCaseBranch:p_2  {: RESULT = p_2; p_2.addFirst(p_1); :}
 ;
-ListStm ::=  /* empty */  {: RESULT = new bnfc.abs.Absyn.ListStm(); :} 
-  | ListStm:p_1 Stm:p_2  {: RESULT = p_1; p_1.addLast(p_2); :}
-;
-Stm ::= Exp:p_1 _SYMB_1  {: RESULT = new bnfc.abs.Absyn.SExp(p_1); :} 
-  | _SYMB_11 ListStm:p_2 _SYMB_12  {: RESULT = new bnfc.abs.Absyn.SBlock(p_2); :}
-  | _SYMB_70 _SYMB_8 PureExp:p_3 _SYMB_9 Stm:p_5  {: RESULT = new bnfc.abs.Absyn.SWhile(p_3,p_5); :}
-  | _SYMB_60 Exp:p_2 _SYMB_1  {: RESULT = new bnfc.abs.Absyn.SReturn(p_2); :}
-  | LIdent:p_1 _SYMB_7 Exp:p_3 _SYMB_1  {: RESULT = new bnfc.abs.Absyn.SAss(p_1,p_3); :}
-  | _SYMB_65 _SYMB_6 LIdent:p_3 _SYMB_7 Exp:p_5 _SYMB_1  {: RESULT = new bnfc.abs.Absyn.SFieldAss(p_3,p_5); :}
-  | Type:p_1 LIdent:p_2 _SYMB_1  {: RESULT = new bnfc.abs.Absyn.SDec(p_1,p_2); :}
-  | Type:p_1 LIdent:p_2 _SYMB_7 Exp:p_4 _SYMB_1  {: RESULT = new bnfc.abs.Absyn.SDecAss(p_1,p_2,p_4); :}
-  | _SYMB_49 _SYMB_8 PureExp:p_3 _SYMB_9 Stm:p_5  {: RESULT = new bnfc.abs.Absyn.SIf(p_3,p_5); :}
-  | _SYMB_49 _SYMB_8 PureExp:p_3 _SYMB_9 Stm:p_5 _SYMB_41 Stm:p_7  {: RESULT = new bnfc.abs.Absyn.SIfElse(p_3,p_5,p_7); :}
-  | _SYMB_63 _SYMB_1  {: RESULT = new bnfc.abs.Absyn.SSuspend(); :}
-  | _SYMB_61 _SYMB_1  {: RESULT = new bnfc.abs.Absyn.SSkip(); :}
-  | _SYMB_33 PureExp:p_2 _SYMB_1  {: RESULT = new bnfc.abs.Absyn.SAssert(p_2); :}
-  | _SYMB_34 Guard:p_2 _SYMB_1  {: RESULT = new bnfc.abs.Absyn.SAwait(p_2); :}
-  | _SYMB_67 PureExp:p_2 _SYMB_1  {: RESULT = new bnfc.abs.Absyn.SThrow(p_2); :}
-  | _SYMB_68 Stm:p_2 _SYMB_37 _SYMB_11 ListCatchBranch:p_5 _SYMB_12 MaybeFinally:p_7  {: RESULT = new bnfc.abs.Absyn.STryCatchFinally(p_2,p_5,p_7); :}
-  | _SYMB_59 PureExp:p_2 _SYMB_1  {: RESULT = new bnfc.abs.Absyn.SPrint(p_2); :}
-;
-CatchBranch ::= Pattern:p_1 _SYMB_13 Stm:p_3  {: RESULT = new bnfc.abs.Absyn.CatchBranc(p_1,p_3); :} 
-;
-ListCatchBranch ::=  /* empty */  {: RESULT = new bnfc.abs.Absyn.ListCatchBranch(); :} 
-  | ListCatchBranch:p_1 CatchBranch:p_2  {: RESULT = p_1; p_1.addLast(p_2); :}
-;
-MaybeFinally ::= _SYMB_46 Stm:p_2  {: RESULT = new bnfc.abs.Absyn.JustFinally(p_2); :} 
-  |  /* empty */  {: RESULT = new bnfc.abs.Absyn.NoFinally(); :}
-;
-Guard ::= LIdent:p_1 _SYMB_14  {: RESULT = new bnfc.abs.Absyn.VarGuard(p_1); :} 
-  | _SYMB_65 _SYMB_6 LIdent:p_3 _SYMB_14  {: RESULT = new bnfc.abs.Absyn.FieldGuard(p_3); :}
-  | PureExp:p_1  {: RESULT = new bnfc.abs.Absyn.ExpGuard(p_1); :}
-  | Guard:p_1 _SYMB_15 Guard:p_3  {: RESULT = new bnfc.abs.Absyn.AndGuard(p_1,p_3); :}
+AwaitGuard ::= L:p_1 _SYMB_14  {: RESULT = new bnfc.abs.Absyn.GFut(p_1); :} 
+  | _SYMB_69 _SYMB_0 L:p_3 _SYMB_14  {: RESULT = new bnfc.abs.Absyn.GFutField(p_3); :}
+  | PureExp:p_1  {: RESULT = new bnfc.abs.Absyn.GExp(p_1); :}
+  | AwaitGuard:p_1 _SYMB_15 AwaitGuard:p_3  {: RESULT = new bnfc.abs.Absyn.GAnd(p_1,p_3); :}
+  | _SYMB_39 _SYMB_9 PureExp:p_3 _SYMB_1 PureExp:p_5 _SYMB_10  {: RESULT = new bnfc.abs.Absyn.GDuration(p_3,p_5); :}
 ;
 Exp ::= PureExp:p_1  {: RESULT = new bnfc.abs.Absyn.ExpP(p_1); :} 
   | EffExp:p_1  {: RESULT = new bnfc.abs.Absyn.ExpE(p_1); :}
 ;
 ListPureExp ::=  /* empty */  {: RESULT = new bnfc.abs.Absyn.ListPureExp(); :} 
   | PureExp:p_1  {: RESULT = new bnfc.abs.Absyn.ListPureExp(); RESULT.addLast(p_1); :}
-  | PureExp:p_1 _SYMB_0 ListPureExp:p_3  {: RESULT = p_3; p_3.addFirst(p_1); :}
+  | PureExp:p_1 _SYMB_1 ListPureExp:p_3  {: RESULT = p_3; p_3.addFirst(p_1); :}
 ;
 PureExp ::= PureExp:p_1 _SYMB_16 PureExp1:p_3  {: RESULT = new bnfc.abs.Absyn.EOr(p_1,p_3); :} 
   | PureExp1:p_1  {: RESULT = p_1; :}
-  | _SYMB_54 _SYMB_8 Param:p_3 _SYMB_9 _SYMB_7 PureExp:p_6 _SYMB_52 PureExp:p_8  {: RESULT = new bnfc.abs.Absyn.Let(p_3,p_6,p_8); :}
-  | _SYMB_49 PureExp:p_2 _SYMB_64 PureExp:p_4 _SYMB_41 PureExp:p_6  {: RESULT = new bnfc.abs.Absyn.If(p_2,p_4,p_6); :}
-  | _SYMB_36 PureExp:p_2 _SYMB_11 ListCaseBranch:p_4 _SYMB_12  {: RESULT = new bnfc.abs.Absyn.Case(p_2,p_4); :}
+  | _SYMB_53 _SYMB_9 FormalPar:p_3 _SYMB_10 _SYMB_7 PureExp:p_6 _SYMB_51 PureExp:p_8  {: RESULT = new bnfc.abs.Absyn.ELet(p_3,p_6,p_8); :}
+  | _SYMB_48 PureExp:p_2 _SYMB_68 PureExp:p_4 _SYMB_40 PureExp:p_6  {: RESULT = new bnfc.abs.Absyn.EIf(p_2,p_4,p_6); :}
+  | _SYMB_34 PureExp:p_2 _SYMB_11 ListECaseBranch:p_4 _SYMB_12  {: RESULT = new bnfc.abs.Absyn.ECase(p_2,p_4); :}
 ;
 PureExp1 ::= PureExp1:p_1 _SYMB_17 PureExp2:p_3  {: RESULT = new bnfc.abs.Absyn.EAnd(p_1,p_3); :} 
   | PureExp2:p_1  {: RESULT = p_1; :}
@@ -339,9 +328,9 @@ PureExp2 ::= PureExp2:p_1 _SYMB_18 PureExp3:p_3  {: RESULT = new bnfc.abs.Absyn.
   | PureExp2:p_1 _SYMB_19 PureExp3:p_3  {: RESULT = new bnfc.abs.Absyn.ENeq(p_1,p_3); :}
   | PureExp3:p_1  {: RESULT = p_1; :}
 ;
-PureExp3 ::= PureExp3:p_1 _SYMB_4 PureExp4:p_3  {: RESULT = new bnfc.abs.Absyn.ELt(p_1,p_3); :} 
+PureExp3 ::= PureExp3:p_1 _SYMB_2 PureExp4:p_3  {: RESULT = new bnfc.abs.Absyn.ELt(p_1,p_3); :} 
   | PureExp3:p_1 _SYMB_20 PureExp4:p_3  {: RESULT = new bnfc.abs.Absyn.ELe(p_1,p_3); :}
-  | PureExp3:p_1 _SYMB_5 PureExp4:p_3  {: RESULT = new bnfc.abs.Absyn.EGt(p_1,p_3); :}
+  | PureExp3:p_1 _SYMB_3 PureExp4:p_3  {: RESULT = new bnfc.abs.Absyn.EGt(p_1,p_3); :}
   | PureExp3:p_1 _SYMB_21 PureExp4:p_3  {: RESULT = new bnfc.abs.Absyn.EGe(p_1,p_3); :}
   | PureExp4:p_1  {: RESULT = p_1; :}
 ;
@@ -349,7 +338,7 @@ PureExp4 ::= PureExp4:p_1 _SYMB_22 PureExp5:p_3  {: RESULT = new bnfc.abs.Absyn.
   | PureExp4:p_1 _SYMB_23 PureExp5:p_3  {: RESULT = new bnfc.abs.Absyn.ESub(p_1,p_3); :}
   | PureExp5:p_1  {: RESULT = p_1; :}
 ;
-PureExp5 ::= PureExp5:p_1 _SYMB_2 PureExp6:p_3  {: RESULT = new bnfc.abs.Absyn.EMul(p_1,p_3); :} 
+PureExp5 ::= PureExp5:p_1 _SYMB_6 PureExp6:p_3  {: RESULT = new bnfc.abs.Absyn.EMul(p_1,p_3); :} 
   | PureExp5:p_1 _SYMB_24 PureExp6:p_3  {: RESULT = new bnfc.abs.Absyn.EDiv(p_1,p_3); :}
   | PureExp5:p_1 _SYMB_25 PureExp6:p_3  {: RESULT = new bnfc.abs.Absyn.EMod(p_1,p_3); :}
   | PureExp6:p_1  {: RESULT = p_1; :}
@@ -358,66 +347,64 @@ PureExp6 ::= _SYMB_26 PureExp6:p_2  {: RESULT = new bnfc.abs.Absyn.ELogNeg(p_2);
   | _SYMB_23 PureExp6:p_2  {: RESULT = new bnfc.abs.Absyn.EIntNeg(p_2); :}
   | PureExp7:p_1  {: RESULT = p_1; :}
 ;
-PureExp7 ::= LIdent:p_1 _SYMB_8 ListPureExp:p_3 _SYMB_9  {: RESULT = new bnfc.abs.Absyn.EFunCall(p_1,p_3); :} 
-  | TType:p_1 LIdent:p_2 _SYMB_8 ListPureExp:p_4 _SYMB_9  {: RESULT = new bnfc.abs.Absyn.EQualFunCall(p_1,p_2,p_4); :}
-  | LIdent:p_1 _SYMB_27 ListPureExp:p_3 _SYMB_28  {: RESULT = new bnfc.abs.Absyn.ENaryFunCall(p_1,p_3); :}
-  | TType:p_1 LIdent:p_2 _SYMB_27 ListPureExp:p_4 _SYMB_28  {: RESULT = new bnfc.abs.Absyn.ENaryQualFunCall(p_1,p_2,p_4); :}
-  | LIdent:p_1  {: RESULT = new bnfc.abs.Absyn.EVar(p_1); :}
-  | _SYMB_65 _SYMB_6 LIdent:p_3  {: RESULT = new bnfc.abs.Absyn.EThis(p_3); :}
-  | TType:p_1 LIdent:p_2  {: RESULT = new bnfc.abs.Absyn.EQualVar(p_1,p_2); :}
-  | QType:p_1  {: RESULT = new bnfc.abs.Absyn.ESinglConstr(p_1); :}
-  | QType:p_1 _SYMB_8 ListPureExp:p_3 _SYMB_9  {: RESULT = new bnfc.abs.Absyn.EParamConstr(p_1,p_3); :}
+PureExp7 ::= QL:p_1 _SYMB_9 ListPureExp:p_3 _SYMB_10  {: RESULT = new bnfc.abs.Absyn.EFunCall(p_1,p_3); :} 
+  | QL:p_1 _SYMB_27 ListPureExp:p_3 _SYMB_28  {: RESULT = new bnfc.abs.Absyn.ENaryFunCall(p_1,p_3); :}
+  | L:p_1  {: RESULT = new bnfc.abs.Absyn.EVar(p_1); :}
+  | _SYMB_69 _SYMB_0 L:p_3  {: RESULT = new bnfc.abs.Absyn.EField(p_3); :}
+  | QU:p_1  {: RESULT = new bnfc.abs.Absyn.ESinglConstr(p_1); :}
+  | QU:p_1 _SYMB_9 ListPureExp:p_3 _SYMB_10  {: RESULT = new bnfc.abs.Absyn.EParamConstr(p_1,p_3); :}
   | Literal:p_1  {: RESULT = new bnfc.abs.Absyn.ELit(p_1); :}
-  | _SYMB_8 PureExp:p_2 _SYMB_9  {: RESULT = p_2; :}
+  | _SYMB_9 PureExp:p_2 _SYMB_10  {: RESULT = p_2; :}
 ;
-CaseBranch ::= Pattern:p_1 _SYMB_13 PureExp:p_3  {: RESULT = new bnfc.abs.Absyn.CaseBranc(p_1,p_3); :} 
+ECaseBranch ::= Pattern:p_1 _SYMB_13 PureExp:p_3  {: RESULT = new bnfc.abs.Absyn.ECaseB(p_1,p_3); :} 
 ;
-ListCaseBranch ::= CaseBranch:p_1 _SYMB_1  {: RESULT = new bnfc.abs.Absyn.ListCaseBranch(); RESULT.addLast(p_1); :} 
-  | CaseBranch:p_1 _SYMB_1 ListCaseBranch:p_3  {: RESULT = p_3; p_3.addFirst(p_1); :}
+ListECaseBranch ::= ECaseBranch:p_1 _SYMB_5  {: RESULT = new bnfc.abs.Absyn.ListECaseBranch(); RESULT.addLast(p_1); :} 
+  | ECaseBranch:p_1 _SYMB_5 ListECaseBranch:p_3  {: RESULT = p_3; p_3.addFirst(p_1); :}
 ;
 ListPattern ::=  /* empty */  {: RESULT = new bnfc.abs.Absyn.ListPattern(); :} 
   | Pattern:p_1  {: RESULT = new bnfc.abs.Absyn.ListPattern(); RESULT.addLast(p_1); :}
-  | Pattern:p_1 _SYMB_0 ListPattern:p_3  {: RESULT = p_3; p_3.addFirst(p_1); :}
+  | Pattern:p_1 _SYMB_1 ListPattern:p_3  {: RESULT = p_3; p_3.addFirst(p_1); :}
 ;
-Pattern ::= LIdent:p_1  {: RESULT = new bnfc.abs.Absyn.PIdent(p_1); :} 
-  | Literal:p_1  {: RESULT = new bnfc.abs.Absyn.PLit(p_1); :}
-  | UIdent:p_1  {: RESULT = new bnfc.abs.Absyn.PSinglConstr(p_1); :}
-  | UIdent:p_1 _SYMB_8 ListPattern:p_3 _SYMB_9  {: RESULT = new bnfc.abs.Absyn.PParamConstr(p_1,p_3); :}
-  | _SYMB_3  {: RESULT = new bnfc.abs.Absyn.PUnderscore(); :}
+Pattern ::= Literal:p_1  {: RESULT = new bnfc.abs.Absyn.PLit(p_1); :} 
+  | L:p_1  {: RESULT = new bnfc.abs.Absyn.PVar(p_1); :}
+  | QU:p_1  {: RESULT = new bnfc.abs.Absyn.PSinglConstr(p_1); :}
+  | QU:p_1 _SYMB_9 ListPattern:p_3 _SYMB_10  {: RESULT = new bnfc.abs.Absyn.PParamConstr(p_1,p_3); :}
+  | _SYMB_4  {: RESULT = new bnfc.abs.Absyn.PWildCard(); :}
 ;
-Literal ::= _SYMB_58  {: RESULT = new bnfc.abs.Absyn.LNull(); :} 
-  | _SYMB_65  {: RESULT = new bnfc.abs.Absyn.LThis(); :}
-  | _SYMB_66  {: RESULT = new bnfc.abs.Absyn.LThisDC(); :}
-  | _STRING_:p_1  {: RESULT = new bnfc.abs.Absyn.LStr(p_1); :}
-  | _INTEGER_:p_1  {: RESULT = new bnfc.abs.Absyn.LInt(p_1); :}
-  | _SYMB_31  {: RESULT = new bnfc.abs.Absyn.LFalse(); :}
-  | _SYMB_32  {: RESULT = new bnfc.abs.Absyn.LTrue(); :}
+EffExp ::= _SYMB_56 QU:p_2 _SYMB_9 ListPureExp:p_4 _SYMB_10  {: RESULT = new bnfc.abs.Absyn.New(p_2,p_4); :} 
+  | _SYMB_56 _SYMB_54 QU:p_3 _SYMB_9 ListPureExp:p_5 _SYMB_10  {: RESULT = new bnfc.abs.Absyn.NewLocal(p_3,p_5); :}
+  | PureExp:p_1 _SYMB_0 L:p_3 _SYMB_9 ListPureExp:p_5 _SYMB_10  {: RESULT = new bnfc.abs.Absyn.SyncMethCall(p_1,p_3,p_5); :}
+  | _SYMB_69 _SYMB_0 L:p_3 _SYMB_9 ListPureExp:p_5 _SYMB_10  {: RESULT = new bnfc.abs.Absyn.ThisSyncMethCall(p_3,p_5); :}
+  | PureExp:p_1 _SYMB_29 L:p_3 _SYMB_9 ListPureExp:p_5 _SYMB_10  {: RESULT = new bnfc.abs.Absyn.AsyncMethCall(p_1,p_3,p_5); :}
+  | _SYMB_32 PureExp:p_2 _SYMB_29 L:p_4 _SYMB_9 ListPureExp:p_6 _SYMB_10  {: RESULT = new bnfc.abs.Absyn.AwaitMethCall(p_2,p_4,p_6); :}
+  | PureExp:p_1 _SYMB_0 _SYMB_47  {: RESULT = new bnfc.abs.Absyn.Get(p_1); :}
+  | _SYMB_64 _SYMB_9 _SYMB_10 _SYMB_5  {: RESULT = new bnfc.abs.Absyn.Readln(); :}
+  | _SYMB_62  {: RESULT = new bnfc.abs.Absyn.ProNew(); :}
+  | PureExp:p_1 _SYMB_0 _SYMB_63  {: RESULT = new bnfc.abs.Absyn.ProTry(p_1); :}
+  | _SYMB_57 _SYMB_9 _SYMB_10  {: RESULT = new bnfc.abs.Absyn.Now(); :}
 ;
-EffExp ::= _SYMB_57 Type:p_2 _SYMB_8 ListPureExp:p_4 _SYMB_9  {: RESULT = new bnfc.abs.Absyn.New(p_2,p_4); :} 
-  | _SYMB_57 _SYMB_55 Type:p_3 _SYMB_8 ListPureExp:p_5 _SYMB_9  {: RESULT = new bnfc.abs.Absyn.NewLocal(p_3,p_5); :}
-  | PureExp:p_1 _SYMB_6 LIdent:p_3 _SYMB_8 ListPureExp:p_5 _SYMB_9  {: RESULT = new bnfc.abs.Absyn.SyncMethCall(p_1,p_3,p_5); :}
-  | _SYMB_65 _SYMB_6 LIdent:p_3 _SYMB_8 ListPureExp:p_5 _SYMB_9  {: RESULT = new bnfc.abs.Absyn.ThisSyncMethCall(p_3,p_5); :}
-  | PureExp:p_1 _SYMB_29 LIdent:p_3 _SYMB_8 ListPureExp:p_5 _SYMB_9  {: RESULT = new bnfc.abs.Absyn.AsyncMethCall(p_1,p_3,p_5); :}
-  | _SYMB_65 _SYMB_29 LIdent:p_3 _SYMB_8 ListPureExp:p_5 _SYMB_9  {: RESULT = new bnfc.abs.Absyn.ThisAsyncMethCall(p_3,p_5); :}
-  | PureExp:p_1 _SYMB_6 _SYMB_48  {: RESULT = new bnfc.abs.Absyn.Get(p_1); :}
-  | PureExp:p_1 _SYMB_62 Type:p_3 _SYMB_8 ListPureExp:p_5 _SYMB_9  {: RESULT = new bnfc.abs.Absyn.Spawns(p_1,p_3,p_5); :}
-;
-Ann ::=  /* empty */  {: RESULT = new bnfc.abs.Absyn.NoAnn(); :} 
-  | _SYMB_27 PureExp:p_2 _SYMB_28  {: RESULT = new bnfc.abs.Absyn.SimpleAnn(p_2); :}
-  | _SYMB_27 Literal:p_2 _SYMB_30 Literal:p_4 _SYMB_28  {: RESULT = new bnfc.abs.Absyn.MappedAnn(p_2,p_4); :}
+Ann ::= _SYMB_27 Ann_:p_2 _SYMB_28  {: RESULT = new bnfc.abs.Absyn.Annotation(p_2); :} 
 ;
 ListAnn ::=  /* empty */  {: RESULT = new bnfc.abs.Absyn.ListAnn(); :} 
   | ListAnn:p_1 Ann:p_2  {: RESULT = p_1; p_1.addLast(p_2); :}
 ;
-AnnDecl ::= ListAnn:p_1 Decl:p_2  {: RESULT = new bnfc.abs.Absyn.AnnDec(p_1,p_2); :} 
+Ann_ ::= PureExp:p_1  {: RESULT = new bnfc.abs.Absyn.AnnNoType(p_1); :} 
+  | T:p_1 _SYMB_30 PureExp:p_3  {: RESULT = new bnfc.abs.Absyn.AnnWithType(p_1,p_3); :}
+;
+AnnStm ::= ListAnn:p_1 Stm:p_2  {: RESULT = new bnfc.abs.Absyn.AnnStatement(p_1,p_2); :} 
+;
+ListAnnStm ::=  /* empty */  {: RESULT = new bnfc.abs.Absyn.ListAnnStm(); :} 
+  | ListAnnStm:p_1 AnnStm:p_2  {: RESULT = p_1; p_1.addLast(p_2); :}
+;
+AnnDecl ::= ListAnn:p_1 Decl:p_2  {: RESULT = new bnfc.abs.Absyn.AnnDeclaration(p_1,p_2); :} 
 ;
 ListAnnDecl ::=  /* empty */  {: RESULT = new bnfc.abs.Absyn.ListAnnDecl(); :} 
   | ListAnnDecl:p_1 AnnDecl:p_2  {: RESULT = p_1; p_1.addLast(p_2); :}
 ;
-AnnType ::= ListAnn:p_1 Type:p_2  {: RESULT = new bnfc.abs.Absyn.AnnTyp(p_1,p_2); :} 
+MaybeFinally ::= _SYMB_45 AnnStm:p_2  {: RESULT = new bnfc.abs.Absyn.JustFinally(p_2); :} 
+  |  /* empty */  {: RESULT = new bnfc.abs.Absyn.NoFinally(); :}
 ;
-ListAnnType ::=  /* empty */  {: RESULT = new bnfc.abs.Absyn.ListAnnType(); :} 
-  | AnnType:p_1  {: RESULT = new bnfc.abs.Absyn.ListAnnType(); RESULT.addLast(p_1); :}
-  | AnnType:p_1 _SYMB_0 ListAnnType:p_3  {: RESULT = p_3; p_3.addFirst(p_1); :}
+MaybeBlock ::= _SYMB_11 ListAnnStm:p_2 _SYMB_12  {: RESULT = new bnfc.abs.Absyn.JustBlock(p_2); :} 
+  |  /* empty */  {: RESULT = new bnfc.abs.Absyn.NoBlock(); :}
 ;
 

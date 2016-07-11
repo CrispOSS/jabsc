@@ -10,13 +10,93 @@ public abstract class FoldVisitor<R,A> implements AllVisitor<R,A> {
     public abstract R leaf(A arg);
     public abstract R combine(R x, R y, A arg);
 
-/* AnyIdent */
-    public R visit(bnfc.abs.Absyn.AnyIden p, A arg) {
+/* Literal */
+    public R visit(bnfc.abs.Absyn.LNull p, A arg) {
       R r = leaf(arg);
       return r;
     }
-    public R visit(bnfc.abs.Absyn.AnyTyIden p, A arg) {
+    public R visit(bnfc.abs.Absyn.LThis p, A arg) {
       R r = leaf(arg);
+      return r;
+    }
+    public R visit(bnfc.abs.Absyn.LStr p, A arg) {
+      R r = leaf(arg);
+      return r;
+    }
+    public R visit(bnfc.abs.Absyn.LInt p, A arg) {
+      R r = leaf(arg);
+      return r;
+    }
+    public R visit(bnfc.abs.Absyn.LFloat p, A arg) {
+      R r = leaf(arg);
+      return r;
+    }
+    public R visit(bnfc.abs.Absyn.LThisDC p, A arg) {
+      R r = leaf(arg);
+      return r;
+    }
+
+/* QU */
+    public R visit(bnfc.abs.Absyn.U_ p, A arg) {
+      R r = leaf(arg);
+      return r;
+    }
+    public R visit(bnfc.abs.Absyn.QU_ p, A arg) {
+      R r = leaf(arg);
+      r = combine(p.qu_.accept(this, arg), r, arg);
+      return r;
+    }
+
+/* QL */
+    public R visit(bnfc.abs.Absyn.L_ p, A arg) {
+      R r = leaf(arg);
+      return r;
+    }
+    public R visit(bnfc.abs.Absyn.QL_ p, A arg) {
+      R r = leaf(arg);
+      r = combine(p.ql_.accept(this, arg), r, arg);
+      return r;
+    }
+
+/* QA */
+    public R visit(bnfc.abs.Absyn.LA p, A arg) {
+      R r = leaf(arg);
+      return r;
+    }
+    public R visit(bnfc.abs.Absyn.UA p, A arg) {
+      R r = leaf(arg);
+      return r;
+    }
+    public R visit(bnfc.abs.Absyn.QA_ p, A arg) {
+      R r = leaf(arg);
+      r = combine(p.qa_.accept(this, arg), r, arg);
+      return r;
+    }
+
+/* T */
+    public R visit(bnfc.abs.Absyn.TSimple p, A arg) {
+      R r = leaf(arg);
+      r = combine(p.qu_.accept(this, arg), r, arg);
+      return r;
+    }
+    public R visit(bnfc.abs.Absyn.TPoly p, A arg) {
+      R r = leaf(arg);
+      r = combine(p.qu_.accept(this, arg), r, arg);
+      for (T x : p.listt_)
+      {
+        r = combine(x.accept(this, arg), r, arg);
+      }
+      return r;
+    }
+    public R visit(bnfc.abs.Absyn.TInfer p, A arg) {
+      R r = leaf(arg);
+      return r;
+    }
+
+/* FormalPar */
+    public R visit(bnfc.abs.Absyn.FormalParameter p, A arg) {
+      R r = leaf(arg);
+      r = combine(p.t_.accept(this, arg), r, arg);
       return r;
     }
 
@@ -31,9 +111,9 @@ public abstract class FoldVisitor<R,A> implements AllVisitor<R,A> {
     }
 
 /* Module */
-    public R visit(bnfc.abs.Absyn.Modul p, A arg) {
+    public R visit(bnfc.abs.Absyn.Mod p, A arg) {
       R r = leaf(arg);
-      r = combine(p.qtype_.accept(this, arg), r, arg);
+      r = combine(p.qu_.accept(this, arg), r, arg);
       for (Export x : p.listexport_)
       {
         r = combine(x.accept(this, arg), r, arg);
@@ -42,7 +122,7 @@ public abstract class FoldVisitor<R,A> implements AllVisitor<R,A> {
       {
         r = combine(x.accept(this, arg), r, arg);
       }
-      for (Decl x : p.listdecl_)
+      for (AnnDecl x : p.listanndecl_)
       {
         r = combine(x.accept(this, arg), r, arg);
       }
@@ -51,9 +131,18 @@ public abstract class FoldVisitor<R,A> implements AllVisitor<R,A> {
     }
 
 /* Export */
+    public R visit(bnfc.abs.Absyn.StarExport p, A arg) {
+      R r = leaf(arg);
+      return r;
+    }
+    public R visit(bnfc.abs.Absyn.StarFromExport p, A arg) {
+      R r = leaf(arg);
+      r = combine(p.qu_.accept(this, arg), r, arg);
+      return r;
+    }
     public R visit(bnfc.abs.Absyn.AnyExport p, A arg) {
       R r = leaf(arg);
-      for (AnyIdent x : p.listanyident_)
+      for (QA x : p.listqa_)
       {
         r = combine(x.accept(this, arg), r, arg);
       }
@@ -61,254 +150,189 @@ public abstract class FoldVisitor<R,A> implements AllVisitor<R,A> {
     }
     public R visit(bnfc.abs.Absyn.AnyFromExport p, A arg) {
       R r = leaf(arg);
-      for (AnyIdent x : p.listanyident_)
+      for (QA x : p.listqa_)
       {
         r = combine(x.accept(this, arg), r, arg);
       }
-      r = combine(p.qtype_.accept(this, arg), r, arg);
-      return r;
-    }
-    public R visit(bnfc.abs.Absyn.StarExport p, A arg) {
-      R r = leaf(arg);
-      return r;
-    }
-    public R visit(bnfc.abs.Absyn.StarFromExport p, A arg) {
-      R r = leaf(arg);
-      r = combine(p.qtype_.accept(this, arg), r, arg);
+      r = combine(p.qu_.accept(this, arg), r, arg);
       return r;
     }
 
 /* Import */
+    public R visit(bnfc.abs.Absyn.StarFromImport p, A arg) {
+      R r = leaf(arg);
+      r = combine(p.isforeign_.accept(this, arg), r, arg);
+      r = combine(p.qu_.accept(this, arg), r, arg);
+      return r;
+    }
     public R visit(bnfc.abs.Absyn.AnyImport p, A arg) {
       R r = leaf(arg);
-      r = combine(p.importtype_.accept(this, arg), r, arg);
-      r = combine(p.ttype_.accept(this, arg), r, arg);
-      r = combine(p.anyident_.accept(this, arg), r, arg);
+      r = combine(p.isforeign_.accept(this, arg), r, arg);
+      for (QA x : p.listqa_)
+      {
+        r = combine(x.accept(this, arg), r, arg);
+      }
       return r;
     }
     public R visit(bnfc.abs.Absyn.AnyFromImport p, A arg) {
       R r = leaf(arg);
-      r = combine(p.importtype_.accept(this, arg), r, arg);
-      for (AnyIdent x : p.listanyident_)
+      r = combine(p.isforeign_.accept(this, arg), r, arg);
+      for (QA x : p.listqa_)
       {
         r = combine(x.accept(this, arg), r, arg);
       }
-      r = combine(p.qtype_.accept(this, arg), r, arg);
-      return r;
-    }
-    public R visit(bnfc.abs.Absyn.StarFromImport p, A arg) {
-      R r = leaf(arg);
-      r = combine(p.importtype_.accept(this, arg), r, arg);
-      r = combine(p.qtype_.accept(this, arg), r, arg);
+      r = combine(p.qu_.accept(this, arg), r, arg);
       return r;
     }
 
-/* ImportType */
-    public R visit(bnfc.abs.Absyn.ForeignImport p, A arg) {
+/* IsForeign */
+    public R visit(bnfc.abs.Absyn.NoForeign p, A arg) {
       R r = leaf(arg);
       return r;
     }
-    public R visit(bnfc.abs.Absyn.NormalImport p, A arg) {
-      R r = leaf(arg);
-      return r;
-    }
-
-/* Type */
-    public R visit(bnfc.abs.Absyn.TUnderscore p, A arg) {
-      R r = leaf(arg);
-      return r;
-    }
-    public R visit(bnfc.abs.Absyn.TSimple p, A arg) {
-      R r = leaf(arg);
-      r = combine(p.qtype_.accept(this, arg), r, arg);
-      return r;
-    }
-    public R visit(bnfc.abs.Absyn.TGen p, A arg) {
-      R r = leaf(arg);
-      r = combine(p.qtype_.accept(this, arg), r, arg);
-      for (Type x : p.listtype_)
-      {
-        r = combine(x.accept(this, arg), r, arg);
-      }
-      return r;
-    }
-
-/* QType */
-    public R visit(bnfc.abs.Absyn.QTyp p, A arg) {
-      R r = leaf(arg);
-      for (QTypeSegment x : p.listqtypesegment_)
-      {
-        r = combine(x.accept(this, arg), r, arg);
-      }
-      return r;
-    }
-
-/* QTypeSegment */
-    public R visit(bnfc.abs.Absyn.QTypeSegmen p, A arg) {
-      R r = leaf(arg);
-      return r;
-    }
-
-/* TType */
-    public R visit(bnfc.abs.Absyn.TTyp p, A arg) {
-      R r = leaf(arg);
-      for (TTypeSegment x : p.listttypesegment_)
-      {
-        r = combine(x.accept(this, arg), r, arg);
-      }
-      return r;
-    }
-
-/* TTypeSegment */
-    public R visit(bnfc.abs.Absyn.TTypeSegmen p, A arg) {
+    public R visit(bnfc.abs.Absyn.YesForeign p, A arg) {
       R r = leaf(arg);
       return r;
     }
 
 /* Decl */
-    public R visit(bnfc.abs.Absyn.TypeDecl p, A arg) {
+    public R visit(bnfc.abs.Absyn.DType p, A arg) {
       R r = leaf(arg);
-      r = combine(p.type_.accept(this, arg), r, arg);
+      r = combine(p.t_.accept(this, arg), r, arg);
       return r;
     }
-    public R visit(bnfc.abs.Absyn.TypeParDecl p, A arg) {
+    public R visit(bnfc.abs.Absyn.DTypePoly p, A arg) {
       R r = leaf(arg);
-      r = combine(p.type_.accept(this, arg), r, arg);
+      r = combine(p.t_.accept(this, arg), r, arg);
       return r;
     }
-    public R visit(bnfc.abs.Absyn.ExceptionDecl p, A arg) {
+    public R visit(bnfc.abs.Absyn.DData p, A arg) {
+      R r = leaf(arg);
+      for (ConstrIdent x : p.listconstrident_)
+      {
+        r = combine(x.accept(this, arg), r, arg);
+      }
+      return r;
+    }
+    public R visit(bnfc.abs.Absyn.DDataPoly p, A arg) {
+      R r = leaf(arg);
+      for (ConstrIdent x : p.listconstrident_)
+      {
+        r = combine(x.accept(this, arg), r, arg);
+      }
+      return r;
+    }
+    public R visit(bnfc.abs.Absyn.DFun p, A arg) {
+      R r = leaf(arg);
+      r = combine(p.t_.accept(this, arg), r, arg);
+      for (FormalPar x : p.listformalpar_)
+      {
+        r = combine(x.accept(this, arg), r, arg);
+      }
+      r = combine(p.funbody_.accept(this, arg), r, arg);
+      return r;
+    }
+    public R visit(bnfc.abs.Absyn.DFunPoly p, A arg) {
+      R r = leaf(arg);
+      r = combine(p.t_.accept(this, arg), r, arg);
+      for (FormalPar x : p.listformalpar_)
+      {
+        r = combine(x.accept(this, arg), r, arg);
+      }
+      r = combine(p.funbody_.accept(this, arg), r, arg);
+      return r;
+    }
+    public R visit(bnfc.abs.Absyn.DInterf p, A arg) {
+      R r = leaf(arg);
+      for (MethSig x : p.listmethsig_)
+      {
+        r = combine(x.accept(this, arg), r, arg);
+      }
+      return r;
+    }
+    public R visit(bnfc.abs.Absyn.DExtends p, A arg) {
+      R r = leaf(arg);
+      for (QU x : p.listqu_)
+      {
+        r = combine(x.accept(this, arg), r, arg);
+      }
+      for (MethSig x : p.listmethsig_)
+      {
+        r = combine(x.accept(this, arg), r, arg);
+      }
+      return r;
+    }
+    public R visit(bnfc.abs.Absyn.DClass p, A arg) {
+      R r = leaf(arg);
+      for (ClassBody x : p.listclassbody_1)
+      {
+        r = combine(x.accept(this, arg), r, arg);
+      }
+      r = combine(p.maybeblock_.accept(this, arg), r, arg);
+      for (ClassBody x : p.listclassbody_2)
+      {
+        r = combine(x.accept(this, arg), r, arg);
+      }
+      return r;
+    }
+    public R visit(bnfc.abs.Absyn.DClassPar p, A arg) {
+      R r = leaf(arg);
+      for (FormalPar x : p.listformalpar_)
+      {
+        r = combine(x.accept(this, arg), r, arg);
+      }
+      for (ClassBody x : p.listclassbody_1)
+      {
+        r = combine(x.accept(this, arg), r, arg);
+      }
+      r = combine(p.maybeblock_.accept(this, arg), r, arg);
+      for (ClassBody x : p.listclassbody_2)
+      {
+        r = combine(x.accept(this, arg), r, arg);
+      }
+      return r;
+    }
+    public R visit(bnfc.abs.Absyn.DClassImplements p, A arg) {
+      R r = leaf(arg);
+      for (QU x : p.listqu_)
+      {
+        r = combine(x.accept(this, arg), r, arg);
+      }
+      for (ClassBody x : p.listclassbody_1)
+      {
+        r = combine(x.accept(this, arg), r, arg);
+      }
+      r = combine(p.maybeblock_.accept(this, arg), r, arg);
+      for (ClassBody x : p.listclassbody_2)
+      {
+        r = combine(x.accept(this, arg), r, arg);
+      }
+      return r;
+    }
+    public R visit(bnfc.abs.Absyn.DClassParImplements p, A arg) {
+      R r = leaf(arg);
+      for (FormalPar x : p.listformalpar_)
+      {
+        r = combine(x.accept(this, arg), r, arg);
+      }
+      for (QU x : p.listqu_)
+      {
+        r = combine(x.accept(this, arg), r, arg);
+      }
+      for (ClassBody x : p.listclassbody_1)
+      {
+        r = combine(x.accept(this, arg), r, arg);
+      }
+      r = combine(p.maybeblock_.accept(this, arg), r, arg);
+      for (ClassBody x : p.listclassbody_2)
+      {
+        r = combine(x.accept(this, arg), r, arg);
+      }
+      return r;
+    }
+    public R visit(bnfc.abs.Absyn.DException p, A arg) {
       R r = leaf(arg);
       r = combine(p.constrident_.accept(this, arg), r, arg);
-      return r;
-    }
-    public R visit(bnfc.abs.Absyn.DataDecl p, A arg) {
-      R r = leaf(arg);
-      for (ConstrIdent x : p.listconstrident_)
-      {
-        r = combine(x.accept(this, arg), r, arg);
-      }
-      return r;
-    }
-    public R visit(bnfc.abs.Absyn.DataParDecl p, A arg) {
-      R r = leaf(arg);
-      for (ConstrIdent x : p.listconstrident_)
-      {
-        r = combine(x.accept(this, arg), r, arg);
-      }
-      return r;
-    }
-    public R visit(bnfc.abs.Absyn.FunDecl p, A arg) {
-      R r = leaf(arg);
-      r = combine(p.type_.accept(this, arg), r, arg);
-      for (Param x : p.listparam_)
-      {
-        r = combine(x.accept(this, arg), r, arg);
-      }
-      r = combine(p.funbody_.accept(this, arg), r, arg);
-      return r;
-    }
-    public R visit(bnfc.abs.Absyn.FunParDecl p, A arg) {
-      R r = leaf(arg);
-      r = combine(p.type_.accept(this, arg), r, arg);
-      for (Param x : p.listparam_)
-      {
-        r = combine(x.accept(this, arg), r, arg);
-      }
-      r = combine(p.funbody_.accept(this, arg), r, arg);
-      return r;
-    }
-    public R visit(bnfc.abs.Absyn.InterfDecl p, A arg) {
-      R r = leaf(arg);
-      r = combine(p.ann_.accept(this, arg), r, arg);
-      for (MethSignat x : p.listmethsignat_)
-      {
-        r = combine(x.accept(this, arg), r, arg);
-      }
-      return r;
-    }
-    public R visit(bnfc.abs.Absyn.ExtendsDecl p, A arg) {
-      R r = leaf(arg);
-      r = combine(p.ann_.accept(this, arg), r, arg);
-      for (QType x : p.listqtype_)
-      {
-        r = combine(x.accept(this, arg), r, arg);
-      }
-      for (MethSignat x : p.listmethsignat_)
-      {
-        r = combine(x.accept(this, arg), r, arg);
-      }
-      return r;
-    }
-    public R visit(bnfc.abs.Absyn.ClassDecl p, A arg) {
-      R r = leaf(arg);
-      r = combine(p.ann_.accept(this, arg), r, arg);
-      for (ClassBody x : p.listclassbody_1)
-      {
-        r = combine(x.accept(this, arg), r, arg);
-      }
-      r = combine(p.maybeblock_.accept(this, arg), r, arg);
-      for (ClassBody x : p.listclassbody_2)
-      {
-        r = combine(x.accept(this, arg), r, arg);
-      }
-      return r;
-    }
-    public R visit(bnfc.abs.Absyn.ClassParamDecl p, A arg) {
-      R r = leaf(arg);
-      r = combine(p.ann_.accept(this, arg), r, arg);
-      for (Param x : p.listparam_)
-      {
-        r = combine(x.accept(this, arg), r, arg);
-      }
-      for (ClassBody x : p.listclassbody_1)
-      {
-        r = combine(x.accept(this, arg), r, arg);
-      }
-      r = combine(p.maybeblock_.accept(this, arg), r, arg);
-      for (ClassBody x : p.listclassbody_2)
-      {
-        r = combine(x.accept(this, arg), r, arg);
-      }
-      return r;
-    }
-    public R visit(bnfc.abs.Absyn.ClassImplements p, A arg) {
-      R r = leaf(arg);
-      r = combine(p.ann_.accept(this, arg), r, arg);
-      for (QType x : p.listqtype_)
-      {
-        r = combine(x.accept(this, arg), r, arg);
-      }
-      for (ClassBody x : p.listclassbody_1)
-      {
-        r = combine(x.accept(this, arg), r, arg);
-      }
-      r = combine(p.maybeblock_.accept(this, arg), r, arg);
-      for (ClassBody x : p.listclassbody_2)
-      {
-        r = combine(x.accept(this, arg), r, arg);
-      }
-      return r;
-    }
-    public R visit(bnfc.abs.Absyn.ClassParamImplements p, A arg) {
-      R r = leaf(arg);
-      r = combine(p.ann_.accept(this, arg), r, arg);
-      for (Param x : p.listparam_)
-      {
-        r = combine(x.accept(this, arg), r, arg);
-      }
-      for (QType x : p.listqtype_)
-      {
-        r = combine(x.accept(this, arg), r, arg);
-      }
-      for (ClassBody x : p.listclassbody_1)
-      {
-        r = combine(x.accept(this, arg), r, arg);
-      }
-      r = combine(p.maybeblock_.accept(this, arg), r, arg);
-      for (ClassBody x : p.listclassbody_2)
-      {
-        r = combine(x.accept(this, arg), r, arg);
-      }
       return r;
     }
 
@@ -329,12 +353,12 @@ public abstract class FoldVisitor<R,A> implements AllVisitor<R,A> {
 /* ConstrType */
     public R visit(bnfc.abs.Absyn.EmptyConstrType p, A arg) {
       R r = leaf(arg);
-      r = combine(p.type_.accept(this, arg), r, arg);
+      r = combine(p.t_.accept(this, arg), r, arg);
       return r;
     }
     public R visit(bnfc.abs.Absyn.RecordConstrType p, A arg) {
       R r = leaf(arg);
-      r = combine(p.type_.accept(this, arg), r, arg);
+      r = combine(p.t_.accept(this, arg), r, arg);
       return r;
     }
 
@@ -349,11 +373,15 @@ public abstract class FoldVisitor<R,A> implements AllVisitor<R,A> {
       return r;
     }
 
-/* MethSignat */
-    public R visit(bnfc.abs.Absyn.MethSig p, A arg) {
+/* MethSig */
+    public R visit(bnfc.abs.Absyn.MethSignature p, A arg) {
       R r = leaf(arg);
-      r = combine(p.type_.accept(this, arg), r, arg);
-      for (Param x : p.listparam_)
+      for (Ann x : p.listann_)
+      {
+        r = combine(x.accept(this, arg), r, arg);
+      }
+      r = combine(p.t_.accept(this, arg), r, arg);
+      for (FormalPar x : p.listformalpar_)
       {
         r = combine(x.accept(this, arg), r, arg);
       }
@@ -363,77 +391,51 @@ public abstract class FoldVisitor<R,A> implements AllVisitor<R,A> {
 /* ClassBody */
     public R visit(bnfc.abs.Absyn.FieldClassBody p, A arg) {
       R r = leaf(arg);
-      r = combine(p.type_.accept(this, arg), r, arg);
+      r = combine(p.t_.accept(this, arg), r, arg);
       return r;
     }
     public R visit(bnfc.abs.Absyn.FieldAssignClassBody p, A arg) {
       R r = leaf(arg);
-      r = combine(p.type_.accept(this, arg), r, arg);
+      r = combine(p.t_.accept(this, arg), r, arg);
       r = combine(p.pureexp_.accept(this, arg), r, arg);
       return r;
     }
     public R visit(bnfc.abs.Absyn.MethClassBody p, A arg) {
       R r = leaf(arg);
-      r = combine(p.type_.accept(this, arg), r, arg);
-      for (Param x : p.listparam_)
+      r = combine(p.t_.accept(this, arg), r, arg);
+      for (FormalPar x : p.listformalpar_)
       {
         r = combine(x.accept(this, arg), r, arg);
       }
-      r = combine(p.block_.accept(this, arg), r, arg);
-      return r;
-    }
-
-/* Block */
-    public R visit(bnfc.abs.Absyn.Bloc p, A arg) {
-      R r = leaf(arg);
-      for (Stm x : p.liststm_)
+      for (AnnStm x : p.listannstm_)
       {
         r = combine(x.accept(this, arg), r, arg);
       }
-      return r;
-    }
-
-/* MaybeBlock */
-    public R visit(bnfc.abs.Absyn.JustBlock p, A arg) {
-      R r = leaf(arg);
-      r = combine(p.block_.accept(this, arg), r, arg);
-      return r;
-    }
-    public R visit(bnfc.abs.Absyn.NoBlock p, A arg) {
-      R r = leaf(arg);
-      return r;
-    }
-
-/* Param */
-    public R visit(bnfc.abs.Absyn.Par p, A arg) {
-      R r = leaf(arg);
-      r = combine(p.type_.accept(this, arg), r, arg);
       return r;
     }
 
 /* Stm */
-    public R visit(bnfc.abs.Absyn.SExp p, A arg) {
+    public R visit(bnfc.abs.Absyn.SSkip p, A arg) {
       R r = leaf(arg);
-      r = combine(p.exp_.accept(this, arg), r, arg);
       return r;
     }
-    public R visit(bnfc.abs.Absyn.SBlock p, A arg) {
+    public R visit(bnfc.abs.Absyn.SSuspend p, A arg) {
       R r = leaf(arg);
-      for (Stm x : p.liststm_)
-      {
-        r = combine(x.accept(this, arg), r, arg);
-      }
-      return r;
-    }
-    public R visit(bnfc.abs.Absyn.SWhile p, A arg) {
-      R r = leaf(arg);
-      r = combine(p.pureexp_.accept(this, arg), r, arg);
-      r = combine(p.stm_.accept(this, arg), r, arg);
       return r;
     }
     public R visit(bnfc.abs.Absyn.SReturn p, A arg) {
       R r = leaf(arg);
       r = combine(p.exp_.accept(this, arg), r, arg);
+      return r;
+    }
+    public R visit(bnfc.abs.Absyn.SAssert p, A arg) {
+      R r = leaf(arg);
+      r = combine(p.pureexp_.accept(this, arg), r, arg);
+      return r;
+    }
+    public R visit(bnfc.abs.Absyn.SAwait p, A arg) {
+      R r = leaf(arg);
+      r = combine(p.awaitguard_.accept(this, arg), r, arg);
       return r;
     }
     public R visit(bnfc.abs.Absyn.SAss p, A arg) {
@@ -448,13 +450,19 @@ public abstract class FoldVisitor<R,A> implements AllVisitor<R,A> {
     }
     public R visit(bnfc.abs.Absyn.SDec p, A arg) {
       R r = leaf(arg);
-      r = combine(p.type_.accept(this, arg), r, arg);
+      r = combine(p.t_.accept(this, arg), r, arg);
       return r;
     }
     public R visit(bnfc.abs.Absyn.SDecAss p, A arg) {
       R r = leaf(arg);
-      r = combine(p.type_.accept(this, arg), r, arg);
+      r = combine(p.t_.accept(this, arg), r, arg);
       r = combine(p.exp_.accept(this, arg), r, arg);
+      return r;
+    }
+    public R visit(bnfc.abs.Absyn.SWhile p, A arg) {
+      R r = leaf(arg);
+      r = combine(p.pureexp_.accept(this, arg), r, arg);
+      r = combine(p.annstm_.accept(this, arg), r, arg);
       return r;
     }
     public R visit(bnfc.abs.Absyn.SIf p, A arg) {
@@ -470,22 +478,36 @@ public abstract class FoldVisitor<R,A> implements AllVisitor<R,A> {
       r = combine(p.stm_2.accept(this, arg), r, arg);
       return r;
     }
-    public R visit(bnfc.abs.Absyn.SSuspend p, A arg) {
+    public R visit(bnfc.abs.Absyn.SCase p, A arg) {
       R r = leaf(arg);
+      r = combine(p.pureexp_.accept(this, arg), r, arg);
+      for (SCaseBranch x : p.listscasebranch_)
+      {
+        r = combine(x.accept(this, arg), r, arg);
+      }
       return r;
     }
-    public R visit(bnfc.abs.Absyn.SSkip p, A arg) {
+    public R visit(bnfc.abs.Absyn.SBlock p, A arg) {
       R r = leaf(arg);
+      for (AnnStm x : p.listannstm_)
+      {
+        r = combine(x.accept(this, arg), r, arg);
+      }
       return r;
     }
-    public R visit(bnfc.abs.Absyn.SAssert p, A arg) {
+    public R visit(bnfc.abs.Absyn.SExp p, A arg) {
+      R r = leaf(arg);
+      r = combine(p.exp_.accept(this, arg), r, arg);
+      return r;
+    }
+    public R visit(bnfc.abs.Absyn.SPrint p, A arg) {
       R r = leaf(arg);
       r = combine(p.pureexp_.accept(this, arg), r, arg);
       return r;
     }
-    public R visit(bnfc.abs.Absyn.SAwait p, A arg) {
+    public R visit(bnfc.abs.Absyn.SPrintln p, A arg) {
       R r = leaf(arg);
-      r = combine(p.guard_.accept(this, arg), r, arg);
+      r = combine(p.pureexp_.accept(this, arg), r, arg);
       return r;
     }
     public R visit(bnfc.abs.Absyn.SThrow p, A arg) {
@@ -495,57 +517,59 @@ public abstract class FoldVisitor<R,A> implements AllVisitor<R,A> {
     }
     public R visit(bnfc.abs.Absyn.STryCatchFinally p, A arg) {
       R r = leaf(arg);
-      r = combine(p.stm_.accept(this, arg), r, arg);
-      for (CatchBranch x : p.listcatchbranch_)
+      r = combine(p.annstm_.accept(this, arg), r, arg);
+      for (SCaseBranch x : p.listscasebranch_)
       {
         r = combine(x.accept(this, arg), r, arg);
       }
       r = combine(p.maybefinally_.accept(this, arg), r, arg);
       return r;
     }
-    public R visit(bnfc.abs.Absyn.SPrint p, A arg) {
+    public R visit(bnfc.abs.Absyn.SGive p, A arg) {
       R r = leaf(arg);
-      r = combine(p.pureexp_.accept(this, arg), r, arg);
+      r = combine(p.pureexp_1.accept(this, arg), r, arg);
+      r = combine(p.pureexp_2.accept(this, arg), r, arg);
+      return r;
+    }
+    public R visit(bnfc.abs.Absyn.SDuration p, A arg) {
+      R r = leaf(arg);
+      r = combine(p.pureexp_1.accept(this, arg), r, arg);
+      r = combine(p.pureexp_2.accept(this, arg), r, arg);
       return r;
     }
 
-/* CatchBranch */
-    public R visit(bnfc.abs.Absyn.CatchBranc p, A arg) {
+/* SCaseBranch */
+    public R visit(bnfc.abs.Absyn.SCaseB p, A arg) {
       R r = leaf(arg);
       r = combine(p.pattern_.accept(this, arg), r, arg);
-      r = combine(p.stm_.accept(this, arg), r, arg);
+      r = combine(p.annstm_.accept(this, arg), r, arg);
       return r;
     }
 
-/* MaybeFinally */
-    public R visit(bnfc.abs.Absyn.JustFinally p, A arg) {
-      R r = leaf(arg);
-      r = combine(p.stm_.accept(this, arg), r, arg);
-      return r;
-    }
-    public R visit(bnfc.abs.Absyn.NoFinally p, A arg) {
+/* AwaitGuard */
+    public R visit(bnfc.abs.Absyn.GFut p, A arg) {
       R r = leaf(arg);
       return r;
     }
-
-/* Guard */
-    public R visit(bnfc.abs.Absyn.VarGuard p, A arg) {
+    public R visit(bnfc.abs.Absyn.GFutField p, A arg) {
       R r = leaf(arg);
       return r;
     }
-    public R visit(bnfc.abs.Absyn.FieldGuard p, A arg) {
-      R r = leaf(arg);
-      return r;
-    }
-    public R visit(bnfc.abs.Absyn.ExpGuard p, A arg) {
+    public R visit(bnfc.abs.Absyn.GExp p, A arg) {
       R r = leaf(arg);
       r = combine(p.pureexp_.accept(this, arg), r, arg);
       return r;
     }
-    public R visit(bnfc.abs.Absyn.AndGuard p, A arg) {
+    public R visit(bnfc.abs.Absyn.GAnd p, A arg) {
       R r = leaf(arg);
-      r = combine(p.guard_1.accept(this, arg), r, arg);
-      r = combine(p.guard_2.accept(this, arg), r, arg);
+      r = combine(p.awaitguard_1.accept(this, arg), r, arg);
+      r = combine(p.awaitguard_2.accept(this, arg), r, arg);
+      return r;
+    }
+    public R visit(bnfc.abs.Absyn.GDuration p, A arg) {
+      R r = leaf(arg);
+      r = combine(p.pureexp_1.accept(this, arg), r, arg);
+      r = combine(p.pureexp_2.accept(this, arg), r, arg);
       return r;
     }
 
@@ -568,24 +592,24 @@ public abstract class FoldVisitor<R,A> implements AllVisitor<R,A> {
       r = combine(p.pureexp_2.accept(this, arg), r, arg);
       return r;
     }
-    public R visit(bnfc.abs.Absyn.Let p, A arg) {
+    public R visit(bnfc.abs.Absyn.ELet p, A arg) {
       R r = leaf(arg);
-      r = combine(p.param_.accept(this, arg), r, arg);
+      r = combine(p.formalpar_.accept(this, arg), r, arg);
       r = combine(p.pureexp_1.accept(this, arg), r, arg);
       r = combine(p.pureexp_2.accept(this, arg), r, arg);
       return r;
     }
-    public R visit(bnfc.abs.Absyn.If p, A arg) {
+    public R visit(bnfc.abs.Absyn.EIf p, A arg) {
       R r = leaf(arg);
       r = combine(p.pureexp_1.accept(this, arg), r, arg);
       r = combine(p.pureexp_2.accept(this, arg), r, arg);
       r = combine(p.pureexp_3.accept(this, arg), r, arg);
       return r;
     }
-    public R visit(bnfc.abs.Absyn.Case p, A arg) {
+    public R visit(bnfc.abs.Absyn.ECase p, A arg) {
       R r = leaf(arg);
       r = combine(p.pureexp_.accept(this, arg), r, arg);
-      for (CaseBranch x : p.listcasebranch_)
+      for (ECaseBranch x : p.listecasebranch_)
       {
         r = combine(x.accept(this, arg), r, arg);
       }
@@ -675,15 +699,7 @@ public abstract class FoldVisitor<R,A> implements AllVisitor<R,A> {
     }
     public R visit(bnfc.abs.Absyn.EFunCall p, A arg) {
       R r = leaf(arg);
-      for (PureExp x : p.listpureexp_)
-      {
-        r = combine(x.accept(this, arg), r, arg);
-      }
-      return r;
-    }
-    public R visit(bnfc.abs.Absyn.EQualFunCall p, A arg) {
-      R r = leaf(arg);
-      r = combine(p.ttype_.accept(this, arg), r, arg);
+      r = combine(p.ql_.accept(this, arg), r, arg);
       for (PureExp x : p.listpureexp_)
       {
         r = combine(x.accept(this, arg), r, arg);
@@ -692,15 +708,7 @@ public abstract class FoldVisitor<R,A> implements AllVisitor<R,A> {
     }
     public R visit(bnfc.abs.Absyn.ENaryFunCall p, A arg) {
       R r = leaf(arg);
-      for (PureExp x : p.listpureexp_)
-      {
-        r = combine(x.accept(this, arg), r, arg);
-      }
-      return r;
-    }
-    public R visit(bnfc.abs.Absyn.ENaryQualFunCall p, A arg) {
-      R r = leaf(arg);
-      r = combine(p.ttype_.accept(this, arg), r, arg);
+      r = combine(p.ql_.accept(this, arg), r, arg);
       for (PureExp x : p.listpureexp_)
       {
         r = combine(x.accept(this, arg), r, arg);
@@ -711,23 +719,18 @@ public abstract class FoldVisitor<R,A> implements AllVisitor<R,A> {
       R r = leaf(arg);
       return r;
     }
-    public R visit(bnfc.abs.Absyn.EThis p, A arg) {
+    public R visit(bnfc.abs.Absyn.EField p, A arg) {
       R r = leaf(arg);
-      return r;
-    }
-    public R visit(bnfc.abs.Absyn.EQualVar p, A arg) {
-      R r = leaf(arg);
-      r = combine(p.ttype_.accept(this, arg), r, arg);
       return r;
     }
     public R visit(bnfc.abs.Absyn.ESinglConstr p, A arg) {
       R r = leaf(arg);
-      r = combine(p.qtype_.accept(this, arg), r, arg);
+      r = combine(p.qu_.accept(this, arg), r, arg);
       return r;
     }
     public R visit(bnfc.abs.Absyn.EParamConstr p, A arg) {
       R r = leaf(arg);
-      r = combine(p.qtype_.accept(this, arg), r, arg);
+      r = combine(p.qu_.accept(this, arg), r, arg);
       for (PureExp x : p.listpureexp_)
       {
         r = combine(x.accept(this, arg), r, arg);
@@ -740,8 +743,8 @@ public abstract class FoldVisitor<R,A> implements AllVisitor<R,A> {
       return r;
     }
 
-/* CaseBranch */
-    public R visit(bnfc.abs.Absyn.CaseBranc p, A arg) {
+/* ECaseBranch */
+    public R visit(bnfc.abs.Absyn.ECaseB p, A arg) {
       R r = leaf(arg);
       r = combine(p.pattern_.accept(this, arg), r, arg);
       r = combine(p.pureexp_.accept(this, arg), r, arg);
@@ -749,58 +752,30 @@ public abstract class FoldVisitor<R,A> implements AllVisitor<R,A> {
     }
 
 /* Pattern */
-    public R visit(bnfc.abs.Absyn.PIdent p, A arg) {
-      R r = leaf(arg);
-      return r;
-    }
     public R visit(bnfc.abs.Absyn.PLit p, A arg) {
       R r = leaf(arg);
       r = combine(p.literal_.accept(this, arg), r, arg);
       return r;
     }
+    public R visit(bnfc.abs.Absyn.PVar p, A arg) {
+      R r = leaf(arg);
+      return r;
+    }
     public R visit(bnfc.abs.Absyn.PSinglConstr p, A arg) {
       R r = leaf(arg);
+      r = combine(p.qu_.accept(this, arg), r, arg);
       return r;
     }
     public R visit(bnfc.abs.Absyn.PParamConstr p, A arg) {
       R r = leaf(arg);
+      r = combine(p.qu_.accept(this, arg), r, arg);
       for (Pattern x : p.listpattern_)
       {
         r = combine(x.accept(this, arg), r, arg);
       }
       return r;
     }
-    public R visit(bnfc.abs.Absyn.PUnderscore p, A arg) {
-      R r = leaf(arg);
-      return r;
-    }
-
-/* Literal */
-    public R visit(bnfc.abs.Absyn.LNull p, A arg) {
-      R r = leaf(arg);
-      return r;
-    }
-    public R visit(bnfc.abs.Absyn.LThis p, A arg) {
-      R r = leaf(arg);
-      return r;
-    }
-    public R visit(bnfc.abs.Absyn.LThisDC p, A arg) {
-      R r = leaf(arg);
-      return r;
-    }
-    public R visit(bnfc.abs.Absyn.LStr p, A arg) {
-      R r = leaf(arg);
-      return r;
-    }
-    public R visit(bnfc.abs.Absyn.LInt p, A arg) {
-      R r = leaf(arg);
-      return r;
-    }
-    public R visit(bnfc.abs.Absyn.LFalse p, A arg) {
-      R r = leaf(arg);
-      return r;
-    }
-    public R visit(bnfc.abs.Absyn.LTrue p, A arg) {
+    public R visit(bnfc.abs.Absyn.PWildCard p, A arg) {
       R r = leaf(arg);
       return r;
     }
@@ -808,7 +783,7 @@ public abstract class FoldVisitor<R,A> implements AllVisitor<R,A> {
 /* EffExp */
     public R visit(bnfc.abs.Absyn.New p, A arg) {
       R r = leaf(arg);
-      r = combine(p.type_.accept(this, arg), r, arg);
+      r = combine(p.qu_.accept(this, arg), r, arg);
       for (PureExp x : p.listpureexp_)
       {
         r = combine(x.accept(this, arg), r, arg);
@@ -817,7 +792,7 @@ public abstract class FoldVisitor<R,A> implements AllVisitor<R,A> {
     }
     public R visit(bnfc.abs.Absyn.NewLocal p, A arg) {
       R r = leaf(arg);
-      r = combine(p.type_.accept(this, arg), r, arg);
+      r = combine(p.qu_.accept(this, arg), r, arg);
       for (PureExp x : p.listpureexp_)
       {
         r = combine(x.accept(this, arg), r, arg);
@@ -850,8 +825,9 @@ public abstract class FoldVisitor<R,A> implements AllVisitor<R,A> {
       }
       return r;
     }
-    public R visit(bnfc.abs.Absyn.ThisAsyncMethCall p, A arg) {
+    public R visit(bnfc.abs.Absyn.AwaitMethCall p, A arg) {
       R r = leaf(arg);
+      r = combine(p.pureexp_.accept(this, arg), r, arg);
       for (PureExp x : p.listpureexp_)
       {
         r = combine(x.accept(this, arg), r, arg);
@@ -863,36 +839,57 @@ public abstract class FoldVisitor<R,A> implements AllVisitor<R,A> {
       r = combine(p.pureexp_.accept(this, arg), r, arg);
       return r;
     }
-    public R visit(bnfc.abs.Absyn.Spawns p, A arg) {
+    public R visit(bnfc.abs.Absyn.Readln p, A arg) {
+      R r = leaf(arg);
+      return r;
+    }
+    public R visit(bnfc.abs.Absyn.ProNew p, A arg) {
+      R r = leaf(arg);
+      return r;
+    }
+    public R visit(bnfc.abs.Absyn.ProTry p, A arg) {
       R r = leaf(arg);
       r = combine(p.pureexp_.accept(this, arg), r, arg);
-      r = combine(p.type_.accept(this, arg), r, arg);
-      for (PureExp x : p.listpureexp_)
-      {
-        r = combine(x.accept(this, arg), r, arg);
-      }
+      return r;
+    }
+    public R visit(bnfc.abs.Absyn.Now p, A arg) {
+      R r = leaf(arg);
       return r;
     }
 
 /* Ann */
-    public R visit(bnfc.abs.Absyn.NoAnn p, A arg) {
+    public R visit(bnfc.abs.Absyn.Annotation p, A arg) {
       R r = leaf(arg);
+      r = combine(p.ann__.accept(this, arg), r, arg);
       return r;
     }
-    public R visit(bnfc.abs.Absyn.SimpleAnn p, A arg) {
+
+/* Ann_ */
+    public R visit(bnfc.abs.Absyn.AnnNoType p, A arg) {
       R r = leaf(arg);
       r = combine(p.pureexp_.accept(this, arg), r, arg);
       return r;
     }
-    public R visit(bnfc.abs.Absyn.MappedAnn p, A arg) {
+    public R visit(bnfc.abs.Absyn.AnnWithType p, A arg) {
       R r = leaf(arg);
-      r = combine(p.literal_1.accept(this, arg), r, arg);
-      r = combine(p.literal_2.accept(this, arg), r, arg);
+      r = combine(p.t_.accept(this, arg), r, arg);
+      r = combine(p.pureexp_.accept(this, arg), r, arg);
+      return r;
+    }
+
+/* AnnStm */
+    public R visit(bnfc.abs.Absyn.AnnStatement p, A arg) {
+      R r = leaf(arg);
+      for (Ann x : p.listann_)
+      {
+        r = combine(x.accept(this, arg), r, arg);
+      }
+      r = combine(p.stm_.accept(this, arg), r, arg);
       return r;
     }
 
 /* AnnDecl */
-    public R visit(bnfc.abs.Absyn.AnnDec p, A arg) {
+    public R visit(bnfc.abs.Absyn.AnnDeclaration p, A arg) {
       R r = leaf(arg);
       for (Ann x : p.listann_)
       {
@@ -902,14 +899,28 @@ public abstract class FoldVisitor<R,A> implements AllVisitor<R,A> {
       return r;
     }
 
-/* AnnType */
-    public R visit(bnfc.abs.Absyn.AnnTyp p, A arg) {
+/* MaybeFinally */
+    public R visit(bnfc.abs.Absyn.JustFinally p, A arg) {
       R r = leaf(arg);
-      for (Ann x : p.listann_)
+      r = combine(p.annstm_.accept(this, arg), r, arg);
+      return r;
+    }
+    public R visit(bnfc.abs.Absyn.NoFinally p, A arg) {
+      R r = leaf(arg);
+      return r;
+    }
+
+/* MaybeBlock */
+    public R visit(bnfc.abs.Absyn.JustBlock p, A arg) {
+      R r = leaf(arg);
+      for (AnnStm x : p.listannstm_)
       {
         r = combine(x.accept(this, arg), r, arg);
       }
-      r = combine(p.type_.accept(this, arg), r, arg);
+      return r;
+    }
+    public R visit(bnfc.abs.Absyn.NoBlock p, A arg) {
+      R r = leaf(arg);
       return r;
     }
 

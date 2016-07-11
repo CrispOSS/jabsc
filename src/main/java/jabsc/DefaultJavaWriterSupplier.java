@@ -37,7 +37,7 @@ class DefaultJavaWriterSupplier implements JavaWriterSupplier {
           this.pathResolver.resolveOutputDirectory(packageName, outputDirectory);
       return new JavaWriter(
           Files.newBufferedWriter(fqdnOutputDirectory.resolve(typeName + this.extension),
-              StandardOpenOption.CREATE, StandardOpenOption.WRITE));
+              StandardOpenOption.CREATE, StandardOpenOption.WRITE),false);
     } catch (IOException e) {
       throw new IllegalArgumentException("Cannot create Java writer for " + typeName, e);
     }

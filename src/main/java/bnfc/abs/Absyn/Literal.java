@@ -5,11 +5,10 @@ public abstract class Literal implements java.io.Serializable {
   public interface Visitor <R,A> {
     public R visit(bnfc.abs.Absyn.LNull p, A arg);
     public R visit(bnfc.abs.Absyn.LThis p, A arg);
-    public R visit(bnfc.abs.Absyn.LThisDC p, A arg);
     public R visit(bnfc.abs.Absyn.LStr p, A arg);
     public R visit(bnfc.abs.Absyn.LInt p, A arg);
-    public R visit(bnfc.abs.Absyn.LFalse p, A arg);
-    public R visit(bnfc.abs.Absyn.LTrue p, A arg);
+    public R visit(bnfc.abs.Absyn.LFloat p, A arg);
+    public R visit(bnfc.abs.Absyn.LThisDC p, A arg);
 
   }
 
