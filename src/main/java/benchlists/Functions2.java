@@ -1,7 +1,7 @@
 package benchlists;
 
-import static abs.api.Functional.Pair;
-import static abs.api.Functional.fromJust;
+import static abs.api.cwi.Functional.Pair;
+import static abs.api.cwi.Functional.fromJust;
 
 import java.util.Optional;
 

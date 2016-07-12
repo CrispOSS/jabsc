@@ -46,7 +46,6 @@ import com.pogofish.jadt.JADT;
 
 //import abs.api.Actor;
 //import abs.api.Response;
-import abs.api.remote.*;
 import abs.api.cwi.LocalActor;
 import abs.api.cwi.Actor;
 import abs.api.cwi.ABSFuture;
@@ -121,7 +120,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	private static final String ABS_API_ACTOR_CLASS = LocalActor.class.getName();
 	private static final String ABS_API_INTERFACE_CLASS = Actor.class.getName();
 
-	private static final String ABS_API_ACTOR_SERVER_CLASS = ActorServer.class.getName();
+	//private static final String ABS_API_ACTOR_SERVER_CLASS = ActorServer.class.getName();
 	private static final Set<Modifier> DEFAULT_MODIFIERS = Collections.singleton(Modifier.PUBLIC);
 	private static final String[] DEFAULT_IMPORTS = new String[] { Collection.class.getPackage().getName() + ".*",
 			Function.class.getPackage().getName() + ".*", Callable.class.getPackage().getName() + ".*",

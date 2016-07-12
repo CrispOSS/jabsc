@@ -140,11 +140,6 @@
 
 	<dependencies>
 		<dependency>
-			<groupId>${project.groupId}</groupId>
-			<artifactId>abs-api</artifactId>
-			<version>${version.abs-api}</version>
-		</dependency>
-		<dependency>
 			<groupId>junit</groupId>
 			<artifactId>junit</artifactId>
 			<version>${version.junit}</version>
@@ -199,11 +194,6 @@
 			<groupId>com.pogofish.jadt</groupId>
 			<artifactId>jADT-core</artifactId>
 			<version>0.3.0</version>
-		</dependency>
-		<dependency>
-			<groupId>${project.groupId}</groupId>
-			<artifactId>abs-api-remote</artifactId>
-			<version>1.0.0-SNAPSHOT</version>
 		</dependency>
 		<dependency>
 			<groupId>abs.api.cwi</groupId>

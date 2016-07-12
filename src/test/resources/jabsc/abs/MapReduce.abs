@@ -313,7 +313,7 @@ class MapReduce implements IMapReduce {
       // set of intermediate key/value pairs." [MapReduce, pg. 2]
       String key1 = key;
 	  List<String> value1 = value;
-	  Worker w = this.getWorker();
+	   Worker w = this.getWorker();
       Fut<List<Pair<String, Pair<Int, String>>>> fMap = w!invokeMap(key1, value1);
       fMapResults = Cons(fMap, fMapResults);
       if (increasing_map_size()) {
