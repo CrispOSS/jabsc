@@ -48,9 +48,10 @@ class JavaWriter implements Closeable {
 	private final Deque<Scope> scopes = new ArrayDeque<Scope>();
 	private final Deque<String> types = new ArrayDeque<String>();
 	private final Writer out;
-	private boolean isCompressingTypes = true;
+	private boolean isCompressingTypes = false;
 	private String indent = INDENT;
 	private boolean isAux = true;
+	public boolean avoidDuplicates = false;
 
 	/**
 	 * @param out
@@ -58,12 +59,21 @@ class JavaWriter implements Closeable {
 	 *            be a buffered stream.
 	 */
 	public JavaWriter(Writer out, boolean isAux) {
-		this.out = out;
+		this(out);
 		this.isAux = isAux;
 	}
 
 	public JavaWriter(Writer out) {
 		this.out = out;
+	}
+	
+	
+
+	public JavaWriter(Writer out, boolean isAux, boolean avoidDuplicates) {
+		super();
+		this.out = out;
+		this.isAux = isAux;
+		this.avoidDuplicates = avoidDuplicates;
 	}
 
 	public void setCompressingTypes(boolean isCompressingTypes) {
@@ -191,7 +201,7 @@ class JavaWriter implements Closeable {
 		}
 
 		StringBuilder sb = new StringBuilder();
-		if (this.packagePrefix == null) {
+		if ((this.packagePrefix == null) && !isAux) {
 			throw new IllegalStateException();
 		}
 

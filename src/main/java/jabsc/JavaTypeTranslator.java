@@ -5,7 +5,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
 
-import abs.api.cwi.ABSFuture;
+import abs.api.cwi.ABSFutureTask;
 
 /**
  * Some ABS types have an equivalent proper Java type. This is
@@ -76,7 +76,7 @@ class JavaTypeTranslator implements Function<String, String> {
     types.put("Bool", Boolean.class.getName());
     types.put("ABS.StdLib.Map", Map.class.getName());
     types.put("Unit", "void");
-    types.put("Fut", ABSFuture.class.getSimpleName());
+    types.put("Fut", ABSFutureTask.class.getSimpleName());
     types.put("Maybe", Optional.class.getSimpleName());
     
   }

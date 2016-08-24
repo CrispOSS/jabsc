@@ -24,6 +24,7 @@ import java.util.Map.Entry;
 import java.util.Random;
 import java.util.Set;
 import java.util.Stack;
+import java.util.TreeSet;
 import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Lock;
@@ -48,7 +49,7 @@ import com.pogofish.jadt.JADT;
 //import abs.api.Response;
 import abs.api.cwi.LocalActor;
 import abs.api.cwi.Actor;
-import abs.api.cwi.ABSFuture;
+import abs.api.cwi.ABSFutureTask;
 import abs.api.cwi.Functional;
 
 import bnfc.abs.AbstractVisitor;
@@ -120,15 +121,17 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	private static final String ABS_API_ACTOR_CLASS = LocalActor.class.getName();
 	private static final String ABS_API_INTERFACE_CLASS = Actor.class.getName();
 
-	//private static final String ABS_API_ACTOR_SERVER_CLASS = ActorServer.class.getName();
+	// private static final String ABS_API_ACTOR_SERVER_CLASS =
+	// ActorServer.class.getName();
 	private static final Set<Modifier> DEFAULT_MODIFIERS = Collections.singleton(Modifier.PUBLIC);
 	private static final String[] DEFAULT_IMPORTS = new String[] { Collection.class.getPackage().getName() + ".*",
 			Function.class.getPackage().getName() + ".*", Callable.class.getPackage().getName() + ".*",
 			AtomicLong.class.getPackage().getName() + ".*", Lock.class.getPackage().getName() + ".*",
 			LocalActor.class.getPackage().getName() + ".*", Functional.class.getPackage().getName() + ".*",
+
 			// CloudProvider.class.getPackage().getName() + ".*",
 			// DeploymentComponent.class.getPackage().getName() + ".*",
-			ABSFuture.class.getPackage().getName() + ".*" };
+			ABSFutureTask.class.getPackage().getName() + ".*" };
 	// private static final String[] DEFAULT_IMPORTS_PATTERNS = new String[] {
 	// "com.leacox.motif.function.*", "com.leacox.motif.matching.*",
 	// "com.leacox.motif.cases.*", "com.leacox.motif.caseclass.*" };
@@ -177,15 +180,22 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 					return new HashSet<>();
 				}
 			});
+	private final LinkedList<TreeSet<VarDefinition>> variablesInScope = new LinkedList<>();
+
 	private final Stack<Module> modules = new Stack<>();
 	private final Stack<String> classes = new Stack<>();
 	private final EnumMap<AbsElementType, List<AnnDecl>> elements = new EnumMap<>(AbsElementType.class);
 	private final Map<String, String> classNames = new HashMap<>();
 	private final Set<String> packageLevelImports = new HashSet<>();
-	private final Set<String> otherImports = new HashSet<>();
 	private final Map<String, String> dataDeclarations = new HashMap<>();
 	private final Set<String> exceptionDeclaraions = new HashSet<>();
 	private final Set<String> staticImports = new HashSet<>();
+
+	private final Map<String, LinkedList<StringWriter>> labelMap = new HashMap<>();
+
+	private final List<StringWriter> currentMethodLabels = new LinkedList<>();
+
+	private final LinkedList<HashMap<String, String>> duplicateReplacements = new LinkedList<>();
 
 	private MethodDefinition currentMethod;
 
@@ -447,7 +457,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 			final String className = getRefinedClassName(identifier);
 			beginElementKind(w, ElementKind.CLASS, className, DEFAULT_MODIFIERS, ABS_API_ACTOR_CLASS, null);
 			this.classes.push(className);
-
+			labelMap.put(className, new LinkedList<>());
 			w.emitEmptyLine();
 			for (ClassBody cb : p.listclassbody_1) {
 				cb.accept(this, w);
@@ -460,9 +470,14 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 			p.maybeblock_.accept(this, w);
 			// emitDefaultRunMethodExecution(w, className);
 			w.endConstructor();
+			for (StringWriter continuation : labelMap.get(className)) {
+				w.emit(continuation.toString());
+			}
+
 			// emitToStringMethod(w);
 			w.endType();
 			this.classes.pop();
+			labelMap.remove(className);
 
 			return prog;
 		} catch (IOException e) {
@@ -478,6 +493,8 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 			beginElementKind(w, ElementKind.CLASS, className, DEFAULT_MODIFIERS, ABS_API_ACTOR_CLASS,
 					toList(ci.listqu_, true));
 			this.classes.push(className);
+			labelMap.put(className, new LinkedList<>());
+
 			w.emitEmptyLine();
 			for (ClassBody cb : ci.listclassbody_1) {
 				cb.accept(this, w);
@@ -491,9 +508,14 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 			// emitDefaultRunMethodExecution(w, className);
 			w.endConstructor();
 			// emitToStringMethod(w);
+			for (StringWriter continuation : labelMap.get(className)) {
+				w.emit(continuation.toString());
+			}
+
 			w.endType();
 			this.classes.pop();
 
+			labelMap.remove(className);
 			return prog;
 		} catch (IOException e) {
 			throw new RuntimeException(e);
@@ -507,6 +529,8 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 			String className = getRefinedClassName(identifier);
 			beginElementKind(w, ElementKind.CLASS, className, DEFAULT_MODIFIERS, ABS_API_ACTOR_CLASS, null);
 			this.classes.push(className);
+			labelMap.put(className, new LinkedList<>());
+
 			w.emitEmptyLine();
 			List<String> parameters = new ArrayList<>();
 			for (FormalPar param : cpd.listformalpar_) {
@@ -533,8 +557,13 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 			// emitDefaultRunMethodExecution(w, className);
 			w.endConstructor();
 			// emitToStringMethod(w);
+			for (StringWriter continuation : labelMap.get(className)) {
+				w.emit(continuation.toString());
+			}
+
 			w.endType();
 			this.classes.pop();
+			labelMap.remove(className);
 			return prog;
 		} catch (IOException e) {
 			throw new RuntimeException(e);
@@ -550,6 +579,8 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 			beginElementKind(w, ElementKind.CLASS, className, DEFAULT_MODIFIERS, ABS_API_ACTOR_CLASS,
 					toList(cpi.listqu_, true));
 			this.classes.push(className);
+			labelMap.put(className, new LinkedList<>());
+
 			w.emitEmptyLine();
 			List<String> parameters = new ArrayList<>();
 			for (FormalPar param : cpi.listformalpar_) {
@@ -577,8 +608,13 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 			w.endConstructor();
 			w.emitEmptyLine();
 			// emitToStringMethod(w);
+			for (StringWriter continuation : labelMap.get(className)) {
+				w.emit(continuation.toString());
+			}
+
 			w.endType();
 			this.classes.pop();
+			labelMap.remove(className);
 			return prog;
 		} catch (IOException e) {
 			throw new RuntimeException(e);
@@ -615,6 +651,90 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	public Prog visit(AnnWithType p, JavaWriter w) {
 		visitJavaAnnDecl(p);
 		return prog;
+	}
+
+	public List<JavaWriter> continuation(ListAnnStm statements, List<JavaWriter> currentMethodWriters,
+			boolean isInMethod) {
+
+		TreeSet<VarDefinition> methodScope = new TreeSet<>();
+		variablesInScope.push(methodScope);
+		StringWriter scopesw = new StringWriter();
+		JavaWriter scopew = new JavaWriter(scopesw);
+
+		for (AnnStm stm : statements) {
+
+			AnnStatement as = (AnnStatement) stm;
+
+			for (JavaWriter javaWriter : currentMethodWriters) {
+				as.accept(this, javaWriter);
+			}
+
+			as.accept(this, scopew);
+
+			if (as.stm_ instanceof SWhile) {
+				SWhile sw = (SWhile) as.stm_;
+				SBlock whileBlock = (SBlock) ((AnnStatement) sw.annstm_).stm_;
+				StringWriter preAwaitsw = new StringWriter();
+				JavaWriter preAwaitw = new JavaWriter(preAwaitsw, true, true);
+				visitPreWhile(sw, preAwaitw);
+
+				List<JavaWriter> innerAwaits = continuation(whileBlock.listannstm_, new LinkedList<>(), false);
+				for (JavaWriter javaWriter : innerAwaits) {
+					try {
+						javaWriter.emitStatement("%s", preAwaitsw.toString());
+					} catch (IOException e) {
+						// TODO Auto-generated catch block
+						e.printStackTrace();
+					}
+				}
+
+				currentMethodWriters.addAll(innerAwaits);
+				/*
+				 * for (JavaWriter javaWriter : currentMethodWriters) {
+				 * visitLabelWhile(sw, javaWriter); }
+				 */
+			}
+
+			if (as.stm_ instanceof SAwait) {
+				StringBuilder label = new StringBuilder(classes.peek());
+				label.append(currentMethod.getName());
+				label.append("Await" + Math.abs(as.stm_.hashCode()));
+				StringWriter auxsw = new StringWriter();
+				JavaWriter auxw = new JavaWriter(auxsw);
+				try {
+					String returnType = currentMethod.type() != null ? currentMethod.type() : "void";
+					List<String> parameters = new ArrayList<>();
+					for (TreeSet<VarDefinition> defs : variablesInScope) {
+						for (VarDefinition varDefinition : defs) {
+							parameters.add(varDefinition.getType());
+							parameters.add(varDefinition.getName());
+						}
+					}
+					auxw.beginMethod(returnType, label.toString(), DEFAULT_MODIFIERS, parameters, null);
+
+				} catch (IOException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+				currentMethodLabels.add(auxsw);
+				currentMethodWriters.add(auxw);
+
+			}
+		}
+		variablesInScope.pop();
+		if (isInMethod) {
+			for (JavaWriter javaWriter : currentMethodWriters) {
+				try {
+					javaWriter.endMethod();
+					javaWriter.close();
+				} catch (IOException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+			}
+		}
+		return currentMethodWriters;
+
 	}
 
 	public void visitStatementsBlock(ListAnnStm statements, JavaWriter w) {
@@ -659,7 +779,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 								"supplier_" + Math.abs(sa.hashCode()), continuationName);
 
 					} else {
-						w.emitStatement("%s await(%s.f,%s)", currentMethod.type() == null ? "" : "return",
+						w.emitStatement("%s await(%s,%s)", currentMethod.type() == null ? "" : "return",
 								guardsw.toString(), continuationName);
 					}
 				} catch (IOException e) {
@@ -674,7 +794,9 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 
 	@Override
 	public Prog visit(JustBlock jb, JavaWriter w) {
-		visitStatementsBlock(jb.listannstm_, w);
+		for (AnnStm stm : jb.listannstm_) {
+			stm.accept(this, w);
+		}
 		return prog;
 	}
 
@@ -744,6 +866,9 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	@Override
 	public Prog visit(MethClassBody mcb, JavaWriter w) {
 		try {
+
+			TreeSet<VarDefinition> methodScope = new TreeSet<>();
+			variablesInScope.push(methodScope);
 			String returnType = getTypeName(mcb.t_);
 			String name = mcb.l_.equals(METHOD_GET) ? "get" : mcb.l_;
 			List<String> parameters = new ArrayList<>();
@@ -759,9 +884,29 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 			w.beginMethod(returnType, name, DEFAULT_MODIFIERS, parameters, Collections.emptyList());
 			createMethodDefinition(returnType, name, parameterTypes);
 
-			visitStatementsBlock(mcb.listannstm_, w);
+			ListAnnStm copyOfMcb = (ListAnnStm) mcb.listannstm_.clone();
+
+			TreeSet<VarDefinition> blockScope = new TreeSet<>();
+			variablesInScope.push(blockScope);
+
+			for (AnnStm annStm : mcb.listannstm_) {
+				annStm.accept(this, w);
+			}
+
+			variablesInScope.pop();
+
+			continuation(copyOfMcb, new LinkedList<>(), true);
+			// visitStatementsBlock(mcb.listannstm_, w);
+			variablesInScope.pop();
 
 			w.endMethod();
+
+			for (StringWriter stringWriter : currentMethodLabels) {
+				labelMap.get(this.classes.peek()).add(stringWriter);
+
+			}
+			currentMethodLabels.clear();
+
 			w.emitEmptyLine();
 			return prog;
 		} catch (IOException e) {
@@ -771,14 +916,46 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 
 	@Override
 	public Prog visit(SBlock b, JavaWriter w) {
-		visitStatementsBlock(b.listannstm_, w);
+		TreeSet<VarDefinition> blockScope = new TreeSet<>();
+		variablesInScope.push(blockScope);
+
+		HashMap<String, String> duplicateScope = new HashMap<>();
+		duplicateReplacements.push(duplicateScope);
+
+		for (AnnStm stm : b.listannstm_) {
+			stm.accept(this, w);
+		}
+		duplicateReplacements.pop();
+		variablesInScope.pop();
 		return prog;
 
 	}
 
 	@Override
 	public Prog visit(SAwait await, JavaWriter w) {
-		await.awaitguard_.accept(this, w);
+		StringWriter auxsw = new StringWriter();
+		JavaWriter auxw = new JavaWriter(auxsw);
+		await.awaitguard_.accept(this, auxw);
+		StringBuilder label = new StringBuilder(classes.peek());
+		label.append(currentMethod.getName());
+		label.append("Await" + Math.abs(await.hashCode()));
+
+		List<String> parameters = new ArrayList<>();
+		for (TreeSet<VarDefinition> defs : variablesInScope) {
+			for (VarDefinition varDefinition : defs) {
+				parameters.add(varDefinition.getName());
+			}
+		}
+		System.out.println(label);
+		System.out.println(parameters.size());
+
+		String methodCall = generateJavaMethodInvocation("this", label.toString(), parameters);
+		try {
+			w.emitStatement("await(Guard.convert(%s),%s)", auxsw.toString(), "()->" + methodCall);
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
 		return prog;
 	}
 
@@ -798,10 +975,8 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 			StringWriter suppliersw = new StringWriter();
 			JavaWriter supplierw = new JavaWriter(suppliersw);
 
-			StringBuilder supplierName = new StringBuilder();
-			supplierName.append("supplier_" + Math.abs(p.hashCode()));
 			p.pureexp_.accept(this, supplierw);
-			w.beginControlFlow("Supplier<Boolean> %s = new Supplier<Boolean>()", supplierName);
+			w.beginControlFlow("new Supplier<Boolean>()");
 			w.beginMethod("Boolean", "get", DEFAULT_MODIFIERS);
 			w.emitStatement("return %s", suppliersw.toString());
 			w.endMethod();
@@ -826,11 +1001,8 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 			supplierName.append("supplier_" + Math.abs(p.hashCode()));
 			p.awaitguard_1.accept(this, supplierw);
 			p.awaitguard_2.accept(this, supplierw2);
-			w.beginControlFlow("Supplier<Boolean> %s = new Supplier<Boolean>()", supplierName);
-			w.beginMethod("Boolean", "get", DEFAULT_MODIFIERS);
-			w.emitStatement("return %s && %s", suppliersw.toString(), suppliersw2.toString());
-			w.endMethod();
-			w.endControlFlow();
+			w.emit("new ConjunctionGuard(Guard.convert(" + suppliersw.toString() + "),Guard.convert("
+					+ suppliersw2.toString() + "))");
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
@@ -841,6 +1013,13 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	@Override
 	public Prog visit(GFut vg, JavaWriter w) {
 		try {
+
+			for (HashMap<String, String> hashMap : duplicateReplacements) {
+				if (hashMap.containsKey(vg.l_)) {
+					w.emit(hashMap.get(vg.l_));
+					return prog;
+				}
+			}
 			w.emit(vg.l_);
 			return prog;
 		} catch (IOException x) {
@@ -850,6 +1029,21 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 
 	@Override
 	public Prog visit(SWhile sw, JavaWriter w) {
+		// TODO Continue preprocessing from here with the three while functions.
+		try {
+			StringWriter auxsw = new StringWriter();
+			JavaWriter auxw = new JavaWriter(auxsw);
+			sw.pureexp_.accept(this, auxw);
+			w.beginControlFlow("while (" + auxsw.toString() + ")");
+			sw.annstm_.accept(this, w);
+			w.endControlFlow();
+			return prog;
+		} catch (IOException e) {
+			throw new RuntimeException(e);
+		}
+	}
+
+	public Prog visitPreWhile(SWhile sw, JavaWriter w) {
 		try {
 			StringWriter auxsw = new StringWriter();
 			JavaWriter auxw = new JavaWriter(auxsw);
@@ -977,10 +1171,15 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	@Override
 	public Prog visit(SDecAss p, JavaWriter w) {
 		try {
+
 			String varType = getTypeName(p.t_);
 			varType = VOID_PRIMITIVE_NAME.equals(varType) ? Object.class.getSimpleName() : varType;
 			String varName = p.l_;
+			if (w.avoidDuplicates) {
+				duplicateReplacements.peek().put(varName, varName + (Math.abs(varName.hashCode() % 1000)));
+			}
 			createVarDefinition(varName, varType);
+
 			Exp exp = p.exp_;
 			if (exp instanceof ExpE == false) {
 				visitStatementAssignmentExp(exp, varName, varType, w);
@@ -1394,6 +1593,12 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	public Prog visit(EVar v, JavaWriter w) {
 		try {
 
+			for (HashMap<String, String> hashMap : duplicateReplacements) {
+				if (hashMap.containsKey(v.l_)) {
+					w.emit(hashMap.get(v.l_));
+					return prog;
+				}
+			}
 			w.emit(translate(v.l_));
 		} catch (IOException x) {
 			throw new RuntimeException(x);
@@ -1437,7 +1642,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 			StringWriter auxsw = new StringWriter();
 			JavaWriter auxw = new JavaWriter(auxsw);
 			g.pureexp_.accept(this, auxw);
-			w.emit(auxsw.toString() + ".f.get()");
+			w.emit(auxsw.toString() + ".get()");
 			return prog;
 		} catch (IOException e) {
 			throw new RuntimeException(e);
@@ -1997,6 +2202,12 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	@Override
 	public Prog visit(PVar p, JavaWriter w) {
 		try {
+			for (HashMap<String, String> hashMap : duplicateReplacements) {
+				if (hashMap.containsKey(p.l_)) {
+					w.emit(hashMap.get(p.l_));
+					return prog;
+				}
+			}
 			w.emit(p.l_);
 			return prog;
 		} catch (IOException e) {
@@ -2270,6 +2481,13 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 			StringWriter auxsw = new StringWriter();
 			JavaWriter auxw = new JavaWriter(auxsw);
 			exp.accept(this, auxw);
+			for (HashMap<String, String> hashMap : duplicateReplacements) {
+				if (hashMap.containsKey(varName)) {
+					varName = hashMap.get(varName);
+					break;
+
+				}
+			}
 			if (varType == null) {
 				w.emit(varName + " = " + auxsw.toString(), true);
 			} else {
@@ -2630,6 +2848,28 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	 * @return a string representing a Java method invocation statement
 	 */
 	protected String generateJavaMethodInvocation(String object, String method, List<String> parameters) {
+		for (HashMap<String, String> hashMap : duplicateReplacements) {
+			if (hashMap.containsKey(object)) {
+				object = hashMap.get(object);
+				break;
+
+			}
+		}
+		List<String> duplicateParameters = new LinkedList<>();
+		for (String string : parameters) {
+			boolean found = false;
+			for (HashMap<String, String> hashMap1 : duplicateReplacements) {
+				if (hashMap1.containsKey(string)) {
+					duplicateParameters.add(hashMap1.get(string));
+					found = true;
+					break;
+
+				}
+			}
+			if(!found)
+				duplicateParameters.add(string);
+		}
+		parameters = duplicateParameters;
 		return String.format("%s.%s(%s)", object, method,
 				parameters == null || parameters.isEmpty() ? "" : String.join(COMMA_SPACE, parameters));
 	}
@@ -2681,7 +2921,8 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 		}
 		String returnType = msgReturnType == null || isVoid(msgReturnType) ? VOID_WRAPPER_CLASS_NAME
 				: stripGenericResponseType(msgReturnType);
-		return String.format("ABSFuture<%s> %s = %s.%s (%s)", returnType, responseVarName, target, method, msgVarName);
+		return String.format("ABSFutureTask<%s> %s = %s.%s (%s)", returnType, responseVarName, target, method,
+				msgVarName);
 	}
 
 	/**
@@ -3022,6 +3263,9 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 		String fqClassName = this.packageName + "." + clazz;
 		VarDefinition vd = new VarDefinition(varName, varType);
 		variables.put(fqClassName, vd);
+		if (!variablesInScope.isEmpty()) {
+			variablesInScope.peek().add(vd);
+		}
 	}
 
 	private void createMethodDefinition(String returnType, String name, List<String> parameters) {
@@ -3180,7 +3424,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	}
 
 	private String stripGenericResponseType(String type) {
-		String regex = "^(ABSFuture\\<)(.*)(\\>)$";
+		String regex = "^(ABSFutureTask\\<)(.*)(\\>)$";
 		java.util.regex.Pattern p = java.util.regex.Pattern.compile(regex);
 		Matcher m = p.matcher(type);
 		if (m.matches()) {
