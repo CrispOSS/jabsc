@@ -258,8 +258,9 @@ class Worker(MapReduce master) implements IWorker {
 // This class contains the MapReduce machinery.  Any deployment
 // decisions (number of machines, etc.) can be customized via deltas.
 class MapReduce implements IMapReduce {
-  Set<Worker> workers = EmptySet;
-  Int nWorkers = 0;
+  List<Worker> workers = Nil;
+   Int nWorkers = 0;
+   Int index = 0;
 
   // begin customizable section ------------------
 
@@ -268,21 +269,26 @@ class MapReduce implements IMapReduce {
   // only modify state that is introduced in the same delta.
   Worker getWorker() {
     if (nWorkers < numNodes()) {
-      Worker w = new Worker(this);
-      workers = insertElement(workers, w);
-      nWorkers = nWorkers + 1;
-    }
-    await ~(emptySet(workers));
-    Worker w = take(workers);
-    workers = remove(workers, w);
-    return w;
+       Worker w = new Worker(this);
+       workers = Cons(w, workers);
+       nWorkers = nWorkers + 1;
+     }
+     //await ~(emptySet(workers));
+     {
+     Worker w = nth(workers, index);
+     index = index + 1;
+     if (index == numNodes()) {
+         index = 0;
+     }
+     return w;
+     }
   }
 
   // This method registers a worker as idle.  It is called by the worker
   // itself.  Any side effects should only modify state that is
   // introduced in the same delta.
   Unit finished(Worker w) {
-    workers = insertElement(workers, w);
+    //workers = insertElement(workers, w);
   }
   // end customizable section---------------------
 
@@ -309,7 +315,7 @@ class MapReduce implements IMapReduce {
       // "Map, written by the user, takes an input pair and produces a
       // set of intermediate key/value pairs." [MapReduce, pg. 2]
 	  Worker w = this.getWorker();
-      Fut<List<Pair<String, Pair<Int, String>>>> fMap = w!invokeMap(key, value);
+	  Fut<List<Pair<String, Pair<Int, String>>>> fMap = w!invokeMap(key , value);
       fMapResults = Cons(fMap, fMapResults);
       if (increasing_map_size()) {
       	incMapCounter = incMapCounter + 1;
@@ -355,8 +361,8 @@ class MapReduce implements IMapReduce {
       await fReduceResult?;
       List<Pair<String, Pair<Int, String>>> reduceResult = fReduceResult.get;
       String key = fst(head(reduceResult));
-      Pair<Int, String> value = snd(head(reduceResult));
-      result = Cons(Pair(key, value), result);
+      Pair<Int, String> valuePair = snd(head(reduceResult));
+      result = Cons(Pair(key, valuePair), result);
     }
     return result;
   }

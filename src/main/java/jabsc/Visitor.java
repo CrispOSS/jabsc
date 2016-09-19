@@ -575,7 +575,6 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 		try {
 			final String identifier = cpi.u_;
 			String className = getRefinedClassName(identifier);
-			System.out.println(className);
 			beginElementKind(w, ElementKind.CLASS, className, DEFAULT_MODIFIERS, ABS_API_ACTOR_CLASS,
 					toList(cpi.listqu_, true));
 			this.classes.push(className);
@@ -946,10 +945,8 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 				parameters.add(varDefinition.getName());
 			}
 		}
-		System.out.println(label);
-		System.out.println(parameters.size());
 
-		String methodCall = generateJavaMethodInvocation("this", label.toString(), parameters);
+		String methodCall = generateJavaMethodInvocation("this", label.toString(), parameters, w);
 		try {
 			w.emitStatement("await(Guard.convert(%s),%s)", auxsw.toString(), "()->" + methodCall);
 		} catch (IOException e) {
@@ -2399,7 +2396,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 						: findMethodReturnType(methodName, findVariableType(calleeId), params);
 		String msgVarName = createMessageVariableName(calleeId);
 		String msgStatement = generateMessageStatement(msgVarName, potentialReturnType,
-				generateJavaMethodInvocation(calleeId, methodName, params));
+				generateJavaMethodInvocation(calleeId, methodName, params, w));
 		w.emit(msgStatement, true);
 		w.emitStatementEnd();
 		String responseVarName = resultVarName != null ? resultVarName : createMessageResponseVariableName(msgVarName);
@@ -2418,7 +2415,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 		String potentialReturnType = resultVarType != null ? resultVarType
 				: findMethodReturnType(methodName, findVariableType(calleeId), params);
 		String msgStatement = generateMessageStatement(msgVarName, potentialReturnType,
-				generateJavaMethodInvocation(calleeId, methodName, params));
+				generateJavaMethodInvocation(calleeId, methodName, params, w));
 		w.emit(msgStatement, true);
 		w.emitStatementEnd();
 		String responseVarName = createMessageResponseVariableName(msgVarName);
@@ -2442,7 +2439,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 		String methodName = smc.l_.equals(METHOD_GET) ? "get" : smc.l_;
 		String potentialReturnType = resultVarName != null ? resultVarType
 				: findMethodReturnType(methodName, findVariableType(calleeId), params);
-		String javaMethodCall = generateJavaMethodInvocation(calleeId, methodName, params);
+		String javaMethodCall = generateJavaMethodInvocation(calleeId, methodName, params, w);
 		if (resultVarName != null) {
 			if (isDefined)
 				w.emit(String.format("%s = %s", resultVarName, javaMethodCall), true);
@@ -2847,7 +2844,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	 *            the parameters of the method that can be empty string
 	 * @return a string representing a Java method invocation statement
 	 */
-	protected String generateJavaMethodInvocation(String object, String method, List<String> parameters) {
+	protected String generateJavaMethodInvocation(String object, String method, List<String> parameters, JavaWriter w) {
 		for (HashMap<String, String> hashMap : duplicateReplacements) {
 			if (hashMap.containsKey(object)) {
 				object = hashMap.get(object);
@@ -2855,6 +2852,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 
 			}
 		}
+
 		List<String> duplicateParameters = new LinkedList<>();
 		for (String string : parameters) {
 			boolean found = false;
@@ -2866,8 +2864,20 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 
 				}
 			}
-			if(!found)
-				duplicateParameters.add(string);
+			if (!found) {
+				if (findVariableType(string) != null) {
+					final String stringName = string + Math.abs(string.hashCode() % 1000 + new Random().nextInt(1000));
+					duplicateParameters.add(stringName);
+					try {
+						w.emitStatement("%s %s = %s", findVariableTypeInScope(string), stringName, string);
+					} catch (IOException e) {
+						// TODO Auto-generated catch block
+						e.printStackTrace();
+					}
+				} else
+					duplicateParameters.add(string);
+
+			}
 		}
 		parameters = duplicateParameters;
 		return String.format("%s.%s(%s)", object, method,
@@ -3237,6 +3247,19 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 			}
 		}
 		return null;
+	}
+
+	private String findVariableTypeInScope(String varName) {
+
+		for (TreeSet<VarDefinition> scope : variablesInScope) {
+			for (VarDefinition varDefinition : scope) {
+				if (varDefinition.getName().equals(varName))
+					
+				return varDefinition.getType();
+			}
+		}
+
+		return findVariableType(varName);
 	}
 
 	private String findMethodReturnType(String methodName, String calleeClassType, List<String> actualParamNames) {
