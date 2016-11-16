@@ -32,7 +32,8 @@ class VarDefinition implements Comparable<VarDefinition> {
 			return false;
 		}
 		VarDefinition vd = (VarDefinition) o;
-		return Objects.equals(this.name, vd.name) && Objects.equals(this.type, vd.type);
+		return Objects.equals(this.name, vd.name);
+		//return Objects.equals(this.name, vd.name) && Objects.equals(this.type, vd.type);
 	}
 
 	@Override

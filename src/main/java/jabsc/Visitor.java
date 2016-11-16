@@ -2,6 +2,7 @@ package jabsc;
 
 import java.io.IOException;
 import java.io.PrintWriter;
+
 import java.io.StringWriter;
 import java.io.Writer;
 import java.nio.file.Files;
@@ -37,6 +38,8 @@ import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.Modifier;
 import javax.print.attribute.IntegerSyntax;
 
+import org.apache.tools.ant.taskdefs.rmic.KaffeRmic;
+
 import com.google.common.base.Objects;
 import com.google.common.base.StandardSystemProperty;
 import com.google.common.base.Supplier;
@@ -53,7 +56,9 @@ import abs.api.cwi.ABSFutureTask;
 import abs.api.cwi.Functional;
 
 import bnfc.abs.AbstractVisitor;
+
 import bnfc.abs.Absyn.*;
+
 
 import java.applet.*;
 
@@ -61,6 +66,7 @@ import java.applet.*;
  * The visitor for all possible nodes in the AST of an ABS program.
  */
 
+ 
 class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 
 	/**
@@ -120,6 +126,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	private static final String NEW_LINE = StandardSystemProperty.LINE_SEPARATOR.value();
 	private static final String ABS_API_ACTOR_CLASS = LocalActor.class.getName();
 	private static final String ABS_API_INTERFACE_CLASS = Actor.class.getName();
+	private static final String CASE = "_case";
 
 	// private static final String ABS_API_ACTOR_SERVER_CLASS =
 	// ActorServer.class.getName();
@@ -143,6 +150,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 			// DeploymentComponent.class.getPackage().getName() + "."
 			// + DeploymentComponent.class.getSimpleName() + ".*"
 	};
+
 	/*
 	 * private static final String[] DEFAULT_STATIC_IMPORTS_PATTERNS = new
 	 * String[] { "com.leacox.motif.Motif.*",
@@ -182,14 +190,18 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 			});
 	private final LinkedList<TreeSet<VarDefinition>> variablesInScope = new LinkedList<>();
 
+	private final HashMap<String, MethodDefinition> programMethods = new HashMap<>();
+
 	private final Stack<Module> modules = new Stack<>();
 	private final Stack<String> classes = new Stack<>();
 	private final EnumMap<AbsElementType, List<AnnDecl>> elements = new EnumMap<>(AbsElementType.class);
 	private final Map<String, String> classNames = new HashMap<>();
 	private final Set<String> packageLevelImports = new HashSet<>();
 	private final Map<String, String> dataDeclarations = new HashMap<>();
+
 	private final Set<String> exceptionDeclaraions = new HashSet<>();
 	private final Set<String> staticImports = new HashSet<>();
+	private final Set<String> adtInstances = new HashSet<>();
 
 	private final Map<String, LinkedList<StringWriter>> labelMap = new HashMap<>();
 
@@ -197,7 +209,15 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 
 	private final LinkedList<HashMap<String, String>> duplicateReplacements = new LinkedList<>();
 
+	private final Map<String, String> caseMap = new HashMap<>();
+
 	private MethodDefinition currentMethod;
+
+	private boolean awaitsDetected = false;
+
+	private int awaitCounter = 0;
+	private int syncPCounter = 0;
+	private int asyncPCounter = 0;
 
 	/**
 	 * Ctor.
@@ -228,6 +248,17 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 		// otherwise, I/O issues occur during generation.
 		Prog program = (Prog) p;
 		buildProgramDeclarationTypes(program);
+		do {
+			awaitsDetected = false;
+			JavaWriter notNeeded = new JavaWriter(true, new StringWriter(), true);
+			for (Module module : program.listmodule_) {
+				moduleNames.add(getQTypeName(((Mod) module).qu_, false));
+				modules.push(module);
+				module.accept(this, notNeeded);
+				modules.pop();
+			}
+			// System.out.println(programMethods);
+		} while (awaitsDetected);
 		for (Module module : program.listmodule_) {
 			moduleNames.add(getQTypeName(((Mod) module).qu_, false));
 			modules.push(module);
@@ -354,25 +385,40 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 
 			// Interfaces
 			for (AnnDecl ad : elements.get(AbsElementType.INTERFACE)) {
-				AnnDeclaration decl = (AnnDeclaration) ad;
-				String name = getTopLevelDeclIdentifier(decl.decl_);
-				JavaWriter declWriter = javaWriterSupplier.apply(name);
-				declWriter.emitPackage(packageName);
-				visitImports(m.listimport_, declWriter);
-				decl.accept(this, declWriter);
-				close(declWriter, w);
+				if (w.checkAwaits) {
+					AnnDeclaration decl = (AnnDeclaration) ad;
+					decl.accept(this, w);
+
+				} else {
+					AnnDeclaration decl = (AnnDeclaration) ad;
+					String name = getTopLevelDeclIdentifier(decl.decl_);
+					JavaWriter declWriter = javaWriterSupplier.apply(name);
+					declWriter.emitPackage(packageName);
+					visitImports(m.listimport_, declWriter);
+					emitPackageLevelImport(declWriter);
+					decl.accept(this, declWriter);
+					close(declWriter, w);
+				}
 			}
 
 			// Classes
 			for (AnnDecl ad : elements.get(AbsElementType.CLASS)) {
-				AnnDeclaration decl = (AnnDeclaration) ad;
-				String name = getTopLevelDeclIdentifier(decl.decl_);
-				final String refinedClassName = getRefinedClassName(name);
-				JavaWriter declWriter = javaWriterSupplier.apply(refinedClassName);
-				declWriter.emitPackage(packageName);
-				visitImports(m.listimport_, declWriter);
-				decl.accept(this, declWriter);
-				close(declWriter, w);
+				if (w.checkAwaits) {
+					AnnDeclaration decl = (AnnDeclaration) ad;
+					decl.accept(this, w);
+					// System.out.println(programMethods);
+
+				} else {
+					AnnDeclaration decl = (AnnDeclaration) ad;
+					String name = getTopLevelDeclIdentifier(decl.decl_);
+					final String refinedClassName = getRefinedClassName(name);
+					JavaWriter declWriter = javaWriterSupplier.apply(refinedClassName);
+					declWriter.emitPackage(packageName);
+					visitImports(m.listimport_, declWriter);
+					emitPackageLevelImport(declWriter);
+					decl.accept(this, declWriter);
+					close(declWriter, w);
+				}
 			}
 
 			visitFunctions(m, w);
@@ -655,27 +701,54 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	public List<JavaWriter> continuation(ListAnnStm statements, List<JavaWriter> currentMethodWriters,
 			boolean isInMethod) {
 
+		// System.out.println("Entering continuation creation with awaitCounter
+		// " + awaitCounter + "for method "
+		// + currentMethod.getName());
+
 		TreeSet<VarDefinition> methodScope = new TreeSet<>();
 		variablesInScope.push(methodScope);
+
+		duplicateReplacements.push(new HashMap<>());
+
 		StringWriter scopesw = new StringWriter();
 		JavaWriter scopew = new JavaWriter(scopesw);
+		scopew.isScope = true;
 
 		for (AnnStm stm : statements) {
 
 			AnnStatement as = (AnnStatement) stm;
 
-			for (JavaWriter javaWriter : currentMethodWriters) {
-				as.accept(this, javaWriter);
-			}
+			int tmp = awaitCounter;
+			int tmpS = syncPCounter;
+			int tmpA = asyncPCounter;
 
 			as.accept(this, scopew);
+
+			awaitCounter = tmp;
+			syncPCounter = tmpS;
+			asyncPCounter = tmpA;
+
+			for (JavaWriter javaWriter : currentMethodWriters) {
+				tmp = awaitCounter;
+				tmpS = syncPCounter;
+				tmpA = asyncPCounter;
+				as.accept(this, javaWriter);
+
+				awaitCounter = tmp;
+				syncPCounter = tmpS;
+				asyncPCounter = tmpA;
+			}
 
 			if (as.stm_ instanceof SWhile) {
 				SWhile sw = (SWhile) as.stm_;
 				SBlock whileBlock = (SBlock) ((AnnStatement) sw.annstm_).stm_;
 				StringWriter preAwaitsw = new StringWriter();
 				JavaWriter preAwaitw = new JavaWriter(preAwaitsw, true, true);
+
 				visitPreWhile(sw, preAwaitw);
+				awaitCounter = tmp;
+				syncPCounter = tmpS;
+				asyncPCounter = tmpA;
 
 				List<JavaWriter> innerAwaits = continuation(whileBlock.listannstm_, new LinkedList<>(), false);
 				for (JavaWriter javaWriter : innerAwaits) {
@@ -692,21 +765,64 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 				 * for (JavaWriter javaWriter : currentMethodWriters) {
 				 * visitLabelWhile(sw, javaWriter); }
 				 */
+				// System.out.println("after while check " + awaitCounter);
+
+			}
+
+			// System.out.println(awaitCounter);
+
+			if (as.stm_ instanceof SIfElse) {
+				// System.out.println("before while check " + awaitCounter);
+				SIfElse sie = (SIfElse) as.stm_;
+				SBlock ifBlock = (SBlock) ((Stm) sie.stm_1);
+				SBlock elseBlock = (SBlock) ((Stm) sie.stm_2);
+
+				List<JavaWriter> innerAwaits1 = continuation(ifBlock.listannstm_, new LinkedList<>(), false);
+				List<JavaWriter> innerAwaits2 = continuation(elseBlock.listannstm_, new LinkedList<>(), false);
+
+				currentMethodWriters.addAll(innerAwaits1);
+				currentMethodWriters.addAll(innerAwaits2);
+				/*
+				 * for (JavaWriter javaWriter : currentMethodWriters) {
+				 * visitLabelWhile(sw, javaWriter); }
+				 */
+				// System.out.println("after while check " + awaitCounter);
+
+			}
+
+			if (as.stm_ instanceof SIf) {
+				// System.out.println("before while check " + awaitCounter);
+				SIf si = (SIf) as.stm_;
+				SBlock ifBlock = (SBlock) ((Stm) si.stm_);
+
+				List<JavaWriter> innerAwaits1 = continuation(ifBlock.listannstm_, new LinkedList<>(), false);
+
+				currentMethodWriters.addAll(innerAwaits1);
+				/*
+				 * for (JavaWriter javaWriter : currentMethodWriters) {
+				 * visitLabelWhile(sw, javaWriter); }
+				 */
+				// System.out.println("after while check " + awaitCounter);
+
 			}
 
 			if (as.stm_ instanceof SAwait) {
+
 				StringBuilder label = new StringBuilder(classes.peek());
 				label.append(currentMethod.getName());
-				label.append("Await" + Math.abs(as.stm_.hashCode()));
+				label.append("Await" + (awaitCounter++));
 				StringWriter auxsw = new StringWriter();
 				JavaWriter auxw = new JavaWriter(auxsw);
+				auxw.continuationLevel = -1;
+
 				try {
 					String returnType = currentMethod.type() != null ? currentMethod.type() : "void";
 					List<String> parameters = new ArrayList<>();
 					for (TreeSet<VarDefinition> defs : variablesInScope) {
 						for (VarDefinition varDefinition : defs) {
 							parameters.add(varDefinition.getType());
-							parameters.add(varDefinition.getName());
+
+							parameters.add(getDuplicate(varDefinition.getName()));
 						}
 					}
 					auxw.beginMethod(returnType, label.toString(), DEFAULT_MODIFIERS, parameters, null);
@@ -719,9 +835,254 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 				currentMethodWriters.add(auxw);
 
 			}
+
+			if (as.stm_ instanceof SExp) {
+				SExp exp = (SExp) as.stm_;
+				if (exp.exp_ instanceof ExpE) {
+					ExpE ee = (ExpE) exp.exp_;
+					if (ee.effexp_ instanceof SyncMethCall) {
+						SyncMethCall smc = (SyncMethCall) ee.effexp_;
+						String methodName = smc.l_.equals(METHOD_GET) ? "get" : smc.l_;
+						if (callHasAwait(methodName)) {
+							StringBuilder label = new StringBuilder(classes.peek());
+							label.append(currentMethod.getName());
+							label.append("Await" + (awaitCounter++));
+
+							StringWriter auxsw = new StringWriter();
+							JavaWriter auxw = new JavaWriter(auxsw);
+							auxw.continuationLevel = -1;
+							try {
+								String returnType = currentMethod.type() != null ? currentMethod.type() : "void";
+								List<String> parameters = new ArrayList<>();
+								for (TreeSet<VarDefinition> defs : variablesInScope) {
+									for (VarDefinition varDefinition : defs) {
+										parameters.add(varDefinition.getType());
+										parameters.add(getDuplicate(varDefinition.getName()));
+									}
+								}
+
+								parameters.add("ABSFutureTask<?>");
+								parameters.add("f_par");
+
+								auxw.beginMethod(returnType, label.toString(), DEFAULT_MODIFIERS, parameters, null);
+
+							} catch (IOException e) {
+								// TODO Auto-generated catch block
+								e.printStackTrace();
+							}
+							currentMethodLabels.add(auxsw);
+							currentMethodWriters.add(auxw);
+						}
+					}
+					if (ee.effexp_ instanceof ThisSyncMethCall) {
+						ThisSyncMethCall smc = (ThisSyncMethCall) ee.effexp_;
+						String methodName = smc.l_.equals(METHOD_GET) ? "get" : smc.l_;
+						if (callHasAwait(methodName)) {
+							StringBuilder label = new StringBuilder(classes.peek());
+							label.append(currentMethod.getName());
+							label.append("Await" + (awaitCounter++));
+
+							StringWriter auxsw = new StringWriter();
+							JavaWriter auxw = new JavaWriter(auxsw);
+							auxw.continuationLevel = -1;
+							try {
+								String returnType = currentMethod.type() != null ? currentMethod.type() : "void";
+								List<String> parameters = new ArrayList<>();
+								for (TreeSet<VarDefinition> defs : variablesInScope) {
+									for (VarDefinition varDefinition : defs) {
+										parameters.add(varDefinition.getType());
+										parameters.add(getDuplicate(varDefinition.getName()));
+									}
+								}
+
+								parameters.add("ABSFutureTask<?>");
+								parameters.add("f_par");
+
+								auxw.beginMethod(returnType, label.toString(), DEFAULT_MODIFIERS, parameters, null);
+
+							} catch (IOException e) {
+								// TODO Auto-generated catch block
+								e.printStackTrace();
+							}
+							currentMethodLabels.add(auxsw);
+							currentMethodWriters.add(auxw);
+						}
+					}
+				}
+			}
+
+			// TODO assignment SDecAss, SFieldAss, Sass
+			if (as.stm_ instanceof SAss) {
+				SAss sas = (SAss) as.stm_;
+				if (sas.exp_ instanceof ExpE) {
+					ExpE ee = (ExpE) sas.exp_;
+					String methodName = null;
+					if (ee.effexp_ instanceof SyncMethCall) {
+						SyncMethCall smc = (SyncMethCall) ee.effexp_;
+						methodName = smc.l_.equals(METHOD_GET) ? "get" : smc.l_;
+					}
+					if (ee.effexp_ instanceof ThisSyncMethCall) {
+						ThisSyncMethCall smc = (ThisSyncMethCall) ee.effexp_;
+						methodName = smc.l_.equals(METHOD_GET) ? "get" : smc.l_;
+					}
+					if (callHasAwait(methodName)) {
+						StringBuilder label = new StringBuilder(classes.peek());
+						label.append(currentMethod.getName());
+						label.append("Await" + (awaitCounter++));
+
+						StringBuilder varName = new StringBuilder("");
+						varName.append(getDuplicate(sas.l_));
+						StringBuilder futureName = new StringBuilder();
+						futureName.append("future_");
+						futureName.append(varName.toString());
+
+						StringWriter auxsw = new StringWriter();
+						JavaWriter auxw = new JavaWriter(auxsw);
+						auxw.continuationLevel = -1;
+
+						try {
+							String returnType = currentMethod.type() != null ? currentMethod.type() : "void";
+							List<String> parameters = new ArrayList<>();
+							for (TreeSet<VarDefinition> defs : variablesInScope) {
+								for (VarDefinition varDefinition : defs) {
+									parameters.add(varDefinition.getType());
+									parameters.add(getDuplicate(varDefinition.getName()));
+								}
+							}
+							parameters.add(String.format("ABSFutureTask<%s>", findVariableTypeInScope(sas.l_)));
+							parameters.add(futureName.toString());
+
+							auxw.beginMethod(returnType, label.toString(), DEFAULT_MODIFIERS, parameters, null);
+
+							auxw.emitStatement("%s = %s.get()", varName, futureName);
+
+						} catch (IOException e) {
+							// TODO Auto-generated catch block
+							e.printStackTrace();
+						}
+						currentMethodLabels.add(auxsw);
+						currentMethodWriters.add(auxw);
+					}
+
+				}
+			}
+
+			if (as.stm_ instanceof SDecAss) {
+				SDecAss das = (SDecAss) as.stm_;
+				if (das.exp_ instanceof ExpE) {
+					ExpE ee = (ExpE) das.exp_;
+					String methodName = null;
+					if (ee.effexp_ instanceof SyncMethCall) {
+						SyncMethCall smc = (SyncMethCall) ee.effexp_;
+						methodName = smc.l_.equals(METHOD_GET) ? "get" : smc.l_;
+					}
+					if (ee.effexp_ instanceof ThisSyncMethCall) {
+						ThisSyncMethCall smc = (ThisSyncMethCall) ee.effexp_;
+						methodName = smc.l_.equals(METHOD_GET) ? "get" : smc.l_;
+					}
+					if (callHasAwait(methodName)) {
+
+						StringBuilder label = new StringBuilder(classes.peek());
+						label.append(currentMethod.getName());
+						label.append("Await" + (awaitCounter++));
+
+						StringBuilder varName = new StringBuilder("");
+
+						varName.append(getDuplicate(das.l_));
+
+						StringBuilder futureName = new StringBuilder();
+						futureName.append("future_");
+						futureName.append(varName.toString());
+
+						StringWriter auxsw = new StringWriter();
+						JavaWriter auxw = new JavaWriter(auxsw);
+						auxw.continuationLevel = -1;
+						try {
+							String returnType = currentMethod.type() != null ? currentMethod.type() : "void";
+							List<String> parameters = new ArrayList<>();
+							for (TreeSet<VarDefinition> defs : variablesInScope) {
+								for (VarDefinition varDefinition : defs) {
+									if (!varDefinition.getName().equals(das.l_)) {
+										parameters.add(varDefinition.getType());
+										parameters.add(getDuplicate(varDefinition.getName()));
+									}
+								}
+							}
+							parameters.add(String.format("ABSFutureTask<%s>", getTypeName(das.t_)));
+							parameters.add(futureName.toString());
+
+							auxw.beginMethod(returnType, label.toString(), DEFAULT_MODIFIERS, parameters, null);
+							auxw.emitStatement("%s %s = %s.get()", getTypeName(das.t_), varName, futureName);
+
+						} catch (IOException e) {
+							// TODO Auto-generated catch block
+							e.printStackTrace();
+						}
+						currentMethodLabels.add(auxsw);
+						currentMethodWriters.add(auxw);
+					}
+
+				}
+			}
+
+			if (as.stm_ instanceof SFieldAss) {
+				SFieldAss fas = (SFieldAss) as.stm_;
+				if (fas.exp_ instanceof ExpE) {
+					ExpE ee = (ExpE) fas.exp_;
+					String methodName = null;
+					if (ee.effexp_ instanceof SyncMethCall) {
+						SyncMethCall smc = (SyncMethCall) ee.effexp_;
+						methodName = smc.l_.equals(METHOD_GET) ? "get" : smc.l_;
+					}
+					if (ee.effexp_ instanceof ThisSyncMethCall) {
+						ThisSyncMethCall smc = (ThisSyncMethCall) ee.effexp_;
+						methodName = smc.l_.equals(METHOD_GET) ? "get" : smc.l_;
+					}
+					if (callHasAwait(methodName)) {
+						StringBuilder label = new StringBuilder(classes.peek());
+						label.append(currentMethod.getName());
+						label.append("Await" + (awaitCounter++));
+
+						StringBuilder futureName = new StringBuilder();
+						futureName.append("future_");
+						futureName.append(fas.l_);
+
+						StringWriter auxsw = new StringWriter();
+						JavaWriter auxw = new JavaWriter(auxsw);
+						auxw.continuationLevel = -1;
+						try {
+							String returnType = currentMethod.type() != null ? currentMethod.type() : "void";
+							List<String> parameters = new ArrayList<>();
+							for (TreeSet<VarDefinition> defs : variablesInScope) {
+								for (VarDefinition varDefinition : defs) {
+									parameters.add(varDefinition.getType());
+									parameters.add(getDuplicate(varDefinition.getName()));
+								}
+							}
+							parameters.add(String.format("ABSFutureTask<%s>", findVariableTypeInScope(fas.l_)));
+							parameters.add(futureName.toString());
+
+							auxw.beginMethod(returnType, label.toString(), DEFAULT_MODIFIERS, parameters, null);
+							auxw.emitStatement("this.%s = %s.get()", fas.l_, futureName);
+
+						} catch (IOException e) {
+							// TODO Auto-generated catch block
+							e.printStackTrace();
+						}
+						currentMethodLabels.add(auxsw);
+						currentMethodWriters.add(auxw);
+					}
+
+				}
+			}
+
 		}
 		variablesInScope.pop();
-		if (isInMethod) {
+		duplicateReplacements.pop();
+
+		if (isInMethod)
+
+		{
 			for (JavaWriter javaWriter : currentMethodWriters) {
 				try {
 					javaWriter.endMethod();
@@ -730,6 +1091,10 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 					// TODO Auto-generated catch block
 					e.printStackTrace();
 				}
+			}
+		} else {
+			for (JavaWriter javaWriter : currentMethodWriters) {
+				javaWriter.continuationLevel = variablesInScope.size();
 			}
 		}
 		return currentMethodWriters;
@@ -836,6 +1201,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 
 			emitField(w, fieldType, fieldName, null, false);
 			createVarDefinition(fieldName, fieldType);
+
 			verifyJavaStatic(fieldType, fieldName);
 			w.emitEmptyLine();
 			return prog;
@@ -855,6 +1221,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 			p.pureexp_.accept(this, auxw);
 			emitField(w, fieldType, fieldName, auxsw.toString(), false);
 			createVarDefinition(fieldName, fieldType);
+
 			w.emitEmptyLine();
 			return prog;
 		} catch (IOException e) {
@@ -862,51 +1229,82 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 		}
 	}
 
+	public void visitMethodBody(MethClassBody mcb, JavaWriter notNeeded) {
+		for (AnnStm annStm : mcb.listannstm_) {
+			annStm.accept(this, notNeeded);
+		}
+	}
+
 	@Override
 	public Prog visit(MethClassBody mcb, JavaWriter w) {
 		try {
 
-			TreeSet<VarDefinition> methodScope = new TreeSet<>();
-			variablesInScope.push(methodScope);
-			String returnType = getTypeName(mcb.t_);
-			String name = mcb.l_.equals(METHOD_GET) ? "get" : mcb.l_;
-			List<String> parameters = new ArrayList<>();
-			List<String> parameterTypes = new ArrayList<>();
-			for (FormalPar param : mcb.listformalpar_) {
-				FormalParameter p = (FormalParameter) param;
-				String paramType = getTypeName(p.t_);
-				parameters.add(paramType);
-				parameters.add(p.l_);
-				parameterTypes.add(paramType);
-				createVarDefinition(p.l_, paramType);
+			if (w.checkAwaits) {
+				String returnType = getTypeName(mcb.t_);
+				String name = mcb.l_.equals(METHOD_GET) ? "get" : mcb.l_;
+				List<String> parameterTypes = new ArrayList<>();
+				for (FormalPar param : mcb.listformalpar_) {
+					FormalParameter p = (FormalParameter) param;
+					String paramType = getTypeName(p.t_);
+					parameterTypes.add(paramType);
+					// createVarDefinition(p.l_, paramType);
+				}
+				createMethodDefinition(returnType, name, parameterTypes);
+				visitMethodBody(mcb, w);
+			} else {
+
+				TreeSet<VarDefinition> methodScope = new TreeSet<>();
+				variablesInScope.push(methodScope);
+				String returnType = getTypeName(mcb.t_);
+				String name = mcb.l_.equals(METHOD_GET) ? "get" : mcb.l_;
+				List<String> parameters = new ArrayList<>();
+				List<String> parameterTypes = new ArrayList<>();
+				for (FormalPar param : mcb.listformalpar_) {
+					FormalParameter p = (FormalParameter) param;
+					String paramType = getTypeName(p.t_);
+					parameters.add(paramType);
+					parameters.add(p.l_);
+					parameterTypes.add(paramType);
+					VarDefinition vd = createVarDefinition(p.l_, paramType);
+					if (!variablesInScope.isEmpty()) {
+						variablesInScope.peek().add(vd);
+					}
+				}
+				w.beginMethod(returnType, name, DEFAULT_MODIFIERS, parameters, Collections.emptyList());
+				createMethodDefinition(returnType, name, parameterTypes);
+
+				ListAnnStm copyOfMcb = (ListAnnStm) mcb.listannstm_.clone();
+
+				TreeSet<VarDefinition> blockScope = new TreeSet<>();
+				variablesInScope.push(blockScope);
+
+				awaitCounter = 0;
+				asyncPCounter = 0;
+				syncPCounter = 0;
+				for (AnnStm annStm : mcb.listannstm_) {
+					annStm.accept(this, w);
+				}
+
+				variablesInScope.pop();
+
+				awaitCounter = 0;
+				asyncPCounter = 0;
+				syncPCounter = 0;
+
+				continuation(copyOfMcb, new LinkedList<>(), true);
+				// visitStatementsBlock(mcb.listannstm_, w);
+				variablesInScope.pop();
+
+				w.endMethod();
+
+				for (StringWriter stringWriter : currentMethodLabels) {
+					labelMap.get(this.classes.peek()).add(stringWriter);
+
+				}
+				currentMethodLabels.clear();
+
+				w.emitEmptyLine();
 			}
-			w.beginMethod(returnType, name, DEFAULT_MODIFIERS, parameters, Collections.emptyList());
-			createMethodDefinition(returnType, name, parameterTypes);
-
-			ListAnnStm copyOfMcb = (ListAnnStm) mcb.listannstm_.clone();
-
-			TreeSet<VarDefinition> blockScope = new TreeSet<>();
-			variablesInScope.push(blockScope);
-
-			for (AnnStm annStm : mcb.listannstm_) {
-				annStm.accept(this, w);
-			}
-
-			variablesInScope.pop();
-
-			continuation(copyOfMcb, new LinkedList<>(), true);
-			// visitStatementsBlock(mcb.listannstm_, w);
-			variablesInScope.pop();
-
-			w.endMethod();
-
-			for (StringWriter stringWriter : currentMethodLabels) {
-				labelMap.get(this.classes.peek()).add(stringWriter);
-
-			}
-			currentMethodLabels.clear();
-
-			w.emitEmptyLine();
 			return prog;
 		} catch (IOException e) {
 			throw new RuntimeException(e);
@@ -915,8 +1313,11 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 
 	@Override
 	public Prog visit(SBlock b, JavaWriter w) {
+
 		TreeSet<VarDefinition> blockScope = new TreeSet<>();
 		variablesInScope.push(blockScope);
+		if (w.continuationLevel != -5)
+			w.continuationLevel = variablesInScope.size();
 
 		HashMap<String, String> duplicateScope = new HashMap<>();
 		duplicateReplacements.push(duplicateScope);
@@ -926,19 +1327,27 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 		}
 		duplicateReplacements.pop();
 		variablesInScope.pop();
+		if (w.continuationLevel > -5)
+			w.continuationLevel = variablesInScope.size();
 		return prog;
 
 	}
 
 	@Override
 	public Prog visit(SAwait await, JavaWriter w) {
+		if (w.checkAwaits && !currentMethod.containsAwait()) {
+			currentMethod.setContainsAwait(true);
+			awaitsDetected = true;
+		}
 		StringWriter auxsw = new StringWriter();
 		JavaWriter auxw = new JavaWriter(auxsw);
 		await.awaitguard_.accept(this, auxw);
 		StringBuilder label = new StringBuilder(classes.peek());
 		label.append(currentMethod.getName());
-		label.append("Await" + Math.abs(await.hashCode()));
 
+		if (!w.isScope && !w.checkAwaits) {
+			label.append("Await" + (awaitCounter++));
+		}
 		List<String> parameters = new ArrayList<>();
 		for (TreeSet<VarDefinition> defs : variablesInScope) {
 			for (VarDefinition varDefinition : defs) {
@@ -946,7 +1355,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 			}
 		}
 
-		String methodCall = generateJavaMethodInvocation("this", label.toString(), parameters, w);
+		String methodCall = generateJavaMethodInvocation("this", label.toString(), parameters, w, 'w', awaitCounter);
 		try {
 			w.emitStatement("await(Guard.convert(%s),%s)", auxsw.toString(), "()->" + methodCall);
 		} catch (IOException e) {
@@ -954,6 +1363,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 			e.printStackTrace();
 		}
 		return prog;
+
 	}
 
 	@Override
@@ -1011,13 +1421,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	public Prog visit(GFut vg, JavaWriter w) {
 		try {
 
-			for (HashMap<String, String> hashMap : duplicateReplacements) {
-				if (hashMap.containsKey(vg.l_)) {
-					w.emit(hashMap.get(vg.l_));
-					return prog;
-				}
-			}
-			w.emit(vg.l_);
+			w.emit(getDuplicate(vg.l_));
 			return prog;
 		} catch (IOException x) {
 			throw new RuntimeException(x);
@@ -1089,12 +1493,33 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	}
 
 	@Override
+	public Prog visit(SCase p, JavaWriter w) {
+		try {
+			StringWriter auxsw = new StringWriter();
+			visitSCase(p, null, new JavaWriter(auxsw));
+			w.emitStatement(auxsw.toString());
+			return prog;
+		} catch (IOException e) {
+			throw new RuntimeException(e);
+		}
+	}
+
+	@Override
 	public Prog visit(SDec p, JavaWriter w) {
 		try {
 			String fieldType = getTypeName(p.t_);
 			String fieldName = p.l_;
+
+			VarDefinition vd = createVarDefinition(fieldName, fieldType);
+			if ((w.continuationLevel > -1 || w.avoidDuplicates)) {
+				duplicateReplacements.peek().put(fieldName, "w_" + awaitCounter + "$" + fieldName);
+			}
+
 			emitField(w, fieldType, fieldName, null, false);
-			createVarDefinition(fieldName, fieldType);
+
+			if (!variablesInScope.isEmpty()) {
+				variablesInScope.peek().add(vd);
+			}
 			verifyJavaStatic(fieldType, fieldName);
 			w.emitEmptyLine();
 			return prog;
@@ -1172,10 +1597,15 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 			String varType = getTypeName(p.t_);
 			varType = VOID_PRIMITIVE_NAME.equals(varType) ? Object.class.getSimpleName() : varType;
 			String varName = p.l_;
-			if (w.avoidDuplicates) {
-				duplicateReplacements.peek().put(varName, varName + (Math.abs(varName.hashCode() % 1000)));
+
+			VarDefinition vd = createVarDefinition(varName, varType);
+			if ((w.continuationLevel > -1 || w.avoidDuplicates)) {
+				duplicateReplacements.peek().put(varName, "w_" + awaitCounter + "$" + varName);
 			}
-			createVarDefinition(varName, varType);
+
+			if (!variablesInScope.isEmpty()) {
+				variablesInScope.peek().add(vd);
+			}
 
 			Exp exp = p.exp_;
 			if (exp instanceof ExpE == false) {
@@ -1590,12 +2020,16 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	public Prog visit(EVar v, JavaWriter w) {
 		try {
 
-			for (HashMap<String, String> hashMap : duplicateReplacements) {
-				if (hashMap.containsKey(v.l_)) {
-					w.emit(hashMap.get(v.l_));
-					return prog;
-				}
+			if (!getDuplicate(v.l_).equals(v.l_)) {
+				w.emit(getDuplicate(v.l_));
+				return prog;
 			}
+
+			if (caseMap.containsKey(v.l_)) {
+				w.emit(caseMap.get(v.l_));
+				return prog;
+			}
+
 			w.emit(translate(v.l_));
 		} catch (IOException x) {
 			throw new RuntimeException(x);
@@ -1913,6 +2347,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 			w.emitEmptyLine();
 			w.endType();
 			this.dataDeclarations.put(parentDataInterface, parentDataInterface);
+
 			visitDataDeclarationConstructors(parentDataInterface, dpd.listconstrident_, genericParams);
 			return prog;
 		} catch (IOException e) {
@@ -1923,16 +2358,24 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	@Override
 	public Prog visit(DFun f, JavaWriter w) {
 		try {
+			this.classes.push("Functions");
 			String methodName = f.l_;
 			String methodType = getTypeName(f.t_);
 			List<String> parameters = new ArrayList<>();
 			for (FormalPar param : f.listformalpar_) {
 				FormalParameter parameter = (FormalParameter) param;
-				parameters.add(getTypeName(parameter.t_));
+				String paramType = getTypeName(parameter.t_);
+				parameters.add(paramType);
 				parameters.add(parameter.l_);
+				VarDefinition vd = createVarDefinition(parameter.l_, paramType);
+				if (!variablesInScope.isEmpty()) {
+					variablesInScope.peek().add(vd);
+				}
 			}
 			Set<Modifier> modifiers = Sets.newHashSet(Modifier.PUBLIC, Modifier.STATIC);
+
 			w.beginMethod(methodType, methodName, modifiers, parameters.toArray(new String[0]));
+			createMethodDefinition(methodType, methodName, parameters);
 			FunBody fbody = f.funbody_;
 			if (fbody instanceof BuiltinFunBody) {
 				logNotImplemented("builtin function body: %s %s", methodType, methodName);
@@ -1940,8 +2383,9 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 				NormalFunBody nfb = (NormalFunBody) fbody;
 				PureExp pe = nfb.pureexp_;
 				if (pe instanceof ECase) {
-					String caseStm = visitCase((ECase) pe, methodType);
-					w.emitStatement("return %s", caseStm);
+					StringWriter auxsw = new StringWriter();
+					visitECase((ECase) pe, methodType, new JavaWriter(auxsw));
+					w.emitStatement("return %s", auxsw.toString());
 				} else {
 					StringWriter sw = new StringWriter();
 					JavaWriter auxjw = new JavaWriter(sw);
@@ -1952,6 +2396,8 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 			}
 			w.endMethod();
 			w.emitEmptyLine();
+
+			this.classes.push("Functions");
 		} catch (IOException e) {
 			throw new RuntimeException(e);
 		}
@@ -1961,13 +2407,19 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	@Override
 	public Prog visit(DFunPoly fpd, JavaWriter w) {
 		try {
+			this.classes.push("Functions");
 			String methodName = fpd.l_;
 			String methodType = getTypeName(fpd.t_);
 			List<String> parameters = new ArrayList<>();
 			for (FormalPar param : fpd.listformalpar_) {
 				FormalParameter parameter = (FormalParameter) param;
-				parameters.add(getTypeName(parameter.t_));
+				String paramType = getTypeName(parameter.t_);
+				parameters.add(paramType);
 				parameters.add(parameter.l_);
+				VarDefinition vd = createVarDefinition(parameter.l_, paramType);
+				if (!variablesInScope.isEmpty()) {
+					variablesInScope.peek().add(vd);
+				}
 			}
 			List<String> genericParameters = fpd.listu_.stream().collect(Collectors.toList());
 			Set<Modifier> modifiers = Sets.newHashSet(Modifier.PUBLIC, Modifier.STATIC);
@@ -1980,8 +2432,9 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 				NormalFunBody nfb = (NormalFunBody) fbody;
 				PureExp pe = nfb.pureexp_;
 				if (pe instanceof ECase) {
-					String caseStm = visitCase((ECase) pe, methodType);
-					w.emitStatement("return %s", caseStm);
+					StringWriter auxsw = new StringWriter();
+					visitECase((ECase) pe, methodType, new JavaWriter(auxsw));
+					w.emitStatement("return %s", auxsw.toString());
 				} else {
 					StringWriter sw = new StringWriter();
 					JavaWriter auxjw = new JavaWriter(sw);
@@ -1992,6 +2445,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 			}
 			w.endMethod();
 			w.emitEmptyLine();
+			this.classes.pop();
 		} catch (IOException e) {
 			throw new RuntimeException(e);
 		}
@@ -2106,9 +2560,9 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	@Override
 	public Prog visit(ECase p, JavaWriter w) {
 		try {
-			String result = visitCase(p, null);
-			w.emitEmptyLine();
-			w.emit(result, true);
+			StringWriter auxsw = new StringWriter();
+			visitECase(p, null, new JavaWriter(auxsw));
+			w.emit(auxsw.toString(), true);
 			return prog;
 		} catch (IOException e) {
 			throw new RuntimeException(e);
@@ -2199,13 +2653,11 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	@Override
 	public Prog visit(PVar p, JavaWriter w) {
 		try {
-			for (HashMap<String, String> hashMap : duplicateReplacements) {
-				if (hashMap.containsKey(p.l_)) {
-					w.emit(hashMap.get(p.l_));
-					return prog;
-				}
+			if (caseMap.containsKey(p.l_)) {
+				w.emit(caseMap.get(p.l_) + "." + p.l_);
 			}
-			w.emit(p.l_);
+
+			w.emit(getDuplicate(p.l_));
 			return prog;
 		} catch (IOException e) {
 			throw new RuntimeException(e);
@@ -2241,7 +2693,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 				parameters.add(sw.toString());
 			}
 			String params = String.join(COMMA_SPACE, parameters);
-			w.emit("new " + p.qu_ + "(" + params + ")");
+			w.emit(getRefindDataDeclName(getQTypeName(p.qu_, false)) + "(" + params + ")");
 			return prog;
 		} catch (IOException e) {
 			throw new RuntimeException(e);
@@ -2324,6 +2776,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 			final String identifier = MAIN_CLASS_NAME;
 			EnumSet<Modifier> mainModifiers = EnumSet.of(Modifier.PUBLIC, Modifier.STATIC);
 			beginElementKind(jw, ElementKind.CLASS, identifier, DEFAULT_MODIFIERS, null, null, true);
+			classes.push("Main");
 			jw.emitEmptyLine();
 
 			jw.beginConstructor(EnumSet.of(Modifier.PUBLIC), Arrays.asList("String[]", "args"),
@@ -2355,6 +2808,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 			jw.endMethod();
 
 			jw.endType();
+			classes.pop();
 			close(jw, w);
 		} catch (IOException e) {
 			throw new RuntimeException(e);
@@ -2396,40 +2850,90 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 						: findMethodReturnType(methodName, findVariableType(calleeId), params);
 		String msgVarName = createMessageVariableName(calleeId);
 		String msgStatement = generateMessageStatement(msgVarName, potentialReturnType,
-				generateJavaMethodInvocation(calleeId, methodName, params, w));
+				generateJavaMethodInvocation(calleeId, methodName, params, w, 'a', asyncPCounter));
 		w.emit(msgStatement, true);
 		w.emitStatementEnd();
 		String responseVarName = resultVarName != null ? resultVarName : createMessageResponseVariableName(msgVarName);
+
 		String sendStm = generateMessageInvocationStatement(calleeId, isDefined, resultVarType, msgVarName,
 				responseVarName);
 		w.emit(sendStm, true);
 		w.emitStatementEnd();
+		if (!w.isScope && !w.checkAwaits)
+			asyncPCounter++;
 	}
 
 	protected void visitSyncMethodCall_Async(SyncMethCall smc, String resultVarType, String resultVarName,
 			boolean isDefined, JavaWriter w) throws IOException {
+
+		// TODO : complete sync->async
 		String calleeId = getCalleeId(smc);
 		List<String> params = getCalleeMethodParams(smc);
 		String msgVarName = createMessageVariableName(calleeId);
 		String methodName = smc.l_.equals(METHOD_GET) ? "get" : smc.l_;
 		String potentialReturnType = resultVarType != null ? resultVarType
 				: findMethodReturnType(methodName, findVariableType(calleeId), params);
-		String msgStatement = generateMessageStatement(msgVarName, potentialReturnType,
-				generateJavaMethodInvocation(calleeId, methodName, params, w));
+
+		StringWriter auxsw = new StringWriter();
+		JavaWriter auxw = new JavaWriter(auxsw);
+		StringBuilder label = new StringBuilder(classes.peek());
+		label.append(currentMethod.getName());
+
+		if (!w.isScope && !w.checkAwaits) {
+			label.append("Await" + (awaitCounter++));
+		}
+		List<String> parameters = new ArrayList<>();
+		for (TreeSet<VarDefinition> defs : variablesInScope) {
+			for (VarDefinition varDefinition : defs) {
+				if (!varDefinition.getName().equals(resultVarName))
+					parameters.add(varDefinition.getName());
+			}
+		}
+
+		StringBuilder futureName = new StringBuilder();
+
+		if (!(resultVarName == null)) {
+			futureName.append("future_");
+			futureName.append(resultVarName);
+		}
+		parameters.add(futureName.toString() + "_par");
+
+		if ((w.continuationLevel > -1 || w.avoidDuplicates)) {
+			duplicateReplacements.peek().put(futureName.toString(), "w_" + awaitCounter + "$" + futureName.toString());
+
+		}
+
+		String syncCall = generateJavaMethodInvocation(calleeId, methodName, params, w, 's', syncPCounter);
+
+		String awaitCall = generateJavaMethodInvocation("this", label.toString(), parameters, w, 'w', awaitCounter);
+
+		// System.out.println(awaitCall);
+
+		String msgStatement = generateMessageStatement(msgVarName, potentialReturnType, syncCall);
 		w.emit(msgStatement, true);
 		w.emitStatementEnd();
-		String responseVarName = createMessageResponseVariableName(msgVarName);
-		String sendStm = generateMessageInvocationStatement(calleeId, isDefined, resultVarType, msgVarName,
-				responseVarName);
+
+		String sendStm = generateMessageSyncInvocationStatement(calleeId, isDefined, resultVarType, msgVarName,
+				"(" + futureName.toString() + "_par)->" + awaitCall, ((w.avoidDuplicates || w.continuationLevel > -1)
+						? duplicateReplacements.peek().get(futureName.toString()) : futureName.toString()));
 		w.emit(sendStm, true);
 		w.emitStatementEnd();
+
 		if (resultVarName != null && resultVarType != null) {
-			w.emit((isDefined ? "" : resultVarType + " " + " ") + resultVarName + " = " + responseVarName
-					+ ".getValue()", true);
+			w.emit((isDefined ? "" : resultVarType + " " + " ")
+					+ ((w.avoidDuplicates || w.continuationLevel > -1) ? duplicateReplacements.peek().get(resultVarName)
+							: resultVarName)
+					+ " = "
+					+ ((w.avoidDuplicates || w.continuationLevel > -1)
+							? duplicateReplacements.peek().get(futureName.toString()) : futureName.toString())
+					+ ".get()", true);
 		} else {
-			w.emit(responseVarName + ".getValue()", true);
+			if (futureName.equals(""))
+				w.emit(futureName + ".get()", true);
 		}
 		w.emitStatementEnd();
+		if (!w.isScope && !w.checkAwaits)
+			syncPCounter++;
 	}
 
 	protected void visitSyncMethodCall_Sync(SyncMethCall smc, String resultVarType, String resultVarName,
@@ -2439,24 +2943,36 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 		String methodName = smc.l_.equals(METHOD_GET) ? "get" : smc.l_;
 		String potentialReturnType = resultVarName != null ? resultVarType
 				: findMethodReturnType(methodName, findVariableType(calleeId), params);
-		String javaMethodCall = generateJavaMethodInvocation(calleeId, methodName, params, w);
-		if (resultVarName != null) {
-			if (isDefined)
-				w.emit(String.format("%s = %s", resultVarName, javaMethodCall), true);
-			else
-				w.emit(String.format("%s %s = %s", potentialReturnType, resultVarName, javaMethodCall), true);
-
-		} else {
-			w.emit(javaMethodCall, true);
+		if (w.checkAwaits) {
+			if (callHasAwait(methodName) && !currentMethod.containsAwait()) {
+				currentMethod.setContainsAwait(true);
+				awaitsDetected = true;
+			}
+		} else if (callHasAwait(methodName)) {
+			visitSyncMethodCall_Async(smc, resultVarType, resultVarName, isDefined, w);
 		}
-		w.emitStatementEnd();
+
+		else {
+			String javaMethodCall = String.format("%s.%s(%s)", calleeId, methodName, String.join(COMMA_SPACE, params));
+			if (resultVarName != null) {
+				if (isDefined)
+					w.emit(String.format("%s = %s", resultVarName, javaMethodCall), true);
+				else
+					w.emit(String.format("%s %s = %s", potentialReturnType, resultVarName, javaMethodCall), true);
+
+			} else {
+				w.emit(javaMethodCall, true);
+			}
+			w.emitStatementEnd();
+		}
 	}
 
 	protected void visitStatementAssignmentExp(Exp exp, String varName, String varType, JavaWriter w)
 			throws IOException {
 		if (exp instanceof ExpP && ((ExpP) exp).pureexp_ instanceof ECase) {
-			String caseStm = visitCase((ECase) ((ExpP) exp).pureexp_, varType);
-			w.emit(String.format("%s %s = (%s) %s", varType, varName, varType, caseStm), true);
+			StringWriter auxsw = new StringWriter();
+			visitECase((ECase) ((ExpP) exp).pureexp_, varType, new JavaWriter(auxsw));
+			w.emit(String.format("%s %s = %s", varType, varName, auxsw.toString()), true);
 		} else {
 			/*
 			 * if ((exp instanceof ExpE) && ((ExpE) exp).effexp_ instanceof
@@ -2478,13 +2994,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 			StringWriter auxsw = new StringWriter();
 			JavaWriter auxw = new JavaWriter(auxsw);
 			exp.accept(this, auxw);
-			for (HashMap<String, String> hashMap : duplicateReplacements) {
-				if (hashMap.containsKey(varName)) {
-					varName = hashMap.get(varName);
-					break;
-
-				}
-			}
+			varName = getDuplicate(varName);
 			if (varType == null) {
 				w.emit(varName + " = " + auxsw.toString(), true);
 			} else {
@@ -2495,22 +3005,51 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 		w.emitStatementEnd();
 	}
 
-	protected String visitCase(ECase kase, String expectedCaseType) {
+	protected void visitECase(ECase kase, String expectedCaseType, JavaWriter w) {
 		StringWriter auxsw = new StringWriter();
 		kase.pureexp_.accept(this, new JavaWriter(auxsw));
 		String kaseVar = auxsw.toString();
 		String type = expectedCaseType;
+		String caseVarType = findVariableTypeInScope(kaseVar);
+		/*
+		 * if (type == null) { type = findVariableType(kaseVar); }
+		 */
 		if (type == null) {
-			type = findVariableType(kaseVar);
-		}
-		if (type == null) {
-			type = "";
-		} else {
-			type = "(" + type + ")";
-		}
+			type = currentMethod.type() == null ? "void" : currentMethod.type();
+			/*
+			 * } else { type = "(" + type + ")";
+			 */}
+
 		List<Entry<Pattern, PureExp>> cases = kase.listecasebranch_.stream().map(b -> (ECaseB) b)
 				.map(cb -> new SimpleEntry<Pattern, PureExp>(cb.pattern_, cb.pureexp_)).collect(Collectors.toList());
-		return visitCases(kaseVar, type, cases);
+		if (caseVarType.startsWith("Optional"))
+			visitECasesJM(kaseVar, type, cases, w);
+		else
+			visitECases(kaseVar, type, cases, w);
+	}
+
+	protected void visitSCase(SCase kase, String expectedCaseType, JavaWriter w) {
+		StringWriter auxsw = new StringWriter();
+		kase.pureexp_.accept(this, new JavaWriter(auxsw));
+		String kaseVar = auxsw.toString();
+		String type = expectedCaseType;
+		String caseVarType = findVariableTypeInScope(kaseVar);
+		/*
+		 * if (type == null) { type = findVariableType(kaseVar); }
+		 */
+		if (type == null) {
+			type = currentMethod.type() == null ? "Void" : currentMethod.type();
+			/*
+			 * } else { type = "(" + type + ")";
+			 */}
+
+		List<Entry<Pattern, AnnStm>> cases = kase.listscasebranch_.stream().map(b -> (SCaseB) b)
+				.map(cb -> new SimpleEntry<Pattern, AnnStm>(cb.pattern_, cb.annstm_)).collect(Collectors.toList());
+
+		if (caseVarType.startsWith("Optional"))
+			visitSCasesJM(kaseVar, type, cases, w);
+		else
+			visitSCases(kaseVar, type, cases, w);
 	}
 
 	protected void visitJavaAnnDecl(AnnWithType ann_) {
@@ -2531,48 +3070,278 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 		}
 	}
 
-	private String visitCases(String caseVariable, String caseVariableType, List<Entry<Pattern, PureExp>> cases) {
-		StringBuilder caseStm = new StringBuilder("Matching").append(NEW_LINE);
-		for (Entry<Pattern, PureExp> e : cases) {
+	private void visitECasesJM(String caseVariable, String caseVariableType, List<Entry<Pattern, PureExp>> cases,
+			JavaWriter w) {
+		try {
+			w.emit(String.format("(%s.get()!=null)? ", caseVariable), true);
+			String optional = findVariableTypeInScope(caseVariable);
+			String optionalType = optional.substring(optional.indexOf('<') + 1, optional.indexOf('>'));
+			Entry<Pattern, PureExp> e = cases.get(0);
 			Pattern left = e.getKey();
+			StringWriter leftauxsw = new StringWriter();
+			left.accept(this, new JavaWriter(leftauxsw));
 			PureExp right = e.getValue();
-			StringWriter auxsw = new StringWriter();
-			right.accept(this, new JavaWriter(auxsw));
-			String thenMatchValue = auxsw.toString();
-			caseStm.append(".").append(String.format("when()")).append(NEW_LINE);
-			String kaseVarLocal = "var" + RANDOM.nextInt(1000);
-			if (thenMatchValue.contains(" " + caseVariable + " ")) {
-				thenMatchValue = thenMatchValue.replace(caseVariable, kaseVarLocal);
+			String patt = leftauxsw.toString();
+			int index = patt.indexOf('(');
+			String[] vars = null;
+			String value = null;
+			vars = patt.substring(index + 1, patt.indexOf(')')).split(",");
+			value = patt.substring(0, index);
+			for (String string : vars) {
+				if (optionalType.startsWith("Pair")) {
+					caseMap.put(string.trim(), String.format("%s(%s.get())", string.trim(), caseVariable));
+				} else if (!classNames.containsKey(optionalType)) {
+					caseMap.put(string.trim(), String.format("%s.get()", caseVariable));
+				} else
+					caseMap.put(string.trim(), String.format("%s.get().%s", caseVariable, string.trim()));
 			}
-			if (left instanceof PVar) {
-				PVar pi = (PVar) left;
-				caseStm.append(".").append(String.format("isValue(%s)", pi.l_)).append(NEW_LINE).append(".")
-						.append(String.format("thenApply(x -> %s)", thenMatchValue)).append(NEW_LINE);
-			} else if (left instanceof PLit) {
-				PLit plit = (PLit) left;
-				StringWriter litsw = new StringWriter();
-				plit.accept(this, new JavaWriter(litsw));
-				caseStm.append(".").append(String.format("isValue(%s)", litsw.toString())).append(NEW_LINE).append(".")
-						.append(String.format("thenApply(x -> %s", thenMatchValue)).append(NEW_LINE);
-			} else if (left instanceof PWildCard) {
-				caseStm.append(".").append(String.format("isTrue(x -> true)")).append(NEW_LINE)
-						.append(String.format("thenApply(x -> %s)", thenMatchValue)).append(NEW_LINE);
-			} else if (left instanceof PSinglConstr) {
-				PSinglConstr psc = (PSinglConstr) left;
-				String type = getQTypeName(psc.qu_, false);
-				caseStm.append(".").append(String.format("isType((%s x) -> %s)", type, thenMatchValue))
-						.append(NEW_LINE);
-			} else if (left instanceof PParamConstr) {
-				PParamConstr ppc = (PParamConstr) left;
-				String type = getQTypeName(ppc.qu_, false);
-				caseStm.append(".").append(String.format("isType((%s x) -> %s)", type, thenMatchValue))
-						.append(NEW_LINE);
-			} else {
-				logNotImplemented("case pattern: %s", left);
+			StringWriter rightauxsw = new StringWriter();
+			right.accept(this, new JavaWriter(rightauxsw));
+
+			w.emit(String.format("%s:", rightauxsw.toString()), true);
+			if (vars != null) {
+				for (String string : vars) {
+					caseMap.remove(string.trim());
+				}
 			}
+			Entry<Pattern, PureExp> nothing = cases.get(1);
+			PureExp rightNothing = nothing.getValue();
+			StringWriter rightNothingSw = new StringWriter();
+			rightNothing.accept(this, new JavaWriter(rightNothingSw));
+
+			w.emit(String.format("%s;", rightNothingSw.toString()), true);
+
+		} catch (IOException e1) {
+			// TODO Auto-generated catch block
+			e1.printStackTrace();
 		}
-		caseStm.append(String.format(".match(%s).get()", caseVariable));
-		return caseStm.toString();
+
+	}
+
+	private void visitSCasesJM(String caseVariable, String caseVariableType, List<Entry<Pattern, AnnStm>> cases,
+			JavaWriter w) {
+
+		try {
+			w.beginControlFlow("if(%s.get()!=null) ", caseVariable);
+			String optional = findVariableTypeInScope(caseVariable);
+			String optionalType = optional.substring(optional.indexOf('<') + 1, optional.lastIndexOf('>'));
+			Entry<Pattern, AnnStm> e = cases.get(0);
+			Pattern left = e.getKey();
+			StringWriter leftauxsw = new StringWriter();
+			left.accept(this, new JavaWriter(leftauxsw));
+			AnnStm right = e.getValue();
+			String patt = leftauxsw.toString();
+			int index = patt.indexOf('(');
+			patt = patt.substring(index + 1);
+			index = patt.indexOf('(');
+			String[] vars = null;
+			String value = null;
+			vars = patt.substring(index + 1, patt.indexOf(')')).split(",");
+			value = patt.substring(0, index);
+			w.emitStatement("%s %s = %s.get()", optionalType, value.toLowerCase(), caseVariable);
+			for (String string : vars) {
+				if (optionalType.startsWith("Pair")) {
+					caseMap.put(string.trim(), String.format("%s(%s)", string.trim(), value.toLowerCase()));
+				} else if (!classNames.containsKey(optionalType)) {
+					caseMap.put(string.trim(), String.format("%s.get()", caseVariable));
+				} else
+					caseMap.put(string.trim(), String.format("%s.get().%s", caseVariable, string.trim()));
+			}
+			StringWriter rightauxsw = new StringWriter();
+			right.accept(this, new JavaWriter(rightauxsw));
+
+			w.emitStatement("%s", rightauxsw.toString());
+			if (vars != null) {
+				for (String string : vars) {
+					caseMap.remove(string.trim());
+				}
+			}
+			w.endControlFlow();
+
+			w.beginControlFlow("else", caseVariable);
+			Entry<Pattern, AnnStm> nothing = cases.get(1);
+			AnnStm rightNothing = nothing.getValue();
+			StringWriter rightNothingSw = new StringWriter();
+			rightNothing.accept(this, new JavaWriter(rightNothingSw));
+			w.emitStatement("%s", rightNothingSw.toString());
+
+			w.endControlFlow();
+
+		} catch (IOException e1) {
+			// TODO Auto-generated catch block
+			e1.printStackTrace();
+		}
+	}
+
+	private void visitECases(String caseVariable, String caseVariableType, List<Entry<Pattern, PureExp>> cases,
+			JavaWriter w) {
+		/*
+		 * StringBuilder caseStm = new
+		 * StringBuilder("Matching").append(NEW_LINE); for (Entry<Pattern,
+		 * PureExp> e : cases) { Pattern left = e.getKey(); PureExp right =
+		 * e.getValue(); StringWriter auxsw = new StringWriter();
+		 * right.accept(this, new JavaWriter(auxsw)); String thenMatchValue =
+		 * auxsw.toString();
+		 * caseStm.append(".").append(String.format("when()")).append(NEW_LINE);
+		 * String kaseVarLocal = "var" + RANDOM.nextInt(1000); if
+		 * (thenMatchValue.contains(" " + caseVariable + " ")) { thenMatchValue
+		 * = thenMatchValue.replace(caseVariable, kaseVarLocal); } if (left
+		 * instanceof PVar) { PVar pi = (PVar) left;
+		 * caseStm.append(".").append(String.format("isValue(%s)",
+		 * pi.l_)).append(NEW_LINE).append(".") .append(String.format(
+		 * "thenApply(x -> %s)", thenMatchValue)).append(NEW_LINE); } else if
+		 * (left instanceof PLit) { PLit plit = (PLit) left; StringWriter litsw
+		 * = new StringWriter(); plit.accept(this, new JavaWriter(litsw));
+		 * caseStm.append(".").append(String.format("isValue(%s)",
+		 * litsw.toString())).append(NEW_LINE).append(".")
+		 * .append(String.format("thenApply(x -> %s",
+		 * thenMatchValue)).append(NEW_LINE); } else if (left instanceof
+		 * PWildCard) { caseStm.append(".").append(String.format(
+		 * "isTrue(x -> true)")).append(NEW_LINE) .append(String.format(
+		 * "thenApply(x -> %s)", thenMatchValue)).append(NEW_LINE); } else if
+		 * (left instanceof PSinglConstr) { PSinglConstr psc = (PSinglConstr)
+		 * left; String type = getQTypeName(psc.qu_, false);
+		 * caseStm.append(".").append(String.format("isType((%s x) -> %s)",
+		 * type, thenMatchValue)) .append(NEW_LINE); } else if (left instanceof
+		 * PParamConstr) { PParamConstr ppc = (PParamConstr) left; String type =
+		 * getQTypeName(ppc.qu_, false);
+		 * caseStm.append(".").append(String.format("isType((%s x) -> %s)",
+		 * type, thenMatchValue)) .append(NEW_LINE); } else { logNotImplemented(
+		 * "case pattern: %s", left); } }
+		 * caseStm.append(String.format(".match(%s).get()", caseVariable));
+		 * return caseStm.toString();
+		 */
+
+		try {
+			w.beginControlFlow("%s.match(new %s.MatchBlock<%s>() ", caseVariable, findVariableTypeInScope(caseVariable),
+					caseVariableType);
+			for (Entry<Pattern, PureExp> e : cases) {
+				Pattern left = e.getKey();
+				StringWriter leftauxsw = new StringWriter();
+				left.accept(this, new JavaWriter(leftauxsw));
+				PureExp right = e.getValue();
+				String patt = leftauxsw.toString();
+				int index = patt.indexOf('(');
+				boolean isMultiCons = index != -1;
+				String[] vars = null;
+				String value = null;
+				if (isMultiCons) {
+					vars = patt.substring(index + 1, patt.indexOf(')')).split(",");
+					value = patt.substring(0, index);
+					for (String string : vars) {
+						if (value.startsWith("Pair")) {
+							caseMap.put(string.trim(), String.format("%s(%s)", string.trim(), value.toLowerCase()));
+						} else
+							caseMap.put(string.trim(), value.toLowerCase() + "." + string.trim());
+					}
+				}
+				w.beginMethod(caseVariableType, CASE, DEFAULT_MODIFIERS, isMultiCons ? value : patt,
+						isMultiCons ? value.toLowerCase() : patt.toLowerCase());
+				StringWriter rightauxsw = new StringWriter();
+				right.accept(this, new JavaWriter(rightauxsw));
+
+				w.emitStatement("return %s", rightauxsw.toString());
+				w.endMethod();
+				if (vars != null) {
+					for (String string : vars) {
+						caseMap.remove(string.trim());
+					}
+				}
+
+			}
+
+			w.endControlFlow();
+			w.emit(")");
+		} catch (IOException e1) {
+			// TODO Auto-generated catch block
+			e1.printStackTrace();
+		}
+
+	}
+
+	private void visitSCases(String caseVariable, String caseVariableType, List<Entry<Pattern, AnnStm>> cases,
+			JavaWriter w) {
+		/*
+		 * StringBuilder caseStm = new
+		 * StringBuilder("Matching").append(NEW_LINE); for (Entry<Pattern,
+		 * AnnStm> e : cases) { Pattern left = e.getKey(); AnnStm right =
+		 * e.getValue(); StringWriter auxsw = new StringWriter();
+		 * right.accept(this, new JavaWriter(auxsw)); String thenMatchValue =
+		 * auxsw.toString();
+		 * caseStm.append(".").append(String.format("when()")).append(NEW_LINE);
+		 * String kaseVarLocal = "var" + RANDOM.nextInt(1000); if
+		 * (thenMatchValue.contains(" " + caseVariable + " ")) { thenMatchValue
+		 * = thenMatchValue.replace(caseVariable, kaseVarLocal); } if (left
+		 * instanceof PVar) { PVar pi = (PVar) left;
+		 * caseStm.append(".").append(String.format("isValue(%s)",
+		 * pi.l_)).append(NEW_LINE).append(".") .append(String.format(
+		 * "thenApply(x -> %s)", thenMatchValue)).append(NEW_LINE); } else if
+		 * (left instanceof PLit) { PLit plit = (PLit) left; StringWriter litsw
+		 * = new StringWriter(); plit.accept(this, new JavaWriter(litsw));
+		 * caseStm.append(".").append(String.format("isValue(%s)",
+		 * litsw.toString())).append(NEW_LINE).append(".")
+		 * .append(String.format("thenApply(x -> %s",
+		 * thenMatchValue)).append(NEW_LINE); } else if (left instanceof
+		 * PWildCard) { caseStm.append(".").append(String.format(
+		 * "isTrue(x -> true)")).append(NEW_LINE) .append(String.format(
+		 * "thenApply(x -> %s)", thenMatchValue)).append(NEW_LINE); } else if
+		 * (left instanceof PSinglConstr) { PSinglConstr psc = (PSinglConstr)
+		 * left; String type = getQTypeName(psc.qu_, false);
+		 * caseStm.append(".").append(String.format("isType((%s x) -> %s)",
+		 * type, thenMatchValue)) .append(NEW_LINE); } else if (left instanceof
+		 * PParamConstr) { PParamConstr ppc = (PParamConstr) left; String type =
+		 * getQTypeName(ppc.qu_, false);
+		 * caseStm.append(".").append(String.format("isType((%s x) -> %s)",
+		 * type, thenMatchValue)) .append(NEW_LINE); } else { logNotImplemented(
+		 * "case pattern: %s", left); } }
+		 * caseStm.append(String.format(".match(%s).get()", caseVariable));
+		 * return caseStm.toString();
+		 */
+
+		try {
+			w.beginControlFlow("%s.match(new %s.MatchBlock<%s>() ", caseVariable, findVariableTypeInScope(caseVariable),
+					caseVariableType);
+			for (Entry<Pattern, AnnStm> e : cases) {
+				Pattern left = e.getKey();
+				StringWriter leftauxsw = new StringWriter();
+				left.accept(this, new JavaWriter(leftauxsw));
+				AnnStm right = e.getValue();
+				String patt = leftauxsw.toString();
+				int index = patt.indexOf('(');
+				boolean isMultiCons = index != -1;
+				String[] vars = null;
+				String value = null;
+				if (isMultiCons) {
+					vars = patt.substring(index + 1, patt.indexOf(')')).split(",");
+					value = patt.substring(0, index);
+					for (String string : vars) {
+						if (value.startsWith("Pair")) {
+							caseMap.put(string.trim(), String.format("%s(%s)", string.trim(), value.toLowerCase()));
+						} else
+							caseMap.put(string.trim(), value.toLowerCase() + "." + string.trim());
+					}
+				}
+				w.beginMethod(caseVariableType, CASE, DEFAULT_MODIFIERS, isMultiCons ? value : patt,
+						isMultiCons ? value.toLowerCase() : patt.toLowerCase());
+				StringWriter rightauxsw = new StringWriter();
+				right.accept(this, new JavaWriter(rightauxsw));
+
+				w.emitStatement("%s", rightauxsw.toString());
+				w.endMethod();
+				if (vars != null) {
+					for (String string : vars) {
+						caseMap.remove(string.trim());
+					}
+				}
+
+			}
+
+			w.endControlFlow();
+			w.emitStatement(")");
+		} catch (IOException e1) {
+			// TODO Auto-generated catch block
+			e1.printStackTrace();
+		}
 	}
 
 	private String toMatchingString(Pattern p) {
@@ -2844,29 +3613,34 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	 *            the parameters of the method that can be empty string
 	 * @return a string representing a Java method invocation statement
 	 */
-	protected String generateJavaMethodInvocation(String object, String method, List<String> parameters, JavaWriter w) {
-		for (HashMap<String, String> hashMap : duplicateReplacements) {
-			if (hashMap.containsKey(object)) {
-				object = hashMap.get(object);
-				break;
 
-			}
-		}
+	protected String generateJavaMethodInvocation(String object, String method, List<String> parameters, JavaWriter w,
+			char c, int counter) {
+		object = getDuplicate(object);
 
 		List<String> duplicateParameters = new LinkedList<>();
 		for (String string : parameters) {
 			boolean found = false;
+
 			for (HashMap<String, String> hashMap1 : duplicateReplacements) {
 				if (hashMap1.containsKey(string)) {
-					duplicateParameters.add(hashMap1.get(string));
+					final String stringName = "f_" + c + counter + hashMap1.get(string);
+					duplicateParameters.add(stringName);
+					try {
+						w.emitStatement("%s %s = %s", findVariableTypeInScope(string), stringName,
+								hashMap1.get(string));
+					} catch (IOException e) {
+						// TODO Auto-generated catch block
+						e.printStackTrace();
+					}
 					found = true;
 					break;
 
 				}
 			}
-			if (!found) {
-				if (findVariableType(string) != null) {
-					final String stringName = string + Math.abs(string.hashCode() % 1000 + new Random().nextInt(1000));
+			if (!found)
+				if (findVariableTypeInScope(string) != null) {
+					final String stringName = "f_" + c + counter + string;
 					duplicateParameters.add(stringName);
 					try {
 						w.emitStatement("%s %s = %s", findVariableTypeInScope(string), stringName, string);
@@ -2874,14 +3648,22 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 						// TODO Auto-generated catch block
 						e.printStackTrace();
 					}
+				} else if (string.contains("$")) {
+					final String stringName = "f_" + c + counter + string;
+					duplicateParameters.add(stringName);
+					try {
+						w.emitStatement("%s %s = %s",
+								findVariableTypeInScope(string.substring(string.indexOf("$") + 1)), stringName, string);
+					} catch (IOException e) {
+						// TODO Auto-generated catch block
+						e.printStackTrace();
+					}
 				} else
 					duplicateParameters.add(string);
 
-			}
 		}
-		parameters = duplicateParameters;
-		return String.format("%s.%s(%s)", object, method,
-				parameters == null || parameters.isEmpty() ? "" : String.join(COMMA_SPACE, parameters));
+		return String.format("%s.%s(%s)", object, method, duplicateParameters == null || duplicateParameters.isEmpty()
+				? "" : String.join(COMMA_SPACE, duplicateParameters));
 	}
 
 	/**
@@ -2922,6 +3704,9 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	 */
 	protected String generateMessageInvocationStatement(String target, final boolean isDefined, String msgReturnType,
 			String msgVarName, String responseVarName) {
+
+		responseVarName = getDuplicate(responseVarName);
+
 		final String method = "send";
 		if (responseVarName.endsWith("_response")) {
 			return String.format("%s.%s(%s)", target, method, msgVarName);
@@ -2939,6 +3724,22 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	 * @param qtype
 	 * @return
 	 */
+	protected String generateMessageSyncInvocationStatement(String target, final boolean isDefined,
+			String msgReturnType, String msgVarName, String contVarName, String responseVarName) {
+		final String method = "sendSync";
+		if (responseVarName.equals("")) {
+			return String.format("%s.%s(%s, %s)", target, method, msgVarName, contVarName);
+		}
+		// if (!isDefined) {
+		// return String.format("%s = %s.%s(%s, %s)", responseVarName, target,
+		// method, msgVarName, contVarName);
+		// }
+		String returnType = msgReturnType == null || isVoid(msgReturnType) ? VOID_WRAPPER_CLASS_NAME
+				: stripGenericResponseType(msgReturnType);
+		return String.format("ABSFutureTask<%s> %s = %s.%s (%s, %s)", returnType, responseVarName, target, method,
+				msgVarName, contVarName);
+	}
+
 	protected String getQTypeName(QU qtype, boolean isTopLevel) {
 		if (qtype instanceof QU_) {
 			QU_ qtyp = (QU_) qtype;
@@ -3049,6 +3850,9 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	protected JavaWriter emitField(JavaWriter w, String fieldType, String fieldIdentifier, String initialValue,
 			final boolean isFinal) throws IOException {
 		EnumSet<Modifier> modifiers = EnumSet.noneOf(Modifier.class);
+
+		fieldIdentifier = getDuplicate(fieldIdentifier);
+
 		if (isFinal) {
 			modifiers.add(Modifier.FINAL);
 		}
@@ -3213,6 +4017,16 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 		return result;
 	}
 
+	protected String getDuplicate(String name) {
+		for (HashMap<String, String> hashMap : duplicateReplacements) {
+			if (hashMap.containsKey(name)) {
+				return hashMap.get(name);
+
+			}
+		}
+		return name;
+	}
+
 	private String getTypeName(T type) {
 		if (type instanceof TSimple) {
 			TSimple ts = (TSimple) type;
@@ -3254,8 +4068,8 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 		for (TreeSet<VarDefinition> scope : variablesInScope) {
 			for (VarDefinition varDefinition : scope) {
 				if (varDefinition.getName().equals(varName))
-					
-				return varDefinition.getType();
+
+					return varDefinition.getType();
 			}
 		}
 
@@ -3277,7 +4091,15 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 		return null;
 	}
 
-	private void createVarDefinition(String varName, String varType) {
+	private boolean callHasAwait(String methodName) {
+		System.out.println(methodName);
+		String key = this.packageName + "." + currentClass() + "." + methodName;
+		if (programMethods.containsKey(key))
+			return programMethods.get(key).containsAwait();
+		return false;
+	}
+
+	private VarDefinition createVarDefinition(String varName, String varType) {
 		Module current = currentModule();
 		if (current == null) {
 			throw new IllegalStateException("No current module is available.");
@@ -3286,9 +4108,8 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 		String fqClassName = this.packageName + "." + clazz;
 		VarDefinition vd = new VarDefinition(varName, varType);
 		variables.put(fqClassName, vd);
-		if (!variablesInScope.isEmpty()) {
-			variablesInScope.peek().add(vd);
-		}
+		return vd;
+
 	}
 
 	private void createMethodDefinition(String returnType, String name, List<String> parameters) {
@@ -3300,6 +4121,11 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 		MethodDefinition md = new MethodDefinition(fqClassName, returnType, name, parameters);
 		currentMethod = md;
 		methods.put(fqClassName, md);
+
+		if (!programMethods.containsKey(fqClassName + "." + name))
+			programMethods.put(fqClassName + "." + name, md);
+		else
+			currentMethod = programMethods.get(fqClassName + "." + name);
 	}
 
 	private Module currentModule() {

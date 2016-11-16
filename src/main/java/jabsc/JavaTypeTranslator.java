@@ -78,6 +78,8 @@ class JavaTypeTranslator implements Function<String, String> {
     types.put("Unit", "void");
     types.put("Fut", ABSFutureTask.class.getSimpleName());
     types.put("Maybe", Optional.class.getSimpleName());
+    types.put("Nothing", "null");
+    
     
   }
 

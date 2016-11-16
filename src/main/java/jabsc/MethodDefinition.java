@@ -11,6 +11,21 @@ class MethodDefinition {
 	private final String type;
 	private final String name;
 	private final List<String> paramTypes;
+	private boolean containsAwait = false;
+
+	/**
+	 * @return the containsAwait
+	 */
+	public boolean containsAwait() {
+		return containsAwait;
+	}
+
+	/**
+	 * @param containsAwait the containsAwait to set
+	 */
+	public void setContainsAwait(boolean containsAwait) {
+		this.containsAwait = containsAwait;
+	}
 
 	public MethodDefinition(String clazz, String type, String method) {
 		this(clazz, type, method, Collections.emptyList());
@@ -64,7 +79,7 @@ class MethodDefinition {
 
 	@Override
 	public String toString() {
-		return clazz + ": " + type + " " + name + "(" + String.join(",", this.paramTypes) + ")";
+		return clazz + ": " + type + " " + name + "(" + String.join(",", this.paramTypes) + ")" + containsAwait;
 	}
 
 }

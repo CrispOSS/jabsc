@@ -1,0 +1,64 @@
+module Recursive;
+
+interface Ainterface {
+	Int recursive_m(Int i, Int id);
+}
+	
+interface Binterface{
+	Int  compute( );
+}
+	
+class A() implements Ainterface{
+
+	Int recursive_m(Int i, Int id){
+	   println(id);
+	   println(i);
+		if (i>0){
+			this.recursive_m(i - 1,id);
+			String key="";
+			println("continue ");
+			println(i);
+			println(id);
+		}
+		else{
+			B computation = new B ( );
+			Fut<Int> f = computation ! compute( );
+			await f ?;
+		}
+		String key="finish";
+		println(key);
+		println(id);
+		return 0;
+	}
+
+}
+	
+class B implements Binterface {
+
+	Int compute( ){
+		Int result = 0;
+		/*do some work */
+		return result;
+	}
+	
+}
+	
+{ // Main block:
+	Int i = 0;
+	A master = new A ( );
+	List<Fut<Int>> futures = EmptyList;
+	
+	while(i<5){
+		Fut<Int> f = master ! recursive_m (5, i);
+		futures = Cons( f, futures );
+		i = i + 1 ;
+	}
+	i=0;
+	while ( size(futures) > 0 ){
+	
+		Fut<Int> f1 = head(futures);
+		futures = tail(futures);
+		Int r = f1.get;
+		i = i + r ;
+	}
+}

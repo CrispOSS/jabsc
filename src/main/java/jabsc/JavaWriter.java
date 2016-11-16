@@ -52,6 +52,10 @@ class JavaWriter implements Closeable {
 	private String indent = INDENT;
 	private boolean isAux = true;
 	public boolean avoidDuplicates = false;
+	public boolean checkAwaits = false;
+	public boolean isScope = false;
+	public int continuationLevel = -5;
+	
 
 	/**
 	 * @param out
@@ -67,12 +71,14 @@ class JavaWriter implements Closeable {
 		this.out = out;
 	}
 	
-	
+	public JavaWriter(boolean isAux,Writer out,  boolean checkAwaits) {
+		this(out, isAux);
+		this.checkAwaits=checkAwaits;
+	}
+		
 
 	public JavaWriter(Writer out, boolean isAux, boolean avoidDuplicates) {
-		super();
-		this.out = out;
-		this.isAux = isAux;
+		this(out, isAux);
 		this.avoidDuplicates = avoidDuplicates;
 	}
 

@@ -30,6 +30,7 @@ interface IMapReduce {
 
 class Worker(MapReduce master) implements IWorker {
   List<Pair<String, Pair<Int, String>>> mapResults = EmptyList;
+  //var mapResults: List[Pair[Sring, Pair....]] = EmptyList();
   List<Pair<String, Pair<Int, String>>> reduceResults = EmptyList;
 
   // begin customizable section ------------------
@@ -260,6 +261,7 @@ class Worker(MapReduce master) implements IWorker {
 class MapReduce implements IMapReduce {
   Set<Worker> workers = EmptySet;
   Int nWorkers = 0;
+  //var nWorkers: Int;
 
   // begin customizable section ------------------
 
@@ -273,11 +275,10 @@ class MapReduce implements IMapReduce {
       nWorkers = nWorkers + 1;
     }
     await ~(emptySet(workers));
-    {
     Worker w = take(workers);
     workers = remove(workers, w);
     return w;
-    }
+
   }
 
 
