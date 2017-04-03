@@ -1,6 +1,7 @@
 package jabsc;
 
 import java.io.IOException;
+
 import java.io.PrintWriter;
 
 import java.io.StringWriter;
@@ -22,6 +23,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Objects;
 import java.util.Random;
 import java.util.Set;
 import java.util.Stack;
@@ -36,11 +38,7 @@ import java.util.stream.Collectors;
 
 import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.Modifier;
-import javax.print.attribute.IntegerSyntax;
 
-import org.apache.tools.ant.taskdefs.rmic.KaffeRmic;
-
-import com.google.common.base.Objects;
 import com.google.common.base.StandardSystemProperty;
 import com.google.common.base.Supplier;
 import com.google.common.collect.Multimap;
@@ -48,28 +46,18 @@ import com.google.common.collect.Multimaps;
 import com.google.common.collect.Sets;
 import com.pogofish.jadt.JADT;
 
-//import abs.api.Actor;
-//import abs.api.Response;
-import abs.api.cwi.LocalActor;
-import abs.api.cwi.Actor;
 import abs.api.cwi.ABSFutureTask;
+import abs.api.cwi.Actor;
 import abs.api.cwi.Functional;
-
+import abs.api.cwi.LocalActor;
 import bnfc.abs.AbstractVisitor;
 
 import bnfc.abs.Absyn.*;
+import jabsc.Visitor.AbsElementType;
 
-import java.applet.*;
+class ScalaVisitor extends AbstractVisitor<Prog, ScalaWriter> {
+	static int x = 0;
 
-/**
- * The visitor for all possible nodes in the AST of an ABS program.
- */
-
-class Visitor extends AbstractVisitor<Prog, JavaWriter> {
-
-	/**
-	 * High-level element types that an ABS program/module can have.
-	 */
 	static enum AbsElementType {
 		/**
 		 * Equivalent to Java's {@link ElementKind#INTERFACE}
@@ -117,35 +105,44 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	private static final String MAIN_CLASS_NAME = "Main";
 	private static final String COMMA_SPACE = ", ";
 	private static final String METHOD_GET = "geT";
-	private static final String _GET = "get";
-	private static final String METHOD_TOSTRING = "toString";
-	private static final String _TOSTRING = "Functional.toString";
-
 	private static final String EXTERN = "JavaExternClass";
 	private static final String STATIC = "JavaStaticClass";
 	private static final String ACTOR_SERVER_MEMBER = "me";
+	private static final String ALL_IMPORTS = "._";
 
 	private static final String NEW_LINE = StandardSystemProperty.LINE_SEPARATOR.value();
-	private static final String ABS_API_ACTOR_CLASS = LocalActor.class.getName();
-	private static final String ABS_API_INTERFACE_CLASS = Actor.class.getName();
+	private static final String ABS_API_ACTOR_CLASS = "LocalActor";
+	private static final String ABS_API_INTERFACE_CLASS = "Actor";
+	private static final String ORDERED_INTERFACE_CLASS = "Ordered";
+
 	private static final String CASE = "_case";
 
 	// private static final String ABS_API_ACTOR_SERVER_CLASS =
 	// ActorServer.class.getName();
-	private static final Set<Modifier> DEFAULT_MODIFIERS = Collections.singleton(Modifier.PUBLIC);
-	private static final String[] DEFAULT_IMPORTS = new String[] { Collection.class.getPackage().getName() + ".*",
-			Function.class.getPackage().getName() + ".*", Callable.class.getPackage().getName() + ".*",
-			AtomicLong.class.getPackage().getName() + ".*", Lock.class.getPackage().getName() + ".*",
-			LocalActor.class.getPackage().getName() + ".*", Functional.class.getPackage().getName() + ".*",
-
+	private static final Set<Modifier> DEFAULT_MODIFIERS = new HashSet<>();
+	private static final String[] DEFAULT_IMPORTS = new String[] {
+			ABSFutureTask.class.getPackage().getName() + ALL_IMPORTS,
+			Function.class.getPackage().getName() + ALL_IMPORTS, Callable.class.getPackage().getName() + ALL_IMPORTS,
+			AtomicLong.class.getPackage().getName() + ALL_IMPORTS, Lock.class.getPackage().getName() + ALL_IMPORTS,
+			// LocalActor.class.getPackage().getName() + ALL_IMPORTS,
+			// "absstdlib.Functions" + ALL_IMPORTS, "absstdlib" + ALL_IMPORTS,
+			// "scala.collection.mutable.Set",
+			// "scala.collection.mutable.TreeSet",
+			// "scala.collection.mutable.Map",
+			// "scala.collection.mutable.HashMap",
+			Objects.class.getName(),
+			// List.class.getName(),
+			// LinkedList.class.getName(),
 			// CloudProvider.class.getPackage().getName() + ".*",
 			// DeploymentComponent.class.getPackage().getName() + ".*",
-			ABSFutureTask.class.getPackage().getName() + ".*" };
+	};
+	// private static String LIBRARY_IMPORT = "";
 	// private static final String[] DEFAULT_IMPORTS_PATTERNS = new String[] {
 	// "com.leacox.motif.function.*", "com.leacox.motif.matching.*",
 	// "com.leacox.motif.cases.*", "com.leacox.motif.caseclass.*" };
 	private static final String[] DEFAULT_STATIC_IMPORTS = new String[] {
-			Functional.class.getPackage().getName() + "." + Functional.class.getSimpleName() + ".*",
+			// Functional.class.getPackage().getName() + "." +
+			// Functional.class.getSimpleName() + ALL_IMPORTS,
 			// CloudProvider.class.getPackage().getName() + "." +
 			// CloudProvider.class.getSimpleName()
 			// + ".*",
@@ -172,7 +169,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	private final Prog prog;
 	private final JavaWriterSupplier javaWriterSupplier;
 	private final String packageName;
-	private final JavaTypeTranslator javaTypeTranslator;
+	private final ScalaTypeTranslator javaTypeTranslator;
 	private final Path outputDirectory;
 
 	// Internal state
@@ -190,9 +187,17 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 					return new HashSet<>();
 				}
 			});
+
 	private final LinkedList<TreeSet<VarDefinition>> variablesInScope = new LinkedList<>();
+	private final HashSet<VarDefinition> variablesBeforeBlock = new HashSet<>();
 
 	private final HashMap<String, MethodDefinition> programMethods = new HashMap<>();
+	private final HashMap<String, List<String>> paramConstructs = new HashMap<>();
+	private final HashMap<String, List<String>> caseTypeConstructs = new HashMap<>();
+
+	private String patternParamType = "";
+	private String caseKey = "";
+	private boolean fromCase = false;
 
 	private final Stack<Module> modules = new Stack<>();
 	private final Stack<String> classes = new Stack<>();
@@ -209,8 +214,6 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 
 	private final List<StringWriter> currentMethodLabels = new LinkedList<>();
 
-	private final LinkedList<HashMap<String, String>> duplicateReplacements = new LinkedList<>();
-
 	private final Map<String, String> caseMap = new HashMap<>();
 
 	private MethodDefinition currentMethod;
@@ -220,6 +223,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	private int awaitCounter = 0;
 	private int syncPCounter = 0;
 	private int asyncPCounter = 0;
+	private ScalaWriter functionsWriter;
 
 	/**
 	 * Ctor.
@@ -234,25 +238,87 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	 *            The ABS to Java type translator
 	 * @param outputDirectory
 	 */
-	public Visitor(String packageName, Prog prog, JavaWriterSupplier javaWriterSupplier,
-			JavaTypeTranslator javaTypeTranslator, Path outputDirectory) {
+	public ScalaVisitor(String packageName, Prog prog, JavaWriterSupplier javaWriterSupplier,
+			ScalaTypeTranslator javaTypeTranslator, Path outputDirectory) {
 		this.packageName = packageName;
 		this.prog = prog;
 		this.javaWriterSupplier = javaWriterSupplier;
 		this.javaTypeTranslator = javaTypeTranslator;
 		this.outputDirectory = outputDirectory;
 		this.moduleNames = new HashSet<>();
+
+		List<String> justT = new ArrayList<>();
+		justT.add("A");
+		paramConstructs.put("Just", justT);
+		List<String> consT = new ArrayList<>(justT);
+		consT.add("List[A]");
+		paramConstructs.put("Cons", consT);
+		List<String> insT = new ArrayList<>(justT);
+		insT.add("Set[A]");
+		paramConstructs.put("Insert", insT);
+
+		List<String> leftT = new ArrayList<>(justT);
+		leftT.add("B");
+		paramConstructs.put("Left", leftT);
+		List<String> rightT = new ArrayList<>(leftT);
+		paramConstructs.put("Right", rightT);
+		List<String> pairT = new ArrayList<>(leftT);
+		paramConstructs.put("APair", pairT);
+		List<String> iaT = new ArrayList<>();
+		iaT.add("Pair[A,B]");
+		iaT.add("Map[A,B]");
+		paramConstructs.put("InsertAsscoc", iaT);
+
+		List<String> tripleT = new ArrayList<>(leftT);
+		tripleT.add("C");
+		paramConstructs.put("Triple", tripleT);
+
+		List<String> maybe = new ArrayList<>();
+		maybe.add("Just");
+		caseTypeConstructs.put("Maybe", maybe);
+
+		List<String> cons = new ArrayList<>();
+		cons.add("Cons");
+		caseTypeConstructs.put("List", cons);
+		caseTypeConstructs.put("LinkedList", cons);
+
+		List<String> ts = new ArrayList<>();
+		ts.add("Insert");
+		caseTypeConstructs.put("TreeSet", ts);
+		caseTypeConstructs.put("Set", ts);
+
+		List<String> ia = new ArrayList<>();
+		ia.add("InsertAssoc");
+		caseTypeConstructs.put("HashMap", ia);
+		caseTypeConstructs.put("Map", ia);
+
+		List<String> pair = new ArrayList<>();
+		pair.add("APair");
+		caseTypeConstructs.put("Pair", pair);
+
+		List<String> triple = new ArrayList<>();
+		triple.add("ATriple");
+		caseTypeConstructs.put("Triple", triple);
+
+		List<String> either = new ArrayList<>();
+		either.add("Left");
+		either.add("Right");
+		caseTypeConstructs.put("Either", either);
+
+		System.out.println(caseTypeConstructs);
+		System.out.println(paramConstructs);
+
 	}
 
 	@Override
-	public Prog visit(Prog p, JavaWriter w) {
+	public Prog visit(Prog p, ScalaWriter w) {
 		// WARNING: `w` should NOT be used in this method;
 		// otherwise, I/O issues occur during generation.
 		Prog program = (Prog) p;
 		buildProgramDeclarationTypes(program);
 		do {
 			awaitsDetected = false;
-			JavaWriter notNeeded = new JavaWriter(true, new StringWriter(), true);
+			ScalaWriter notNeeded = new ScalaWriter(true, new StringWriter(), true);
 			for (Module module : program.listmodule_) {
 				moduleNames.add(getQTypeName(((Mod) module).qu_, false));
 				modules.push(module);
@@ -271,7 +337,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	}
 
 	@Override
-	public Prog visit(Mod m, JavaWriter w) {
+	public Prog visit(Mod m, ScalaWriter w) {
 		try {
 
 			// m.listimport_.forEach(i -> i.accept(this, w));
@@ -282,89 +348,30 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 				decl.accept(this, w);
 			}
 
+			functionsWriter = (ScalaWriter) javaWriterSupplier.apply(FUNCTIONS_CLASS_NAME);
+			functionsWriter.emitPackage(packageName);
+			// jw.emitStaticImports(DEFAULT_STATIC_IMPORTS_PATTERNS);
+			functionsWriter.emitEmptyLine();
+			//functionsWriter.emitImports(DEFAULT_IMPORTS);
+			visitImports(m.listimport_, functionsWriter);
+			// jw.emitImports(DEFAULT_IMPORTS_PATTERNS);
+			emitPackageLevelImport(functionsWriter);
+			functionsWriter.emitEmptyLine();
+
+			beginElementKind(functionsWriter, ElementKind.CONSTRUCTOR, FUNCTIONS_CLASS_NAME, DEFAULT_MODIFIERS, null,
+					null, null, false);
+			functionsWriter.emitEmptyLine();
+
 			// Data
 			for (AnnDecl ad : elements.get(AbsElementType.DATA)) {
 				AnnDeclaration decl = (AnnDeclaration) ad;
 				String name = getTopLevelDeclIdentifier(decl.decl_);
-				JavaWriterSupplier jadtWriterSupplier = new DefaultJavaWriterSupplier(
-						PathResolver.DEFAULT_PATH_RESOLVER, packageName, ".jadt", outputDirectory);
-				StringWriter jadt = new StringWriter();
-				PrintWriter pw = new PrintWriter(jadt);
-
-				pw.printf("package %s\n", this.packageName);
-				pw.println();
-
-				pw.printf("import abs.api.cwi.Functional.*\n");
-				Arrays.asList(DEFAULT_IMPORTS).forEach(i -> pw.printf("import %s\n", i));
-				// Arrays.asList(DEFAULT_IMPORTS_PATTERNS).forEach(
-				// i -> pw.printf("import %s\n", i));
-				pw.println();
-
-				if (decl.decl_ instanceof DData) {
-					DData dd = (DData) decl.decl_;
-					pw.printf("%s = ", dd.u_);
-					pw.println();
-					pw.print("\t");
-					List<String> defs = new ArrayList<>();
-					for (ConstrIdent ci : dd.listconstrident_) {
-						if (ci instanceof SinglConstrIdent) {
-							SinglConstrIdent sci = (SinglConstrIdent) ci;
-							defs.add(sci.u_);
-						} else if (ci instanceof ParamConstrIdent) {
-							ParamConstrIdent pci = (ParamConstrIdent) ci;
-							List<String> constrParams = new ArrayList<>();
-							for (ConstrType ct : pci.listconstrtype_) {
-								if (ct instanceof EmptyConstrType) {
-								} else if (ct instanceof RecordConstrType) {
-									RecordConstrType rct = (RecordConstrType) ct;
-									constrParams.add(String.format("final %s %s", getTypeName(rct.t_), rct.l_));
-								}
-							}
-							String pciType = String.format("%s(%s)", pci.u_, String.join(COMMA_SPACE, constrParams));
-							defs.add(pciType);
-						}
-					}
-					pw.println(String.join("\n\t| ", defs));
-				} else if (decl.decl_ instanceof DDataPoly) {
-					DDataPoly dpd = (DDataPoly) decl.decl_;
-					pw.printf("%s<%s> = ", dpd.u_, String.join(COMMA_SPACE, dpd.listu_));
-					pw.println();
-					pw.print("\t");
-					List<String> defs = new ArrayList<>();
-					for (ConstrIdent ci : dpd.listconstrident_) {
-						if (ci instanceof SinglConstrIdent) {
-							SinglConstrIdent sci = (SinglConstrIdent) ci;
-							defs.add(sci.u_);
-						} else if (ci instanceof ParamConstrIdent) {
-							ParamConstrIdent pci = (ParamConstrIdent) ci;
-							List<String> constrParams = new ArrayList<>();
-							for (ConstrType ct : pci.listconstrtype_) {
-								if (ct instanceof EmptyConstrType) {
-									String type = toString(((EmptyConstrType) ct).t_);
-									String typeName = stripGenericParameterType(type);
-									constrParams.add(String.format("final %s %sValue", type, typeName));
-								} else if (ct instanceof RecordConstrType) {
-									RecordConstrType rct = (RecordConstrType) ct;
-									constrParams.add(String.format("final %s %s", getTypeName(rct.t_), rct.l_));
-								}
-							}
-							String pciType = String.format("%s(%s)", pci.u_, String.join(COMMA_SPACE, constrParams));
-							defs.add(pciType);
-						}
-					}
-					pw.println(String.join("\n\t| ", defs));
-				}
-				pw.println();
-				String simpleName = stripGenericParameterType(name);
-				Path jadtOutputDirectory = PathResolver.DEFAULT_PATH_RESOLVER.resolveOutputDirectory("",
-						this.outputDirectory);
-				try (Writer jadtWriter = Files.newBufferedWriter(jadtOutputDirectory.resolve(simpleName + ".jadt"),
-						StandardOpenOption.CREATE)) {
-					jadtWriter.write(jadt.toString());
-				}
-				JADT.main(new String[] { jadtOutputDirectory.toAbsolutePath().toString(),
-						this.outputDirectory.toAbsolutePath().toString() });
-				this.packageLevelImports.add(simpleName);
+				ScalaWriter declWriter = (ScalaWriter) javaWriterSupplier.apply(name);
+				declWriter.emitPackage(packageName);
+				visitImports(m.listimport_, declWriter);
+				emitPackageLevelImport(declWriter);
+				decl.decl_.accept(this, declWriter);
+				close(declWriter, w);
 
 				// JavaWriter declWriter =
 				// javaWriterSupplier.apply(name);
@@ -378,7 +385,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 			for (AnnDecl ad : elements.get(AbsElementType.EXCEPTION)) {
 				AnnDeclaration decl = (AnnDeclaration) ad;
 				String name = getTopLevelDeclIdentifier(decl.decl_);
-				JavaWriter declWriter = javaWriterSupplier.apply(name);
+				ScalaWriter declWriter = (ScalaWriter) javaWriterSupplier.apply(name);
 				declWriter.emitPackage(packageName);
 				visitImports(m.listimport_, declWriter);
 				decl.accept(this, declWriter);
@@ -394,7 +401,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 				} else {
 					AnnDeclaration decl = (AnnDeclaration) ad;
 					String name = getTopLevelDeclIdentifier(decl.decl_);
-					JavaWriter declWriter = javaWriterSupplier.apply(name);
+					ScalaWriter declWriter = (ScalaWriter) javaWriterSupplier.apply(name);
 					declWriter.emitPackage(packageName);
 					visitImports(m.listimport_, declWriter);
 					emitPackageLevelImport(declWriter);
@@ -414,16 +421,19 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 					AnnDeclaration decl = (AnnDeclaration) ad;
 					String name = getTopLevelDeclIdentifier(decl.decl_);
 					final String refinedClassName = getRefinedClassName(name);
-					JavaWriter declWriter = javaWriterSupplier.apply(refinedClassName);
+					ScalaWriter declWriter = (ScalaWriter) javaWriterSupplier.apply(refinedClassName);
 					declWriter.emitPackage(packageName);
 					visitImports(m.listimport_, declWriter);
 					emitPackageLevelImport(declWriter);
 					decl.accept(this, declWriter);
 					close(declWriter, w);
+
 				}
 			}
 
 			visitFunctions(m, w);
+
+			close(functionsWriter, w);
 			visitMain(m, w);
 
 			return prog;
@@ -433,7 +443,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	}
 
 	@Override
-	public Prog visit(AnyImport p, JavaWriter w) {
+	public Prog visit(AnyImport p, ScalaWriter w) {
 		Collection<String> types = new HashSet<>();
 		if (p.isforeign_ instanceof YesForeign) {
 			logNotImplemented("%s", "foreign import");
@@ -451,10 +461,14 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	}
 
 	@Override
-	public Prog visit(StarFromImport sfi, JavaWriter w) {
+	public Prog visit(StarFromImport sfi, ScalaWriter w) {
+		
 		String type = getQTypeName(sfi.qu_, false);
+		StringBuilder lctype = new StringBuilder();
+	    lctype.append(type.substring(0, 1).toLowerCase());
+	    lctype.append(type.substring(1));
 		try {
-			w.emitImports(type.toLowerCase() + ".*");
+			w.emitImports(lctype + ALL_IMPORTS);
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
@@ -464,7 +478,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	}
 
 	@Override
-	public Prog visit(DInterf id, JavaWriter w) {
+	public Prog visit(DInterf id, ScalaWriter w) {
 		try {
 			final String identifier = id.u_;
 			beginElementKind(w, ElementKind.INTERFACE, identifier, DEFAULT_MODIFIERS, null, null);
@@ -480,7 +494,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	}
 
 	@Override
-	public Prog visit(DExtends ed, JavaWriter w) {
+	public Prog visit(DExtends ed, ScalaWriter w) {
 		try {
 			final String identifier = ed.u_;
 			beginElementKind(w, ElementKind.INTERFACE, identifier, DEFAULT_MODIFIERS, null, toList(ed.listqu_, true));
@@ -496,7 +510,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	}
 
 	@Override
-	public Prog visit(DClass p, JavaWriter w) {
+	public Prog visit(DClass p, ScalaWriter w) {
 		// Order to visit 'class':
 		// - visit class body including 'methods'
 		// - visit 'maybeblock'
@@ -507,6 +521,9 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 			this.classes.push(className);
 			labelMap.put(className, new LinkedList<>());
 			w.emitEmptyLine();
+
+			emitImplicitConversions(w);
+
 			for (ClassBody cb : p.listclassbody_1) {
 				cb.accept(this, w);
 			}
@@ -534,7 +551,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	}
 
 	@Override
-	public Prog visit(DClassImplements ci, JavaWriter w) {
+	public Prog visit(DClassImplements ci, ScalaWriter w) {
 		try {
 			final String identifier = ci.u_;
 			String className = getRefinedClassName(identifier);
@@ -544,6 +561,9 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 			labelMap.put(className, new LinkedList<>());
 
 			w.emitEmptyLine();
+
+			emitImplicitConversions(w);
+
 			for (ClassBody cb : ci.listclassbody_1) {
 				cb.accept(this, w);
 			}
@@ -552,8 +572,8 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 			}
 			w.beginConstructor(DEFAULT_MODIFIERS, null, null);
 			// emitThisActorRegistration(w);
-			ci.maybeblock_.accept(this, w);
 			// emitDefaultRunMethodExecution(w, className);
+			ci.maybeblock_.accept(this, w);
 			w.endConstructor();
 			// emitToStringMethod(w);
 			for (StringWriter continuation : labelMap.get(className)) {
@@ -571,43 +591,43 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	}
 
 	@Override
-	public Prog visit(DClassPar cpd, JavaWriter w) {
+	public Prog visit(DClassPar cpd, ScalaWriter w) {
 		try {
 			final String identifier = cpd.u_;
 			String className = getRefinedClassName(identifier);
-			beginElementKind(w, ElementKind.CLASS, className, DEFAULT_MODIFIERS, ABS_API_ACTOR_CLASS, null);
-			this.classes.push(className);
-			labelMap.put(className, new LinkedList<>());
 
-			w.emitEmptyLine();
 			List<String> parameters = new ArrayList<>();
 			for (FormalPar param : cpd.listformalpar_) {
 				FormalParameter p = (FormalParameter) param;
 				String fieldType = getTypeName(p.t_);
 				parameters.add(fieldType);
 				parameters.add(p.l_);
-				emitField(w, fieldType, p.l_, null, false);
 			}
+
+			beginElementKind(w, ElementKind.CLASS, className, DEFAULT_MODIFIERS, ABS_API_ACTOR_CLASS, null, parameters,
+					true);
+			this.classes.push(className);
+			labelMap.put(className, new LinkedList<>());
+
 			w.emitEmptyLine();
+
+			emitImplicitConversions(w);
 			for (ClassBody cb : cpd.listclassbody_1) {
 				cb.accept(this, w);
 			}
 			for (ClassBody cb : cpd.listclassbody_2) {
 				cb.accept(this, w);
 			}
-			w.beginConstructor(DEFAULT_MODIFIERS, parameters, null);
-			for (FormalPar param : cpd.listformalpar_) {
-				FormalParameter p = (FormalParameter) param;
-				w.emitStatement("this." + p.l_ + " = " + p.l_);
-			}
-			// emitThisActorRegistration(w);
-			cpd.maybeblock_.accept(this, w);
-			// emitDefaultRunMethodExecution(w, className);
-			w.endConstructor();
 			// emitToStringMethod(w);
 			for (StringWriter continuation : labelMap.get(className)) {
 				w.emit(continuation.toString());
 			}
+
+			w.beginConstructor(DEFAULT_MODIFIERS, null, null);
+
+			cpd.maybeblock_.accept(this, w);
+			w.endConstructor();
+			w.emitEmptyLine();
 
 			w.endType();
 			this.classes.pop();
@@ -616,49 +636,48 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 		} catch (IOException e) {
 			throw new RuntimeException(e);
 		}
+
 	}
 
 	@Override
-	public Prog visit(DClassParImplements cpi, JavaWriter w) {
+	public Prog visit(DClassParImplements cpi, ScalaWriter w) {
 		try {
 			final String identifier = cpi.u_;
 			String className = getRefinedClassName(identifier);
-			beginElementKind(w, ElementKind.CLASS, className, DEFAULT_MODIFIERS, ABS_API_ACTOR_CLASS,
-					toList(cpi.listqu_, true));
-			this.classes.push(className);
-			labelMap.put(className, new LinkedList<>());
-
-			w.emitEmptyLine();
 			List<String> parameters = new ArrayList<>();
 			for (FormalPar param : cpi.listformalpar_) {
 				FormalParameter p = (FormalParameter) param;
 				String fieldType = getTypeName(p.t_);
 				parameters.add(fieldType);
 				parameters.add(p.l_);
-				emitField(w, fieldType, p.l_, null, false);
 			}
+
+			beginElementKind(w, ElementKind.CLASS, className, DEFAULT_MODIFIERS, ABS_API_ACTOR_CLASS,
+					toList(cpi.listqu_, true), parameters, true);
+			this.classes.push(className);
+			labelMap.put(className, new LinkedList<>());
+
 			w.emitEmptyLine();
+
+			emitImplicitConversions(w);
+
 			for (ClassBody cb : cpi.listclassbody_1) {
 				cb.accept(this, w);
 			}
 			for (ClassBody cb : cpi.listclassbody_2) {
 				cb.accept(this, w);
 			}
-			w.beginConstructor(DEFAULT_MODIFIERS, parameters, null);
-			for (FormalPar param : cpi.listformalpar_) {
-				FormalParameter p = (FormalParameter) param;
-				w.emitStatement("this." + p.l_ + " = " + p.l_);
-			}
-			// emitThisActorRegistration(w);
-			cpi.maybeblock_.accept(this, w);
-			// emitDefaultRunMethodExecution(w, className);
-			w.endConstructor();
 			w.emitEmptyLine();
 			// emitToStringMethod(w);
 			for (StringWriter continuation : labelMap.get(className)) {
 				w.emit(continuation.toString());
 			}
+			w.beginConstructor(DEFAULT_MODIFIERS, null, null);
 
+			cpi.maybeblock_.accept(this, w);
+			w.endConstructor();
+
+			w.emitEmptyLine();
 			w.endType();
 			this.classes.pop();
 			labelMap.remove(className);
@@ -669,19 +688,19 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	}
 
 	@Override
-	public Prog visit(AnnStatement p, JavaWriter w) {
+	public Prog visit(AnnStatement p, ScalaWriter w) {
 		p.stm_.accept(this, w);
 		return prog;
 	}
 
 	@Override
-	public Prog visit(Annotation p, JavaWriter w) {
+	public Prog visit(Annotation p, ScalaWriter w) {
 		p.ann__.accept(this, w);
 		return prog;
 	}
 
 	@Override
-	public Prog visit(AnnDeclaration p, JavaWriter w) {
+	public Prog visit(AnnDeclaration p, ScalaWriter w) {
 		for (Ann a : p.listann_) {
 			a.accept(this, w);
 		}
@@ -690,17 +709,17 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	}
 
 	@Override
-	public Prog visit(AnnNoType p, JavaWriter arg) {
+	public Prog visit(AnnNoType p, ScalaWriter arg) {
 		return prog;
 	}
 
 	@Override
-	public Prog visit(AnnWithType p, JavaWriter w) {
+	public Prog visit(AnnWithType p, ScalaWriter w) {
 		visitJavaAnnDecl(p);
 		return prog;
 	}
 
-	public List<JavaWriter> continuation(ListAnnStm statements, List<JavaWriter> currentMethodWriters,
+	public List<ScalaWriter> continuation(ListAnnStm statements, List<ScalaWriter> currentMethodWriters,
 			boolean isInMethod) {
 
 		// System.out.println("Entering continuation creation with awaitCounter
@@ -710,10 +729,8 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 		TreeSet<VarDefinition> methodScope = new TreeSet<>();
 		variablesInScope.push(methodScope);
 
-		duplicateReplacements.push(new HashMap<>());
-
 		StringWriter scopesw = new StringWriter();
-		JavaWriter scopew = new JavaWriter(scopesw);
+		ScalaWriter scopew = new ScalaWriter(scopesw);
 		scopew.isScope = true;
 
 		for (AnnStm stm : statements) {
@@ -730,10 +747,11 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 			syncPCounter = tmpS;
 			asyncPCounter = tmpA;
 
-			for (JavaWriter javaWriter : currentMethodWriters) {
+			for (ScalaWriter javaWriter : currentMethodWriters) {
 				tmp = awaitCounter;
 				tmpS = syncPCounter;
 				tmpA = asyncPCounter;
+
 				as.accept(this, javaWriter);
 
 				awaitCounter = tmp;
@@ -744,25 +762,35 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 			if (as.stm_ instanceof SWhile) {
 				SWhile sw = (SWhile) as.stm_;
 				SBlock whileBlock = (SBlock) ((AnnStatement) sw.annstm_).stm_;
-				StringWriter preAwaitsw = new StringWriter();
-				JavaWriter preAwaitw = new JavaWriter(preAwaitsw, true, true);
 
-				visitPreWhile(sw, preAwaitw);
+				List<ScalaWriter> innerAwaits = continuation(whileBlock.listannstm_, new LinkedList<>(), false);
+
+				int tmp2 = awaitCounter;
+				int tmpS2 = syncPCounter;
+				int tmpA2 = asyncPCounter;
+
 				awaitCounter = tmp;
 				syncPCounter = tmpS;
 				asyncPCounter = tmpA;
 
-				List<JavaWriter> innerAwaits = continuation(whileBlock.listannstm_, new LinkedList<>(), false);
-				for (JavaWriter javaWriter : innerAwaits) {
-					try {
-						javaWriter.emitStatement("%s", preAwaitsw.toString());
-					} catch (IOException e) {
-						// TODO Auto-generated catch block
-						e.printStackTrace();
-					}
+				for (ScalaWriter javaWriter : innerAwaits) {
+
+					tmp = awaitCounter;
+					tmpS = syncPCounter;
+					tmpA = asyncPCounter;
+					as.accept(this, javaWriter);
+					awaitCounter = tmp;
+					syncPCounter = tmpS;
+					asyncPCounter = tmpA;
+
 				}
 
 				currentMethodWriters.addAll(innerAwaits);
+
+				awaitCounter = tmp2;
+				syncPCounter = tmpS2;
+				asyncPCounter = tmpA2;
+
 				/*
 				 * for (JavaWriter javaWriter : currentMethodWriters) {
 				 * visitLabelWhile(sw, javaWriter); }
@@ -774,13 +802,12 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 			// System.out.println(awaitCounter);
 
 			if (as.stm_ instanceof SIfElse) {
-				// System.out.println("before while check " + awaitCounter);
 				SIfElse sie = (SIfElse) as.stm_;
 				SBlock ifBlock = (SBlock) ((Stm) sie.stm_1);
 				SBlock elseBlock = (SBlock) ((Stm) sie.stm_2);
 
-				List<JavaWriter> innerAwaits1 = continuation(ifBlock.listannstm_, new LinkedList<>(), false);
-				List<JavaWriter> innerAwaits2 = continuation(elseBlock.listannstm_, new LinkedList<>(), false);
+				List<ScalaWriter> innerAwaits1 = continuation(ifBlock.listannstm_, new LinkedList<>(), false);
+				List<ScalaWriter> innerAwaits2 = continuation(elseBlock.listannstm_, new LinkedList<>(), false);
 
 				currentMethodWriters.addAll(innerAwaits1);
 				currentMethodWriters.addAll(innerAwaits2);
@@ -797,9 +824,57 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 				SIf si = (SIf) as.stm_;
 				SBlock ifBlock = (SBlock) ((Stm) si.stm_);
 
-				List<JavaWriter> innerAwaits1 = continuation(ifBlock.listannstm_, new LinkedList<>(), false);
+				List<ScalaWriter> innerAwaits1 = continuation(ifBlock.listannstm_, new LinkedList<>(), false);
 
 				currentMethodWriters.addAll(innerAwaits1);
+				/*
+				 * for (JavaWriter javaWriter : currentMethodWriters) {
+				 * visitLabelWhile(sw, javaWriter); }
+				 */
+				// System.out.println("after while check " + awaitCounter);
+
+			}
+
+			if (as.stm_ instanceof SCase) {
+				// System.out.println("before while check " + awaitCounter);
+				SCase sc = (SCase) as.stm_;
+
+				StringWriter auxsw = new StringWriter();
+				ScalaWriter auxw = new ScalaWriter(auxsw);
+
+				fromCase = true;
+				sc.pureexp_.accept(this, auxw);
+
+				// caseKey = findVariableTypeInScope(auxsw.toString());
+
+				for (SCaseBranch lcb : sc.listscasebranch_) {
+					SCaseB branch = (SCaseB) lcb;
+					SBlock caseBlock = (SBlock) ((AnnStatement) ((branch).annstm_)).stm_;
+
+					branch.pattern_.accept(this, scopew);
+
+					TreeSet<VarDefinition> blockScope = new TreeSet<>();
+					variablesInScope.push(blockScope);
+
+					if (!variablesBeforeBlock.isEmpty()) {
+						for (VarDefinition vd : variablesBeforeBlock) {
+							if (!variablesInScope.isEmpty()) {
+								variablesInScope.peek().add(vd);
+							}
+						}
+						variablesBeforeBlock.clear();
+					}
+
+					List<ScalaWriter> innerAwaits1 = continuation(caseBlock.listannstm_, new LinkedList<>(), false);
+
+					variablesInScope.pop();
+
+					currentMethodWriters.addAll(innerAwaits1);
+
+				}
+				fromCase = false;
+				caseKey = "";
+
 				/*
 				 * for (JavaWriter javaWriter : currentMethodWriters) {
 				 * visitLabelWhile(sw, javaWriter); }
@@ -814,7 +889,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 				label.append(currentMethod.getName());
 				label.append("Await" + (awaitCounter++));
 				StringWriter auxsw = new StringWriter();
-				JavaWriter auxw = new JavaWriter(auxsw);
+				ScalaWriter auxw = new ScalaWriter(auxsw);
 				auxw.continuationLevel = -1;
 
 				try {
@@ -824,10 +899,10 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 						for (VarDefinition varDefinition : defs) {
 							parameters.add(varDefinition.getType());
 
-							parameters.add(getDuplicate(varDefinition.getName()));
+							parameters.add(getDuplicate(varDefinition.getName(), auxw));
 						}
 					}
-					auxw.beginMethod(returnType, label.toString(), DEFAULT_MODIFIERS, parameters, null);
+					startContinuation(label, auxw, returnType, parameters);
 
 				} catch (IOException e) {
 					// TODO Auto-generated catch block
@@ -844,14 +919,14 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 					ExpE ee = (ExpE) exp.exp_;
 					if (ee.effexp_ instanceof SyncMethCall) {
 						SyncMethCall smc = (SyncMethCall) ee.effexp_;
-						String methodName = methodName(smc.l_);
+						String methodName = smc.l_.equals(METHOD_GET) ? "get" : smc.l_;
 						if (callHasAwait(methodName)) {
 							StringBuilder label = new StringBuilder(classes.peek());
 							label.append(currentMethod.getName());
 							label.append("Await" + (awaitCounter++));
 
 							StringWriter auxsw = new StringWriter();
-							JavaWriter auxw = new JavaWriter(auxsw);
+							ScalaWriter auxw = new ScalaWriter(auxsw);
 							auxw.continuationLevel = -1;
 							try {
 								String returnType = currentMethod.type() != null ? currentMethod.type() : "void";
@@ -859,19 +934,19 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 								for (TreeSet<VarDefinition> defs : variablesInScope) {
 									for (VarDefinition varDefinition : defs) {
 										parameters.add(varDefinition.getType());
-										parameters.add(getDuplicate(varDefinition.getName()));
+										parameters.add(getDuplicate(varDefinition.getName(), auxw));
 									}
 								}
 
 								String smcReturnType = findMethodReturnType(methodName, currentClass(),
-										getParameters(smc.listpureexp_));
+										getParameters(smc.listpureexp_, auxw));
 
 								if (smcReturnType != null) {
 									parameters.add("ABSFutureTask<?>");
 									parameters.add("f_par");
 								}
 
-								auxw.beginMethod(returnType, label.toString(), DEFAULT_MODIFIERS, parameters, null);
+								startContinuation(label, auxw, returnType, parameters);
 
 							} catch (IOException e) {
 								// TODO Auto-generated catch block
@@ -883,14 +958,14 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 					}
 					if (ee.effexp_ instanceof ThisSyncMethCall) {
 						ThisSyncMethCall smc = (ThisSyncMethCall) ee.effexp_;
-						String methodName = methodName(smc.l_);
+						String methodName = smc.l_.equals(METHOD_GET) ? "get" : smc.l_;
 						if (callHasAwait(methodName)) {
 							StringBuilder label = new StringBuilder(classes.peek());
 							label.append(currentMethod.getName());
 							label.append("Await" + (awaitCounter++));
 
 							StringWriter auxsw = new StringWriter();
-							JavaWriter auxw = new JavaWriter(auxsw);
+							ScalaWriter auxw = new ScalaWriter(auxsw);
 							auxw.continuationLevel = -1;
 							try {
 								String returnType = currentMethod.type() != null ? currentMethod.type() : "void";
@@ -898,19 +973,19 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 								for (TreeSet<VarDefinition> defs : variablesInScope) {
 									for (VarDefinition varDefinition : defs) {
 										parameters.add(varDefinition.getType());
-										parameters.add(getDuplicate(varDefinition.getName()));
+										parameters.add(getDuplicate(varDefinition.getName(), auxw));
 									}
 								}
 
 								String smcReturnType = findMethodReturnType(methodName, currentClass(),
-										getParameters(smc.listpureexp_));
+										getParameters(smc.listpureexp_, auxw));
 
 								if (smcReturnType != null) {
 									parameters.add("ABSFutureTask<?>");
 									parameters.add("f_par");
 								}
 
-								auxw.beginMethod(returnType, label.toString(), DEFAULT_MODIFIERS, parameters, null);
+								startContinuation(label, auxw, returnType, parameters);
 
 							} catch (IOException e) {
 								// TODO Auto-generated catch block
@@ -931,11 +1006,11 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 					String methodName = null;
 					if (ee.effexp_ instanceof SyncMethCall) {
 						SyncMethCall smc = (SyncMethCall) ee.effexp_;
-						methodName = methodName(smc.l_);
+						methodName = smc.l_.equals(METHOD_GET) ? "get" : smc.l_;
 					}
 					if (ee.effexp_ instanceof ThisSyncMethCall) {
 						ThisSyncMethCall smc = (ThisSyncMethCall) ee.effexp_;
-						methodName = methodName(smc.l_);
+						methodName = smc.l_.equals(METHOD_GET) ? "get" : smc.l_;
 					}
 					if (callHasAwait(methodName)) {
 						StringBuilder label = new StringBuilder(classes.peek());
@@ -943,13 +1018,14 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 						label.append("Await" + (awaitCounter++));
 
 						StringBuilder varName = new StringBuilder("");
-						varName.append(getDuplicate(sas.l_));
+
+						StringWriter auxsw = new StringWriter();
+						ScalaWriter auxw = new ScalaWriter(auxsw);
+
+						varName.append(getDuplicate(sas.l_, auxw));
 						StringBuilder futureName = new StringBuilder();
 						futureName.append("future_");
 						futureName.append(varName.toString());
-
-						StringWriter auxsw = new StringWriter();
-						JavaWriter auxw = new JavaWriter(auxsw);
 						auxw.continuationLevel = -1;
 
 						try {
@@ -958,13 +1034,13 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 							for (TreeSet<VarDefinition> defs : variablesInScope) {
 								for (VarDefinition varDefinition : defs) {
 									parameters.add(varDefinition.getType());
-									parameters.add(getDuplicate(varDefinition.getName()));
+									parameters.add(getDuplicate(varDefinition.getName(), auxw));
 								}
 							}
-							parameters.add(String.format("ABSFutureTask<%s>", findVariableTypeInScope(sas.l_)));
+							parameters.add(String.format("ABSFutureTask[%s]", findVariableTypeInScope(sas.l_)));
 							parameters.add(futureName.toString());
 
-							auxw.beginMethod(returnType, label.toString(), DEFAULT_MODIFIERS, parameters, null);
+							startContinuation(label, auxw, returnType, parameters);
 
 							auxw.emitStatement("%s = %s.get()", varName, futureName);
 
@@ -986,11 +1062,11 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 					String methodName = null;
 					if (ee.effexp_ instanceof SyncMethCall) {
 						SyncMethCall smc = (SyncMethCall) ee.effexp_;
-						methodName = methodName(smc.l_);
+						methodName = smc.l_.equals(METHOD_GET) ? "get" : smc.l_;
 					}
 					if (ee.effexp_ instanceof ThisSyncMethCall) {
 						ThisSyncMethCall smc = (ThisSyncMethCall) ee.effexp_;
-						methodName = methodName(smc.l_);
+						methodName = smc.l_.equals(METHOD_GET) ? "get" : smc.l_;
 					}
 					if (callHasAwait(methodName)) {
 
@@ -1000,15 +1076,16 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 
 						StringBuilder varName = new StringBuilder("");
 
-						varName.append(getDuplicate(das.l_));
+						StringWriter auxsw = new StringWriter();
+						ScalaWriter auxw = new ScalaWriter(auxsw);
+						auxw.continuationLevel = -1;
+
+						varName.append(getDuplicate(das.l_, auxw));
 
 						StringBuilder futureName = new StringBuilder();
 						futureName.append("future_");
 						futureName.append(varName.toString());
 
-						StringWriter auxsw = new StringWriter();
-						JavaWriter auxw = new JavaWriter(auxsw);
-						auxw.continuationLevel = -1;
 						try {
 							String returnType = currentMethod.type() != null ? currentMethod.type() : "void";
 							List<String> parameters = new ArrayList<>();
@@ -1016,15 +1093,15 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 								for (VarDefinition varDefinition : defs) {
 									if (!varDefinition.getName().equals(das.l_)) {
 										parameters.add(varDefinition.getType());
-										parameters.add(getDuplicate(varDefinition.getName()));
+										parameters.add(getDuplicate(varDefinition.getName(), auxw));
 									}
 								}
 							}
-							parameters.add(String.format("ABSFutureTask<%s>", getTypeName(das.t_)));
+							parameters.add(String.format("ABSFutureTask[%s]", getTypeName(das.t_)));
 							parameters.add(futureName.toString());
 
-							auxw.beginMethod(returnType, label.toString(), DEFAULT_MODIFIERS, parameters, null);
-							auxw.emitStatement("%s %s = %s.get()", getTypeName(das.t_), varName, futureName);
+							startContinuation(label, auxw, returnType, parameters);
+							auxw.emitStatement("var %s : %s = %s.get()", varName, getTypeName(das.t_), futureName);
 
 						} catch (IOException e) {
 							// TODO Auto-generated catch block
@@ -1044,11 +1121,11 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 					String methodName = null;
 					if (ee.effexp_ instanceof SyncMethCall) {
 						SyncMethCall smc = (SyncMethCall) ee.effexp_;
-						methodName = methodName(smc.l_);
+						methodName = smc.l_.equals(METHOD_GET) ? "get" : smc.l_;
 					}
 					if (ee.effexp_ instanceof ThisSyncMethCall) {
 						ThisSyncMethCall smc = (ThisSyncMethCall) ee.effexp_;
-						methodName = methodName(smc.l_);
+						methodName = smc.l_.equals(METHOD_GET) ? "get" : smc.l_;
 					}
 					if (callHasAwait(methodName)) {
 						StringBuilder label = new StringBuilder(classes.peek());
@@ -1060,7 +1137,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 						futureName.append(fas.l_);
 
 						StringWriter auxsw = new StringWriter();
-						JavaWriter auxw = new JavaWriter(auxsw);
+						ScalaWriter auxw = new ScalaWriter(auxsw);
 						auxw.continuationLevel = -1;
 						try {
 							String returnType = currentMethod.type() != null ? currentMethod.type() : "void";
@@ -1068,13 +1145,13 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 							for (TreeSet<VarDefinition> defs : variablesInScope) {
 								for (VarDefinition varDefinition : defs) {
 									parameters.add(varDefinition.getType());
-									parameters.add(getDuplicate(varDefinition.getName()));
+									parameters.add(getDuplicate(varDefinition.getName(), auxw));
 								}
 							}
-							parameters.add(String.format("ABSFutureTask<%s>", findVariableTypeInScope(fas.l_)));
+							parameters.add(String.format("ABSFutureTask[%s]", findVariableTypeInScope(fas.l_)));
 							parameters.add(futureName.toString());
 
-							auxw.beginMethod(returnType, label.toString(), DEFAULT_MODIFIERS, parameters, null);
+							startContinuation(label, auxw, returnType, parameters);
 							auxw.emitStatement("this.%s = %s.get()", fas.l_, futureName);
 
 						} catch (IOException e) {
@@ -1090,12 +1167,11 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 
 		}
 		variablesInScope.pop();
-		duplicateReplacements.pop();
 
 		if (isInMethod)
 
 		{
-			for (JavaWriter javaWriter : currentMethodWriters) {
+			for (ScalaWriter javaWriter : currentMethodWriters) {
 				try {
 					javaWriter.endMethod();
 					javaWriter.close();
@@ -1105,7 +1181,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 				}
 			}
 		} else {
-			for (JavaWriter javaWriter : currentMethodWriters) {
+			for (ScalaWriter javaWriter : currentMethodWriters) {
 				javaWriter.continuationLevel = variablesInScope.size();
 			}
 		}
@@ -1113,14 +1189,14 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 
 	}
 
-	public void visitStatementsBlock(ListAnnStm statements, JavaWriter w) {
+	public void visitStatementsBlock(ListAnnStm statements, ScalaWriter w) {
 		{
 			StringWriter awaitsw = new StringWriter();
-			JavaWriter awaitw = new JavaWriter(awaitsw);
+			ScalaWriter awaitw = new ScalaWriter(awaitsw);
 			Boolean awaitEncountered = false;
 			SAwait sa = null;
 			StringWriter guardsw = new StringWriter();
-			JavaWriter guardw = new JavaWriter(guardsw);
+			ScalaWriter guardw = new ScalaWriter(guardsw);
 
 			for (AnnStm stm : statements) {
 				AnnStatement as = (AnnStatement) stm;
@@ -1169,7 +1245,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	}
 
 	@Override
-	public Prog visit(JustBlock jb, JavaWriter w) {
+	public Prog visit(JustBlock jb, ScalaWriter w) {
 		for (AnnStm stm : jb.listannstm_) {
 			stm.accept(this, w);
 		}
@@ -1177,15 +1253,15 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	}
 
 	@Override
-	public Prog visit(NoBlock nb, JavaWriter w) {
+	public Prog visit(NoBlock nb, ScalaWriter w) {
 		return prog;
 	}
 
 	@Override
-	public Prog visit(MethSignature ms, JavaWriter w) {
+	public Prog visit(MethSignature ms, ScalaWriter w) {
 		try {
 			String returnType = getTypeName(ms.t_);
-			String name = methodName(ms.l_);
+			String name = ms.l_.equals(METHOD_GET) ? "get" : ms.l_;
 			List<String> parameters = new ArrayList<>();
 			List<String> parameterTypes = new ArrayList<>();
 			for (FormalPar param : ms.listformalpar_) {
@@ -1206,7 +1282,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	}
 
 	@Override
-	public Prog visit(FieldClassBody p, JavaWriter w) {
+	public Prog visit(FieldClassBody p, ScalaWriter w) {
 		try {
 			String fieldType = getTypeName(p.t_);
 			String fieldName = p.l_;
@@ -1224,12 +1300,14 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	}
 
 	@Override
-	public Prog visit(FieldAssignClassBody p, JavaWriter w) {
+	public Prog visit(FieldAssignClassBody p, ScalaWriter w) {
 		try {
 			String fieldType = getTypeName(p.t_);
 			String fieldName = p.l_;
 			StringWriter auxsw = new StringWriter();
-			JavaWriter auxw = new JavaWriter(auxsw);
+			ScalaWriter auxw = new ScalaWriter(auxsw);
+			auxw.continuationLevel = w.continuationLevel;
+			auxw.duplicateReplacements = w.duplicateReplacements;
 			p.pureexp_.accept(this, auxw);
 			emitField(w, fieldType, fieldName, auxsw.toString(), false);
 			createVarDefinition(fieldName, fieldType);
@@ -1241,19 +1319,19 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 		}
 	}
 
-	public void visitMethodBody(MethClassBody mcb, JavaWriter notNeeded) {
+	public void visitMethodBody(MethClassBody mcb, ScalaWriter notNeeded) {
 		for (AnnStm annStm : mcb.listannstm_) {
 			annStm.accept(this, notNeeded);
 		}
 	}
 
 	@Override
-	public Prog visit(MethClassBody mcb, JavaWriter w) {
+	public Prog visit(MethClassBody mcb, ScalaWriter w) {
 		try {
 
 			if (w.checkAwaits) {
 				String returnType = getTypeName(mcb.t_);
-				String name = methodName(mcb.l_);
+				String name = mcb.l_.equals(METHOD_GET) ? "get" : mcb.l_;
 				List<String> parameterTypes = new ArrayList<>();
 				for (FormalPar param : mcb.listformalpar_) {
 					FormalParameter p = (FormalParameter) param;
@@ -1265,10 +1343,11 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 				visitMethodBody(mcb, w);
 			} else {
 
+				variablesInScope.clear();
 				TreeSet<VarDefinition> methodScope = new TreeSet<>();
 				variablesInScope.push(methodScope);
 				String returnType = getTypeName(mcb.t_);
-				String name = methodName(mcb.l_);
+				String name = mcb.l_.equals(METHOD_GET) ? "get" : mcb.l_;
 				List<String> parameters = new ArrayList<>();
 				List<String> parameterTypes = new ArrayList<>();
 				for (FormalPar param : mcb.listformalpar_) {
@@ -1282,6 +1361,8 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 						variablesInScope.peek().add(vd);
 					}
 				}
+				// System.out.println(variablesInScope);
+
 				w.beginMethod(returnType, name, DEFAULT_MODIFIERS, parameters, Collections.emptyList());
 				createMethodDefinition(returnType, name, parameterTypes);
 
@@ -1293,9 +1374,12 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 				awaitCounter = 0;
 				asyncPCounter = 0;
 				syncPCounter = 0;
+
+				System.out.println("Building method for " + name);
 				for (AnnStm annStm : mcb.listannstm_) {
 					annStm.accept(this, w);
 				}
+				System.out.println("Done method for " + name);
 
 				variablesInScope.pop();
 
@@ -1303,9 +1387,12 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 				asyncPCounter = 0;
 				syncPCounter = 0;
 
+				System.out.println("Building continuations for " + name);
 				continuation(copyOfMcb, new LinkedList<>(), true);
 				// visitStatementsBlock(mcb.listannstm_, w);
 				variablesInScope.pop();
+				System.out.println("Done continuations for " + name);
+				variablesInScope.clear();
 
 				w.endMethod();
 
@@ -1324,35 +1411,52 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	}
 
 	@Override
-	public Prog visit(SBlock b, JavaWriter w) {
+	public Prog visit(SBlock b, ScalaWriter w) {
 
 		TreeSet<VarDefinition> blockScope = new TreeSet<>();
 		variablesInScope.push(blockScope);
 		if (w.continuationLevel != -5)
-			w.continuationLevel = variablesInScope.size();
+			w.continuationLevel++;
 
 		HashMap<String, String> duplicateScope = new HashMap<>();
-		duplicateReplacements.push(duplicateScope);
+		w.duplicateReplacements.push(duplicateScope);
 
+		if (!variablesBeforeBlock.isEmpty()) {
+			for (VarDefinition vd : variablesBeforeBlock) {
+				if ((w.continuationLevel > -1 || w.avoidDuplicates)) {
+					w.duplicateReplacements.peek().put(vd.getName(), "w_" + awaitCounter + "$" + vd.getName());
+				}
+
+				if (!variablesInScope.isEmpty()) {
+					variablesInScope.peek().add(vd);
+				}
+			}
+			variablesBeforeBlock.clear();
+		}
+
+		// System.out.println("new block " + w.duplicateReplacements);
 		for (AnnStm stm : b.listannstm_) {
 			stm.accept(this, w);
 		}
-		duplicateReplacements.pop();
+		// System.out.println(variablesInScope);
+		w.duplicateReplacements.pop();
 		variablesInScope.pop();
 		if (w.continuationLevel > -5)
-			w.continuationLevel = variablesInScope.size();
+			w.continuationLevel--;
 		return prog;
 
 	}
 
 	@Override
-	public Prog visit(SAwait await, JavaWriter w) {
+	public Prog visit(SAwait await, ScalaWriter w) {
 		if (w.checkAwaits && !currentMethod.containsAwait()) {
 			currentMethod.setContainsAwait(true);
 			awaitsDetected = true;
 		}
 		StringWriter auxsw = new StringWriter();
-		JavaWriter auxw = new JavaWriter(auxsw);
+		ScalaWriter auxw = new ScalaWriter(auxsw);
+		auxw.continuationLevel = w.continuationLevel;
+		auxw.duplicateReplacements = w.duplicateReplacements;
 		await.awaitguard_.accept(this, auxw);
 		StringBuilder label = new StringBuilder(classes.peek());
 		label.append(currentMethod.getName());
@@ -1366,7 +1470,6 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 				parameters.add(varDefinition.getName());
 			}
 		}
-
 		String methodCall = generateJavaMethodInvocation("this", label.toString(), parameters, w, 'w', awaitCounter);
 		try {
 			if (currentMethod.isVoid())
@@ -1382,7 +1485,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	}
 
 	@Override
-	public Prog visit(GFutField p, JavaWriter w) {
+	public Prog visit(GFutField p, ScalaWriter w) {
 		try {
 			w.emit(LITERAL_THIS + "." + p.l_);
 		} catch (IOException x) {
@@ -1392,13 +1495,14 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	}
 
 	@Override
-	public Prog visit(GExp p, JavaWriter w) {
+	public Prog visit(GExp p, ScalaWriter w) {
 		try {
 			StringWriter suppliersw = new StringWriter();
-			JavaWriter supplierw = new JavaWriter(suppliersw);
-
+			ScalaWriter supplierw = new ScalaWriter(suppliersw);
+			supplierw.continuationLevel = w.continuationLevel;
+			supplierw.duplicateReplacements = w.duplicateReplacements;
 			p.pureexp_.accept(this, supplierw);
-			w.beginControlFlow("new Supplier<Boolean>()");
+			w.beginControlFlow("new Supplier[Boolean]");
 			w.beginMethod("Boolean", "get", DEFAULT_MODIFIERS);
 			w.emitStatement("return %s", suppliersw.toString());
 			w.endMethod();
@@ -1411,13 +1515,18 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	}
 
 	@Override
-	public Prog visit(GAnd p, JavaWriter w) {
+	public Prog visit(GAnd p, ScalaWriter w) {
 		try {
 			StringWriter suppliersw = new StringWriter();
-			JavaWriter supplierw = new JavaWriter(suppliersw);
+			ScalaWriter supplierw = new ScalaWriter(suppliersw);
+
+			supplierw.continuationLevel = w.continuationLevel;
+			supplierw.duplicateReplacements = w.duplicateReplacements;
 
 			StringWriter suppliersw2 = new StringWriter();
-			JavaWriter supplierw2 = new JavaWriter(suppliersw);
+			ScalaWriter supplierw2 = new ScalaWriter(suppliersw);
+			supplierw2.continuationLevel = w.continuationLevel;
+			supplierw2.duplicateReplacements = w.duplicateReplacements;
 
 			StringBuilder supplierName = new StringBuilder();
 			supplierName.append("supplier_" + Math.abs(p.hashCode()));
@@ -1433,10 +1542,10 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	}
 
 	@Override
-	public Prog visit(GFut vg, JavaWriter w) {
+	public Prog visit(GFut vg, ScalaWriter w) {
 		try {
 
-			w.emit(getDuplicate(vg.l_));
+			w.emit(getDuplicate(vg.l_, w));
 			return prog;
 		} catch (IOException x) {
 			throw new RuntimeException(x);
@@ -1444,25 +1553,14 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	}
 
 	@Override
-	public Prog visit(SWhile sw, JavaWriter w) {
+	public Prog visit(SWhile sw, ScalaWriter w) {
 		// TODO Continue preprocessing from here with the three while functions.
 		try {
 			StringWriter auxsw = new StringWriter();
-			JavaWriter auxw = new JavaWriter(auxsw);
-			sw.pureexp_.accept(this, auxw);
-			w.beginControlFlow("while (" + auxsw.toString() + ")");
-			sw.annstm_.accept(this, w);
-			w.endControlFlow();
-			return prog;
-		} catch (IOException e) {
-			throw new RuntimeException(e);
-		}
-	}
+			ScalaWriter auxw = new ScalaWriter(auxsw);
+			auxw.continuationLevel = w.continuationLevel;
+			auxw.duplicateReplacements = w.duplicateReplacements;
 
-	public Prog visitPreWhile(SWhile sw, JavaWriter w) {
-		try {
-			StringWriter auxsw = new StringWriter();
-			JavaWriter auxw = new JavaWriter(auxsw);
 			sw.pureexp_.accept(this, auxw);
 			w.beginControlFlow("while (" + auxsw.toString() + ")");
 			sw.annstm_.accept(this, w);
@@ -1474,10 +1572,12 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	}
 
 	@Override
-	public Prog visit(SIf sif, JavaWriter w) {
+	public Prog visit(SIf sif, ScalaWriter w) {
 		try {
 			StringWriter auxsw = new StringWriter();
-			JavaWriter auxw = new JavaWriter(auxsw);
+			ScalaWriter auxw = new ScalaWriter(auxsw);
+			auxw.continuationLevel = w.continuationLevel;
+			auxw.duplicateReplacements = w.duplicateReplacements;
 			sif.pureexp_.accept(this, auxw);
 			w.beginControlFlow("if (" + auxsw.toString() + ")");
 			sif.stm_.accept(this, w);
@@ -1489,15 +1589,19 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	}
 
 	@Override
-	public Prog visit(SIfElse se, JavaWriter w) {
+	public Prog visit(SIfElse se, ScalaWriter w) {
 		try {
 			StringWriter auxsw = new StringWriter();
-			JavaWriter auxw = new JavaWriter(auxsw);
+			ScalaWriter auxw = new ScalaWriter(auxsw);
+			auxw.continuationLevel = w.continuationLevel;
+			auxw.duplicateReplacements = w.duplicateReplacements;
 			se.pureexp_.accept(this, auxw);
 			w.beginControlFlow("if (" + auxsw.toString() + ")");
+
 			se.stm_1.accept(this, w);
 			w.endControlFlow();
 			w.beginControlFlow("else");
+
 			se.stm_2.accept(this, w);
 			w.endControlFlow();
 			return prog;
@@ -1508,11 +1612,30 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	}
 
 	@Override
-	public Prog visit(SCase p, JavaWriter w) {
+	public Prog visit(SCase p, ScalaWriter w) {
 		try {
 			StringWriter auxsw = new StringWriter();
-			visitSCase(p, null, new JavaWriter(auxsw));
-			w.emitStatement(auxsw.toString());
+			ScalaWriter auxw = new ScalaWriter(auxsw);
+			auxw.continuationLevel = w.continuationLevel;
+			auxw.duplicateReplacements = w.duplicateReplacements;
+
+			if (!w.checkAwaits)
+				fromCase = true;
+			p.pureexp_.accept(this, auxw);
+			w.beginControlFlow("%s match ", auxsw);
+
+			// if (!w.checkAwaits) {
+			// caseKey = findVariableTypeInScope(auxsw.toString());
+			// System.out.println("#############" + caseKey + " " +
+			// auxsw.toString() + "#################");
+			// }
+			for (SCaseBranch scb : p.listscasebranch_) {
+				scb.accept(this, w);
+			}
+			caseKey = "";
+			fromCase = false;
+			w.endControlFlow();
+
 			return prog;
 		} catch (IOException e) {
 			throw new RuntimeException(e);
@@ -1520,14 +1643,41 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	}
 
 	@Override
-	public Prog visit(SDec p, JavaWriter w) {
+	public Prog visit(SCaseB cb, ScalaWriter w) {
+		try {
+
+			StringWriter patsw = new StringWriter();
+			ScalaWriter patw = new ScalaWriter(patsw);
+			patw.continuationLevel = w.continuationLevel;
+			patw.duplicateReplacements = w.duplicateReplacements;
+			cb.pattern_.accept(this, patw);
+
+			StringWriter stmsw = new StringWriter();
+			ScalaWriter stmw = new ScalaWriter(stmsw);
+			stmw.continuationLevel = w.continuationLevel;
+			stmw.duplicateReplacements = w.duplicateReplacements;
+			stmw.checkAwaits = w.checkAwaits;
+
+			cb.annstm_.accept(this, stmw);
+			// TODO1: Add declarations inside block
+
+			w.emitStatement("case %s => %s", patsw.toString(), stmsw.toString());
+			// variablesBeforeBlock.clear();
+			return prog;
+		} catch (IOException e) {
+			throw new RuntimeException(e);
+		}
+	}
+
+	@Override
+	public Prog visit(SDec p, ScalaWriter w) {
 		try {
 			String fieldType = getTypeName(p.t_);
 			String fieldName = p.l_;
 
 			VarDefinition vd = createVarDefinition(fieldName, fieldType);
 			if ((w.continuationLevel > -1 || w.avoidDuplicates)) {
-				duplicateReplacements.peek().put(fieldName, "w_" + awaitCounter + "$" + fieldName);
+				w.duplicateReplacements.peek().put(fieldName, "w_" + awaitCounter + "$" + fieldName);
 			}
 
 			emitField(w, fieldType, fieldName, null, false);
@@ -1544,7 +1694,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	}
 
 	@Override
-	public Prog visit(SFieldAss fa, JavaWriter w) {
+	public Prog visit(SFieldAss fa, ScalaWriter w) {
 		try {
 			Exp exp = fa.exp_;
 			String fieldName = LITERAL_THIS + "." + fa.l_;
@@ -1575,28 +1725,38 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	}
 
 	@Override
-	public Prog visit(SAss ss, JavaWriter w) {
+	public Prog visit(SAss ss, ScalaWriter w) {
 		try {
 			Exp exp = ss.exp_;
 			String varName = ss.l_;
+
+			String type = "";
+
+			/*
+			 * if (w.continuationLevel >= -1 || w.avoidDuplicates) {
+			 * if(w.methodParameters.containsKey(varName)){
+			 * duplicateReplacements.peek().put(varName, "w_" + awaitCounter +
+			 * "$" + varName); type=w.methodParameters.get(varName); } }
+			 */
+
 			String varType = findVariableType(varName);
 			if (exp instanceof ExpE == false) {
-				visitStatementAssignmentExp(exp, varName, null, w);
+				visitStatementAssignmentExp(exp, varName, type.length() == 0 ? null : type, w);
 			} else if (exp instanceof ExpE) {
 				ExpE expe = (ExpE) exp;
 				EffExp effExp = expe.effexp_;
 				if (effExp instanceof AsyncMethCall) {
 					AsyncMethCall amc = (AsyncMethCall) effExp;
-					visitAsyncMethodCall(amc, varType, varName, false, w);
+					visitAsyncMethodCall(amc, type.length() == 0 ? varType : type, varName, type.length() > 0, w);
 				} else if (effExp instanceof SyncMethCall) {
 					SyncMethCall smc = (SyncMethCall) effExp;
-					visitSyncMethodCall_Sync(smc, varType, varName, true, w);
+					visitSyncMethodCall_Sync(smc, type.length() == 0 ? varType : type, varName, true, w);
 				} else if (effExp instanceof ThisSyncMethCall) {
 					ThisSyncMethCall tsmc = (ThisSyncMethCall) effExp;
 					SyncMethCall smc = new SyncMethCall(new ELit(new LThis()), tsmc.l_, tsmc.listpureexp_);
-					visitSyncMethodCall_Sync(smc, varType, varName, true, w);
+					visitSyncMethodCall_Sync(smc, type.length() == 0 ? varType : type, varName, true, w);
 				} else {
-					visitStatementAssignmentExp(exp, varName, null, w);
+					visitStatementAssignmentExp(exp, varName, type.length() == 0 ? null : type, w);
 				}
 			}
 			return prog;
@@ -1606,16 +1766,15 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	}
 
 	@Override
-	public Prog visit(SDecAss p, JavaWriter w) {
+	public Prog visit(SDecAss p, ScalaWriter w) {
 		try {
 
 			String varType = getTypeName(p.t_);
 			varType = VOID_PRIMITIVE_NAME.equals(varType) ? Object.class.getSimpleName() : varType;
 			String varName = p.l_;
-
 			VarDefinition vd = createVarDefinition(varName, varType);
 			if ((w.continuationLevel > -1 || w.avoidDuplicates)) {
-				duplicateReplacements.peek().put(varName, "w_" + awaitCounter + "$" + varName);
+				w.duplicateReplacements.peek().put(varName, "w_" + awaitCounter + "$" + varName);
 			}
 
 			if (!variablesInScope.isEmpty()) {
@@ -1649,10 +1808,12 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	}
 
 	@Override
-	public Prog visit(SReturn r, JavaWriter w) {
+	public Prog visit(SReturn r, ScalaWriter w) {
 		try {
 			StringWriter auxsw = new StringWriter();
-			JavaWriter auxw = new JavaWriter(auxsw);
+			ScalaWriter auxw = new ScalaWriter(auxsw);
+			auxw.continuationLevel = w.continuationLevel;
+			auxw.duplicateReplacements = w.duplicateReplacements;
 			r.exp_.accept(this, auxw);
 			w.emitStatement("return " + auxsw.toString());
 			return prog;
@@ -1662,7 +1823,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	}
 
 	@Override
-	public Prog visit(SSuspend ss, JavaWriter w) {
+	public Prog visit(SSuspend ss, ScalaWriter w) {
 		try {
 			w.emitSingleLineComment("suspend;");
 			return prog;
@@ -1672,7 +1833,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	}
 
 	@Override
-	public Prog visit(SSkip sk, JavaWriter w) {
+	public Prog visit(SSkip sk, ScalaWriter w) {
 		try {
 			w.emitSingleLineComment("skip;");
 			return prog;
@@ -1682,11 +1843,13 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	}
 
 	@Override
-	public Prog visit(SExp p, JavaWriter w) {
+	public Prog visit(SExp p, ScalaWriter w) {
 		try {
 			Exp exp = p.exp_;
 			StringWriter auxsw = new StringWriter();
-			JavaWriter auxjw = new JavaWriter(auxsw);
+			ScalaWriter auxjw = new ScalaWriter(auxsw);
+			auxjw.duplicateReplacements = w.duplicateReplacements;
+			auxjw.continuationLevel = w.continuationLevel;
 			exp.accept(this, auxjw);
 			w.emit(auxsw.toString(), true);
 			if (exp instanceof ExpE) {
@@ -1707,10 +1870,12 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 		}
 	}
 
-	public Prog visit(SThrow st, JavaWriter w) {
+	public Prog visit(SThrow st, ScalaWriter w) {
 		try {
 			StringWriter auxsw = new StringWriter();
-			JavaWriter auxw = new JavaWriter(auxsw);
+			ScalaWriter auxw = new ScalaWriter(auxsw);
+			auxw.continuationLevel = w.continuationLevel;
+			auxw.duplicateReplacements = w.duplicateReplacements;
 			st.pureexp_.accept(this, auxw);
 			String newEx = auxsw.toString();
 			if (LITERAL_NULL.equals(newEx)) {
@@ -1726,7 +1891,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	}
 
 	@Override
-	public Prog visit(STryCatchFinally stcf, JavaWriter w) {
+	public Prog visit(STryCatchFinally stcf, ScalaWriter w) {
 		try {
 			w.beginControlFlow("try");
 			stcf.annstm_.accept(this, w);
@@ -1754,12 +1919,15 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	}
 
 	@Override
-	public Prog visit(SPrintln p, JavaWriter w) {
+	public Prog visit(SPrintln p, ScalaWriter w) {
 		try {
 			StringWriter auxsw = new StringWriter();
-			JavaWriter auxw = new JavaWriter(auxsw);
+			ScalaWriter auxw = new ScalaWriter(auxsw);
+			auxw.continuationLevel = w.continuationLevel;
+			auxw.duplicateReplacements = w.duplicateReplacements;
 			p.pureexp_.accept(this, auxw);
-			w.emitStatement("System.out.println( " + auxsw.toString() + ")");
+
+			w.emitStatement("println( " + auxsw.toString() + ")");
 			return prog;
 		} catch (IOException e) {
 			throw new RuntimeException(e);
@@ -1798,25 +1966,25 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	 */
 
 	@Override
-	public Prog visit(ExpE ee, JavaWriter w) {
+	public Prog visit(ExpE ee, ScalaWriter w) {
 		ee.effexp_.accept(this, w);
 		return prog;
 	}
 
 	@Override
-	public Prog visit(ExpP ep, JavaWriter w) {
+	public Prog visit(ExpP ep, ScalaWriter w) {
 		ep.pureexp_.accept(this, w);
 		return prog;
 	}
 
 	@Override
-	public Prog visit(ELit elit, JavaWriter w) {
+	public Prog visit(ELit elit, ScalaWriter w) {
 		elit.literal_.accept(this, w);
 		return prog;
 	}
 
 	@Override
-	public Prog visit(EAdd e, JavaWriter w) {
+	public Prog visit(EAdd e, ScalaWriter w) {
 		try {
 			w.beginExpressionGroup();
 			e.pureexp_1.accept(this, w);
@@ -1830,7 +1998,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	}
 
 	@Override
-	public Prog visit(ESub e, JavaWriter w) {
+	public Prog visit(ESub e, ScalaWriter w) {
 		try {
 			w.beginExpressionGroup();
 			e.pureexp_1.accept(this, w);
@@ -1844,7 +2012,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	}
 
 	@Override
-	public Prog visit(EMul e, JavaWriter w) {
+	public Prog visit(EMul e, ScalaWriter w) {
 		try {
 			w.beginExpressionGroup();
 			e.pureexp_1.accept(this, w);
@@ -1858,7 +2026,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	}
 
 	@Override
-	public Prog visit(EDiv e, JavaWriter w) {
+	public Prog visit(EDiv e, ScalaWriter w) {
 		try {
 			w.beginExpressionGroup();
 			e.pureexp_1.accept(this, w);
@@ -1872,7 +2040,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	}
 
 	@Override
-	public Prog visit(EMod e, JavaWriter w) {
+	public Prog visit(EMod e, ScalaWriter w) {
 		try {
 			w.beginExpressionGroup();
 			e.pureexp_1.accept(this, w);
@@ -1886,7 +2054,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	}
 
 	@Override
-	public Prog visit(EGe e, JavaWriter w) {
+	public Prog visit(EGe e, ScalaWriter w) {
 		try {
 			w.beginExpressionGroup();
 			e.pureexp_1.accept(this, w);
@@ -1900,7 +2068,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	}
 
 	@Override
-	public Prog visit(EGt e, JavaWriter w) {
+	public Prog visit(EGt e, ScalaWriter w) {
 		try {
 			w.beginExpressionGroup();
 			e.pureexp_1.accept(this, w);
@@ -1914,7 +2082,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	}
 
 	@Override
-	public Prog visit(ELe e, JavaWriter w) {
+	public Prog visit(ELe e, ScalaWriter w) {
 		try {
 			w.beginExpressionGroup();
 			e.pureexp_1.accept(this, w);
@@ -1928,7 +2096,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	}
 
 	@Override
-	public Prog visit(ELt lt, JavaWriter w) {
+	public Prog visit(ELt lt, ScalaWriter w) {
 		try {
 			w.beginExpressionGroup();
 			lt.pureexp_1.accept(this, w);
@@ -1942,7 +2110,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	}
 
 	@Override
-	public Prog visit(EAnd e, JavaWriter w) {
+	public Prog visit(EAnd e, ScalaWriter w) {
 		try {
 			w.beginExpressionGroup();
 			e.pureexp_1.accept(this, w);
@@ -1956,7 +2124,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	}
 
 	@Override
-	public Prog visit(EOr e, JavaWriter w) {
+	public Prog visit(EOr e, ScalaWriter w) {
 		try {
 			w.beginExpressionGroup();
 			e.pureexp_1.accept(this, w);
@@ -1970,15 +2138,23 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	}
 
 	@Override
-	public Prog visit(ENeq e, JavaWriter w) {
+	public Prog visit(ENeq e, ScalaWriter w) {
 		try {
 			w.beginExpressionGroup();
 			StringWriter auxsw = new StringWriter();
-			e.pureexp_1.accept(this, new JavaWriter(auxsw));
+			ScalaWriter auxw = new ScalaWriter(auxsw);
+			auxw.continuationLevel = w.continuationLevel;
+			auxw.duplicateReplacements = w.duplicateReplacements;
+
+			e.pureexp_1.accept(this, auxw);
 			String firstArg = auxsw.toString();
-			auxsw = new StringWriter();
-			e.pureexp_2.accept(this, new JavaWriter(auxsw));
-			String secondArg = auxsw.toString();
+			StringWriter auxsw2 = new StringWriter();
+			ScalaWriter auxw2 = new ScalaWriter(auxsw2);
+			auxw2.continuationLevel = w.continuationLevel;
+			auxw2.duplicateReplacements = w.duplicateReplacements;
+
+			e.pureexp_2.accept(this, auxw2);
+			String secondArg = auxsw2.toString();
 			w.emit(String.format("!Objects.equals(%s, %s)", firstArg, secondArg));
 			w.endExpressionGroup();
 			return prog;
@@ -1988,7 +2164,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	}
 
 	@Override
-	public Prog visit(EIntNeg in, JavaWriter w) {
+	public Prog visit(EIntNeg in, ScalaWriter w) {
 		try {
 			w.beginExpressionGroup();
 			w.emit("-");
@@ -2001,7 +2177,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	}
 
 	@Override
-	public Prog visit(ELogNeg ln, JavaWriter w) {
+	public Prog visit(ELogNeg ln, ScalaWriter w) {
 		try {
 			w.beginExpressionGroup();
 			w.emit("!");
@@ -2014,15 +2190,23 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	}
 
 	@Override
-	public Prog visit(EEq e, JavaWriter w) {
+	public Prog visit(EEq e, ScalaWriter w) {
 		try {
 			w.beginExpressionGroup();
 			StringWriter auxsw = new StringWriter();
-			e.pureexp_1.accept(this, new JavaWriter(auxsw));
+			ScalaWriter auxw = new ScalaWriter(auxsw);
+			auxw.continuationLevel = w.continuationLevel;
+			auxw.duplicateReplacements = w.duplicateReplacements;
+
+			e.pureexp_1.accept(this, auxw);
 			String firstArg = auxsw.toString();
-			auxsw = new StringWriter();
-			e.pureexp_2.accept(this, new JavaWriter(auxsw));
-			String secondArg = auxsw.toString();
+			StringWriter auxsw2 = new StringWriter();
+			ScalaWriter auxw2 = new ScalaWriter(auxsw2);
+			auxw2.continuationLevel = w.continuationLevel;
+			auxw2.duplicateReplacements = w.duplicateReplacements;
+
+			e.pureexp_2.accept(this, auxw2);
+			String secondArg = auxsw2.toString();
 			w.emit(String.format("Objects.equals(%s, %s)", firstArg, secondArg));
 			w.endExpressionGroup();
 			return prog;
@@ -2032,20 +2216,11 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	}
 
 	@Override
-	public Prog visit(EVar v, JavaWriter w) {
+	public Prog visit(EVar v, ScalaWriter w) {
 		try {
-
-			if (!getDuplicate(v.l_).equals(v.l_)) {
-				w.emit(getDuplicate(v.l_));
-				return prog;
-			}
-
-			if (caseMap.containsKey(v.l_)) {
-				w.emit(caseMap.get(v.l_));
-				return prog;
-			}
-
-			w.emit(translate(v.l_));
+			if (fromCase)
+				caseKey = findVariableTypeInScope(v.l_);
+			w.emit(translate(getDuplicate(v.l_, w)));
 		} catch (IOException x) {
 			throw new RuntimeException(x);
 		}
@@ -2054,8 +2229,10 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	}
 
 	@Override
-	public Prog visit(EField t, JavaWriter w) {
+	public Prog visit(EField t, ScalaWriter w) {
 		try {
+			if (fromCase)
+				caseKey = findVariableTypeInScope(t.l_);
 			w.emit("this." + t.l_);
 		} catch (IOException x) {
 			throw new RuntimeException(x);
@@ -2064,12 +2241,14 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	}
 
 	@Override
-	public Prog visit(New n, JavaWriter w) {
+	public Prog visit(New n, ScalaWriter w) {
 		try {
 			List<String> parameters = new ArrayList<>();
 			for (PureExp par : n.listpureexp_) {
 				StringWriter parSW = new StringWriter();
-				JavaWriter parameterWriter = new JavaWriter(parSW);
+				ScalaWriter parameterWriter = new ScalaWriter(parSW);
+				parameterWriter.continuationLevel = w.continuationLevel;
+				parameterWriter.duplicateReplacements = w.duplicateReplacements;
 				par.accept(this, parameterWriter);
 				parameters.add(parSW.toString());
 			}
@@ -2083,10 +2262,12 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	}
 
 	@Override
-	public Prog visit(Get g, JavaWriter w) {
+	public Prog visit(Get g, ScalaWriter w) {
 		try {
 			StringWriter auxsw = new StringWriter();
-			JavaWriter auxw = new JavaWriter(auxsw);
+			ScalaWriter auxw = new ScalaWriter(auxsw);
+			auxw.continuationLevel = w.continuationLevel;
+			auxw.duplicateReplacements = w.duplicateReplacements;
 			g.pureexp_.accept(this, auxw);
 			w.emit(auxsw.toString() + ".get()");
 			return prog;
@@ -2096,7 +2277,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	}
 
 	@Override
-	public Prog visit(AsyncMethCall amc, JavaWriter w) {
+	public Prog visit(AsyncMethCall amc, ScalaWriter w) {
 		try {
 			visitAsyncMethodCall(amc, null, null, false, w);
 			return prog;
@@ -2106,7 +2287,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	}
 
 	@Override
-	public Prog visit(SyncMethCall smc, JavaWriter w) {
+	public Prog visit(SyncMethCall smc, ScalaWriter w) {
 		try {
 			visitSyncMethodCall_Sync(smc, null, null, false, w);
 			return prog;
@@ -2116,7 +2297,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	}
 
 	@Override
-	public Prog visit(ThisSyncMethCall p, JavaWriter w) {
+	public Prog visit(ThisSyncMethCall p, ScalaWriter w) {
 		try {
 			SyncMethCall smc = new SyncMethCall(new ELit(new LThis()), p.l_, p.listpureexp_);
 			visitSyncMethodCall_Sync(smc, null, null, false, w);
@@ -2127,23 +2308,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	}
 
 	@Override
-	public Prog visit(SCaseB cb, JavaWriter w) {
-		try {
-			StringWriter auxsw = new StringWriter();
-			JavaWriter auxw = new JavaWriter(auxsw);
-			cb.pattern_.accept(this, auxw);
-			String stm = auxsw.toString();
-			w.beginControlFlow("catch(%s)", refineFunctionalPureExpression(stm));
-			cb.annstm_.accept(this, w);
-			w.endControlFlow();
-			return prog;
-		} catch (IOException e) {
-			throw new RuntimeException(e);
-		}
-	}
-
-	@Override
-	public Prog visit(JustFinally jf, JavaWriter w) {
+	public Prog visit(JustFinally jf, ScalaWriter w) {
 		try {
 			w.beginControlFlow("finally");
 			jf.annstm_.accept(this, w);
@@ -2155,13 +2320,23 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	}
 
 	@Override
-	public Prog visit(NoFinally p, JavaWriter arg) {
+	public Prog visit(NoFinally p, ScalaWriter arg) {
 		// XXX ?
 		return prog;
 	}
 
 	@Override
-	public Prog visit(LInt i, JavaWriter w) {
+	public Prog visit(LFloat p, ScalaWriter w) {
+		try {
+			w.emit(Double.toString(p.double_));
+			return prog;
+		} catch (IOException x) {
+			throw new RuntimeException(x);
+		}
+	}
+
+	@Override
+	public Prog visit(LInt i, ScalaWriter w) {
 		try {
 			w.emit(Long.toString(i.integer_));
 			return prog;
@@ -2172,7 +2347,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	}
 
 	@Override
-	public Prog visit(LNull n, JavaWriter w) {
+	public Prog visit(LNull n, ScalaWriter w) {
 		try {
 			w.emit(LITERAL_NULL);
 			return prog;
@@ -2182,7 +2357,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	}
 
 	@Override
-	public Prog visit(LStr s, JavaWriter w) {
+	public Prog visit(LStr s, ScalaWriter w) {
 		try {
 
 			w.emit("\"" + s.string_ + "\"");
@@ -2193,7 +2368,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	}
 
 	@Override
-	public Prog visit(LThis t, JavaWriter w) {
+	public Prog visit(LThis t, ScalaWriter w) {
 		try {
 			w.emit(LITERAL_THIS);
 			return prog;
@@ -2219,53 +2394,53 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	 * logNotImplemented("#visit(%s)", p); return prog; }
 	 */
 	@Override
-	public Prog visit(AnyExport p, JavaWriter arg) {
+	public Prog visit(AnyExport p, ScalaWriter arg) {
 		logNotSupported("#visit(%s): %s", p, p.listqa_);
 		return prog;
 	}
 
 	@Override
-	public Prog visit(AnyFromExport p, JavaWriter arg) {
+	public Prog visit(AnyFromExport p, ScalaWriter arg) {
 		logNotSupported("#visit(%s): %s", p, p.listqa_);
 		return prog;
 	}
 
 	@Override
-	public Prog visit(StarExport p, JavaWriter arg) {
+	public Prog visit(StarExport p, ScalaWriter arg) {
 		logNotSupported("#visit(%s)", p);
 		return prog;
 	}
 
 	@Override
-	public Prog visit(StarFromExport p, JavaWriter arg) {
+	public Prog visit(StarFromExport p, ScalaWriter arg) {
 		logNotSupported("#visit(%s): %s", p, p.qu_);
 		return prog;
 	}
 
 	@Override
-	public Prog visit(AnyFromImport p, JavaWriter arg) {
+	public Prog visit(AnyFromImport p, ScalaWriter arg) {
 		logNotSupported("#visit(%s): %s", p, p.listqa_);
 		return prog;
 	}
 
 	@Override
-	public Prog visit(YesForeign fi, JavaWriter arg) {
+	public Prog visit(YesForeign fi, ScalaWriter arg) {
 		return prog;
 	}
 
 	@Override
-	public Prog visit(NoForeign ni, JavaWriter arg) {
+	public Prog visit(NoForeign ni, ScalaWriter arg) {
 		return prog;
 	}
 
 	@Override
-	public Prog visit(TInfer p, JavaWriter arg) {
+	public Prog visit(TInfer p, ScalaWriter arg) {
 		logNotImplemented("#visit(%s)", p);
 		return prog;
 	}
 
 	@Override
-	public Prog visit(TSimple t, JavaWriter w) {
+	public Prog visit(TSimple t, ScalaWriter w) {
 		try {
 			w.emit(toString(t));
 			return prog;
@@ -2275,8 +2450,9 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	}
 
 	@Override
-	public Prog visit(TPoly t, JavaWriter w) {
+	public Prog visit(TPoly t, ScalaWriter w) {
 		try {
+
 			w.emit(toString(t));
 			return prog;
 		} catch (IOException e) {
@@ -2285,7 +2461,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	}
 
 	@Override
-	public Prog visit(DType adt, JavaWriter arg) {
+	public Prog visit(DType adt, ScalaWriter arg) {
 		String adtName = adt.u_;
 		String typeName = getTypeName(adt.t_);
 		this.javaTypeTranslator.registerAbstractType(adtName, typeName);
@@ -2293,7 +2469,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	}
 
 	@Override
-	public Prog visit(DTypePoly adt, JavaWriter arg) {
+	public Prog visit(DTypePoly adt, ScalaWriter arg) {
 		String adtName = adt.u_;
 		String typeName = getTypeName(adt.t_);
 		this.javaTypeTranslator.registerAbstractType(adtName, typeName);
@@ -2302,7 +2478,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	}
 
 	@Override
-	public Prog visit(DException ed, JavaWriter w) {
+	public Prog visit(DException ed, ScalaWriter w) {
 		try {
 			w.emitEmptyLine();
 			ConstrIdent ex = ed.constrident_;
@@ -2310,7 +2486,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 			this.exceptionDeclaraions.add(className);
 			Collection<String> implementingCaseInterface = Collections.emptyList();
 			beginElementKind(w, ElementKind.CLASS, className, EnumSet.of(Modifier.PUBLIC),
-					RuntimeException.class.getSimpleName(), implementingCaseInterface, false);
+					RuntimeException.class.getSimpleName(), implementingCaseInterface, null, false);
 			w.emitEmptyLine();
 			emitSerialVersionUid(w);
 			List<Entry<String, String>> fields = Collections.emptyList();
@@ -2330,19 +2506,79 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	}
 
 	@Override
-	public Prog visit(DData dd, JavaWriter w) {
+	public Prog visit(DData dd, ScalaWriter w) {
 		try {
+
 			w.emitEmptyLine();
+			Set<Modifier> mods = new HashSet<>(DEFAULT_MODIFIERS);
+			mods.add(Modifier.ABSTRACT);
+//			String parentOrder = String.format("%s[%s]", ORDERED_INTERFACE_CLASS, dd.u_);
+			beginElementKind(w, ElementKind.CLASS, dd.u_, mods, null, null);
+			w.endType();
+
 			String parentDataInterface = dd.u_;
 			// Define parent 'data' holder interface
-			beginElementKind(w, ElementKind.INTERFACE, parentDataInterface, EnumSet.of(Modifier.PUBLIC), null, null,
-					false);
-			w.emitEmptyLine();
-			w.endType();
 			this.dataDeclarations.put(dd.u_, parentDataInterface);
 			// Each data declaration as an implementing class
 			ListConstrIdent lci = dd.listconstrident_;
-			visitDataDeclarationConstructors(parentDataInterface, lci, Collections.emptyList());
+			for (ConstrIdent constrIdent : lci) {
+				if (constrIdent instanceof SinglConstrIdent) {
+					SinglConstrIdent sci = (SinglConstrIdent) constrIdent;
+					beginElementKind(w, ElementKind.OTHER, sci.u_, DEFAULT_MODIFIERS, parentDataInterface, null,
+							new ArrayList<>(), false);
+					w.endType();
+				} else if (constrIdent instanceof ParamConstrIdent) {
+					ParamConstrIdent pci = (ParamConstrIdent) constrIdent;
+					List<String> parameters = new ArrayList<>();
+					List<String> types = new ArrayList<>();
+					int currentSpot = 0;
+					for (ConstrType ct : pci.listconstrtype_) {
+
+						StringWriter auxsw = new StringWriter();
+						ScalaWriter auxw = new ScalaWriter(auxsw, true);
+
+						ct.accept(this, auxw);
+						String[] pars = auxsw.toString().split("#");
+
+						parameters.add(pars[0]);
+						types.add(pars[0]);
+
+						if (pars.length == 2) {
+							parameters.add(pars[1]);
+							functionsWriter.beginMethod(pars[0], pars[1], DEFAULT_MODIFIERS, dd.u_, dd.u_.toLowerCase() + "par");
+							functionsWriter.beginControlFlow("%s match", dd.u_.toLowerCase() + "par");
+							StringBuilder matchList = new StringBuilder();
+							for (int i = 0; i < pci.listconstrtype_.size(); i++) {
+								if (i == currentSpot) {
+									matchList.append(pars[1] + "p");
+								} else
+									matchList.append('_');
+								if (i < pci.listconstrtype_.size() - 1)
+									matchList.append(',');
+							}
+							functionsWriter.emitStatement("case %s(%s) => %s", pci.u_, matchList, pars[1] + "p");
+							functionsWriter.endControlFlow();
+							functionsWriter.endMethod();
+						}
+
+						else {
+							if (pars[0].contains("["))
+								parameters.add(pars[0].substring(0, pars[0].indexOf('[')).toLowerCase());
+							else
+								parameters.add(pars[0].toLowerCase());
+						}
+						currentSpot++;
+
+					}
+					paramConstructs.put(pci.u_, types);
+
+					beginElementKind(w, ElementKind.OTHER, pci.u_, DEFAULT_MODIFIERS, parentDataInterface, null,
+							parameters, false);
+					w.endType();
+
+				}
+			}
+
 			return prog;
 		} catch (IOException e) {
 			throw new RuntimeException(e);
@@ -2350,20 +2586,86 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	}
 
 	@Override
-	public Prog visit(DDataPoly dpd, JavaWriter w) {
+	public Prog visit(DDataPoly dpd, ScalaWriter w) {
 		try {
-			w.emitEmptyLine();
-			String parentDataInterface = dpd.u_;
-			List<String> genericParams = dpd.listu_;
-			// The parent data decl as an interface
-			beginElementKind(w, ElementKind.INTERFACE,
-					String.format("%s<%s>", parentDataInterface, String.join(COMMA_SPACE, genericParams)),
-					EnumSet.of(Modifier.PUBLIC), null, null, false);
-			w.emitEmptyLine();
-			w.endType();
-			this.dataDeclarations.put(parentDataInterface, parentDataInterface);
 
-			visitDataDeclarationConstructors(parentDataInterface, dpd.listconstrident_, genericParams);
+			Set<Modifier> mods = new HashSet<>(DEFAULT_MODIFIERS);
+			mods.add(Modifier.ABSTRACT);
+			beginElementKind(w, ElementKind.CLASS, String.format("%s%s", dpd.u_, dpd.listu_), mods,
+					null, null);
+			//ORDERED_INTERFACE_CLASS + "[" + dpd.u_ + dpd.listu_ + "]"
+			w.endType();
+
+			caseTypeConstructs.put(dpd.u_, new ArrayList<>());
+
+			String parentDataInterface = dpd.u_;
+			// Define parent 'data' holder interface
+			this.dataDeclarations.put(dpd.u_, parentDataInterface);
+			// Each data declaration as an implementing class
+			ListConstrIdent lci = dpd.listconstrident_;
+			for (ConstrIdent constrIdent : lci) {
+				if (constrIdent instanceof SinglConstrIdent) {
+					SinglConstrIdent sci = (SinglConstrIdent) constrIdent;
+					beginElementKind(w, ElementKind.OTHER, String.format("%s%s", sci.u_, dpd.listu_), DEFAULT_MODIFIERS,
+							String.format("%s%s", dpd.u_, dpd.listu_), null, new ArrayList<>(), false);
+					w.endType();
+				} else if (constrIdent instanceof ParamConstrIdent) {
+					ParamConstrIdent pci = (ParamConstrIdent) constrIdent;
+					List<String> parameters = new ArrayList<>();
+					List<String> types = new ArrayList<>();
+					int currentSpot = 0;
+					for (ConstrType ct : pci.listconstrtype_) {
+						StringWriter auxsw = new StringWriter();
+						ScalaWriter auxw = new ScalaWriter(auxsw, true);
+
+						ct.accept(this, auxw);
+						String[] pars = auxsw.toString().split("#");
+
+						parameters.add(pars[0]);
+						types.add(pars[0]);
+
+						if (pars.length == 2) {
+							parameters.add(pars[1]);
+							String fieldPar = dpd.u_.toLowerCase() + "par";
+							System.out.println(fieldPar);
+							functionsWriter.beginMethod(pars[0], pars[1] + dpd.listu_, DEFAULT_MODIFIERS,
+									dpd.u_ + dpd.listu_, fieldPar);
+							functionsWriter.beginControlFlow("%s match", fieldPar);
+							StringBuilder matchList = new StringBuilder();
+							for (int i = 0; i < pci.listconstrtype_.size(); i++) {
+								if (i == currentSpot) {
+									matchList.append(pars[1] + "p");
+								} else
+									matchList.append('_');
+								if (i < pci.listconstrtype_.size() - 1)
+									matchList.append(',');
+							}
+							functionsWriter.emitStatement("case %s(%s) => %s", pci.u_, matchList, pars[1] + "p");
+							functionsWriter.endControlFlow();
+							functionsWriter.endMethod();
+						}
+
+						else {
+							if (pars[0].contains("["))
+								parameters.add(pars[0].substring(0, pars[0].indexOf('[')).toLowerCase());
+							else
+								parameters.add(pars[0].toLowerCase());
+
+						}
+						currentSpot++;
+
+					}
+
+					paramConstructs.put(pci.u_, types);
+					caseTypeConstructs.get(dpd.u_).add(pci.u_);
+
+					beginElementKind(w, ElementKind.OTHER, String.format("%s%s", pci.u_, dpd.listu_), DEFAULT_MODIFIERS,
+							String.format("%s%s", dpd.u_, dpd.listu_), null, parameters, false);
+					w.endType();
+
+				}
+			}
+
 			return prog;
 		} catch (IOException e) {
 			throw new RuntimeException(e);
@@ -2371,7 +2673,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	}
 
 	@Override
-	public Prog visit(DFun f, JavaWriter w) {
+	public Prog visit(DFun f, ScalaWriter w) {
 		try {
 			this.classes.push("Functions");
 			String methodName = f.l_;
@@ -2382,10 +2684,11 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 				String paramType = getTypeName(parameter.t_);
 				parameters.add(paramType);
 				parameters.add(parameter.l_);
-				VarDefinition vd = createVarDefinition(parameter.l_, paramType);
-				if (!variablesInScope.isEmpty()) {
-					variablesInScope.peek().add(vd);
-				}
+				/*
+				 * VarDefinition vd = createVarDefinition(parameter.l_,
+				 * paramType); if (!variablesInScope.isEmpty()) {
+				 * variablesInScope.peek().add(vd); }
+				 */
 			}
 			Set<Modifier> modifiers = Sets.newHashSet(Modifier.PUBLIC, Modifier.STATIC);
 
@@ -2397,17 +2700,17 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 			} else if (fbody instanceof NormalFunBody) {
 				NormalFunBody nfb = (NormalFunBody) fbody;
 				PureExp pe = nfb.pureexp_;
-				if (pe instanceof ECase) {
-					StringWriter auxsw = new StringWriter();
-					visitECase((ECase) pe, methodType, new JavaWriter(auxsw));
-					w.emitStatement("return %s", auxsw.toString());
-				} else {
-					StringWriter sw = new StringWriter();
-					JavaWriter auxjw = new JavaWriter(sw);
-					pe.accept(this, auxjw);
-					String stm = sw.toString();
-					w.emitStatement("return %s", stm);
-				}
+
+				StringWriter sw = new StringWriter();
+				ScalaWriter auxjw = new ScalaWriter(sw);
+
+				auxjw.continuationLevel = w.continuationLevel;
+				auxjw.duplicateReplacements = w.duplicateReplacements;
+
+				pe.accept(this, auxjw);
+				String stm = sw.toString();
+				w.emitStatement("return %s", stm);
+
 			}
 			w.endMethod();
 			w.emitEmptyLine();
@@ -2420,7 +2723,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	}
 
 	@Override
-	public Prog visit(DFunPoly fpd, JavaWriter w) {
+	public Prog visit(DFunPoly fpd, ScalaWriter w) {
 		try {
 			this.classes.push("Functions");
 			String methodName = fpd.l_;
@@ -2431,32 +2734,35 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 				String paramType = getTypeName(parameter.t_);
 				parameters.add(paramType);
 				parameters.add(parameter.l_);
-				VarDefinition vd = createVarDefinition(parameter.l_, paramType);
-				if (!variablesInScope.isEmpty()) {
-					variablesInScope.peek().add(vd);
-				}
+				/*
+				 * VarDefinition vd = createVarDefinition(parameter.l_,
+				 * paramType); if (!variablesInScope.isEmpty()) {
+				 * variablesInScope.peek().add(vd); }
+				 */
 			}
-			List<String> genericParameters = fpd.listu_.stream().collect(Collectors.toList());
 			Set<Modifier> modifiers = Sets.newHashSet(Modifier.PUBLIC, Modifier.STATIC);
-			w.beginMethod("<" + String.join(COMMA_SPACE, genericParameters) + "> " + methodType, methodName, modifiers,
-					parameters.toArray(new String[0]));
+			/*List<String> generics = new LinkedList<>();
+			for (String modifier : fpd.listu_) {
+				generics.add(modifier + "<:" + ORDERED_INTERFACE_CLASS + "[" + modifier + "]");
+			}*/
+			w.beginMethod(methodType, methodName + fpd.listu_, modifiers, parameters.toArray(new String[0]));
 			FunBody fbody = fpd.funbody_;
 			if (fbody instanceof BuiltinFunBody) {
 				logNotImplemented("builtin function body: %s %s", methodType, methodName);
 			} else if (fbody instanceof NormalFunBody) {
 				NormalFunBody nfb = (NormalFunBody) fbody;
 				PureExp pe = nfb.pureexp_;
-				if (pe instanceof ECase) {
-					StringWriter auxsw = new StringWriter();
-					visitECase((ECase) pe, methodType, new JavaWriter(auxsw));
-					w.emitStatement("return %s", auxsw.toString());
-				} else {
-					StringWriter sw = new StringWriter();
-					JavaWriter auxjw = new JavaWriter(sw);
-					pe.accept(this, auxjw);
-					String stm = sw.toString();
-					w.emitStatement("return %s", stm);
-				}
+
+				StringWriter sw = new StringWriter();
+				ScalaWriter auxjw = new ScalaWriter(sw);
+
+				auxjw.continuationLevel = w.continuationLevel;
+				auxjw.duplicateReplacements = w.duplicateReplacements;
+
+				pe.accept(this, auxjw);
+				String stm = sw.toString();
+				w.emitStatement("return %s", stm);
+
 			}
 			w.endMethod();
 			w.emitEmptyLine();
@@ -2468,49 +2774,62 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	}
 
 	/**
-	 * @see #visit(DData, JavaWriter)
-	 * @see #visit(DDataPoly, JavaWriter)
+	 * @see #visit(DData, ScalaWriter)
+	 * @see #visit(DDataPoly, ScalaWriter)
 	 */
 	@Override
-	public Prog visit(SinglConstrIdent p, JavaWriter arg) {
+	public Prog visit(SinglConstrIdent p, ScalaWriter w) {
+
 		return prog;
 	}
 
 	/**
-	 * @see #visit(DData, JavaWriter)
-	 * @see #visit(DDataPoly, JavaWriter)
+	 * @see #visit(DData, ScalaWriter)
+	 * @see #visit(DDataPoly, ScalaWriter)
 	 */
 	@Override
-	public Prog visit(ParamConstrIdent p, JavaWriter arg) {
+	public Prog visit(ParamConstrIdent p, ScalaWriter arg) {
 		return prog;
 	}
 
 	/**
-	 * @see #visit(DData, JavaWriter)
-	 * @see #visit(DDataPoly, JavaWriter)
+	 * @see #visit(DData, ScalaWriter)
+	 * @see #visit(DDataPoly, ScalaWriter)
 	 */
 	@Override
-	public Prog visit(EmptyConstrType p, JavaWriter arg) {
+	public Prog visit(EmptyConstrType p, ScalaWriter arg) {
+		try {
+			arg.emit(getTypeName(p.t_));
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
 		return prog;
 	}
 
 	/**
-	 * @see #visit(DData, JavaWriter)
-	 * @see #visit(DDataPoly, JavaWriter)
+	 * @see #visit(DData, ScalaWriter)
+	 * @see #visit(DDataPoly, ScalaWriter)
 	 */
 	@Override
-	public Prog visit(RecordConstrType p, JavaWriter arg) {
+	public Prog visit(RecordConstrType p, ScalaWriter arg) {
+		try {
+			arg.emit(getTypeName(p.t_) + "#" + p.l_);
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
 		return prog;
 	}
 
 	@Override
-	public Prog visit(BuiltinFunBody p, JavaWriter arg) {
+	public Prog visit(BuiltinFunBody p, ScalaWriter arg) {
 		logNotImplemented("#visit(%s)", p);
 		return prog;
 	}
 
 	@Override
-	public Prog visit(NormalFunBody body, JavaWriter w) {
+	public Prog visit(NormalFunBody body, ScalaWriter w) {
 		try {
 			w.emit("return ", true);
 			body.pureexp_.accept(this, w);
@@ -2523,22 +2842,24 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	}
 
 	@Override
-	public Prog visit(FormalParameter p, JavaWriter arg) {
+	public Prog visit(FormalParameter p, ScalaWriter arg) {
 		logNotImplemented("#visit(%s)", p);
 		return prog;
 	}
 
 	@Override
-	public Prog visit(SAssert p, JavaWriter arg) {
+	public Prog visit(SAssert p, ScalaWriter arg) {
 		logNotImplemented("#visit(%s)", p);
 		return prog;
 	}
 
 	@Override
-	public Prog visit(SPrint p, JavaWriter w) {
+	public Prog visit(SPrint p, ScalaWriter w) {
 		try {
 			StringWriter sw = new StringWriter();
-			JavaWriter auxw = new JavaWriter(sw);
+			ScalaWriter auxw = new ScalaWriter(sw);
+			auxw.continuationLevel = w.continuationLevel;
+			auxw.duplicateReplacements = w.duplicateReplacements;
 			p.pureexp_.accept(this, auxw);
 			w.emitStatement("println(%s)", sw.toString());
 			return prog;
@@ -2548,24 +2869,37 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	}
 
 	@Override
-	public Prog visit(ELet p, JavaWriter arg) {
+	public Prog visit(ELet p, ScalaWriter arg) {
 		logNotImplemented("#visit(%s)", p);
 		return prog;
 	}
 
 	@Override
-	public Prog visit(EIf p, JavaWriter w) {
+	public Prog visit(EIf p, ScalaWriter w) {
 		try {
 			StringWriter sw = new StringWriter();
-			p.pureexp_1.accept(this, new JavaWriter(sw));
+			ScalaWriter w1 = new ScalaWriter(sw);
+			w1.continuationLevel = w.continuationLevel;
+			w1.duplicateReplacements = w.duplicateReplacements;
+			p.pureexp_1.accept(this, w1);
 			String condition = sw.toString();
+
 			sw = new StringWriter();
-			p.pureexp_2.accept(this, new JavaWriter(sw));
+			ScalaWriter w2 = new ScalaWriter(sw);
+			w2.continuationLevel = w.continuationLevel;
+			w2.duplicateReplacements = w.duplicateReplacements;
+			p.pureexp_2.accept(this, w2);
 			String left = sw.toString();
+
 			sw = new StringWriter();
-			p.pureexp_3.accept(this, new JavaWriter(sw));
+			ScalaWriter w3 = new ScalaWriter(sw);
+			w3.continuationLevel = w.continuationLevel;
+			w3.duplicateReplacements = w.duplicateReplacements;
+			p.pureexp_3.accept(this, w3);
 			String right = sw.toString();
-			w.emit(String.format("%s ? %s : %s", condition, left, right));
+
+			w.emit(String.format("if (%s)  %s else %s", condition, left, right));
+
 			return prog;
 		} catch (IOException e) {
 			throw new RuntimeException(e);
@@ -2573,11 +2907,31 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	}
 
 	@Override
-	public Prog visit(ECase p, JavaWriter w) {
+	public Prog visit(ECase p, ScalaWriter w) {
 		try {
 			StringWriter auxsw = new StringWriter();
-			visitECase(p, null, new JavaWriter(auxsw));
-			w.emit(auxsw.toString(), true);
+			ScalaWriter auxw = new ScalaWriter(auxsw);
+			auxw.continuationLevel = w.continuationLevel;
+			auxw.duplicateReplacements = w.duplicateReplacements;
+
+			boolean oldFromCase = fromCase;
+			fromCase = false;
+			p.pureexp_.accept(this, auxw);
+			w.beginControlFlow("%s match ", auxsw);
+			for (ECaseBranch scb : p.listecasebranch_) {
+				StringWriter pattersw = new StringWriter();
+				ScalaWriter patternw = new ScalaWriter(pattersw);
+				patternw.continuationLevel = w.continuationLevel;
+				patternw.duplicateReplacements = w.duplicateReplacements;
+
+				scb.accept(this, patternw);
+
+				w.emit(pattersw.toString());
+
+			}
+			fromCase = oldFromCase;
+			w.endControlFlow();
+
 			return prog;
 		} catch (IOException e) {
 			throw new RuntimeException(e);
@@ -2585,11 +2939,14 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	}
 
 	@Override
-	public Prog visit(EFunCall f, JavaWriter w) {
+	public Prog visit(EFunCall f, ScalaWriter w) {
 		try {
-			w.emit(getQTypeName(f.ql_, false));
+			List<String> params = getParameters(f.listpureexp_, w);
+			String name = getQTypeName(f.ql_, false);
+			if (fromCase)
+				caseKey = findMethodReturnType(name, "Functions", params);
+			w.emit(name);
 			w.emit("(");
-			List<String> params = getParameters(f.listpureexp_);
 			w.emit(String.join(COMMA_SPACE, params));
 			w.emit(")");
 			return prog;
@@ -2607,15 +2964,22 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	 */
 
 	@Override
-	public Prog visit(ENaryFunCall fnc, JavaWriter w) {
+	public Prog visit(ENaryFunCall fnc, ScalaWriter w) {
 		try {
-			String identifier = getQTypeName(fnc.ql_, false);
 			List<String> exps = new ArrayList<>();
 			for (PureExp pexp : fnc.listpureexp_) {
 				StringWriter auxsw = new StringWriter();
-				pexp.accept(this, new JavaWriter(auxsw));
+				ScalaWriter auxw = new ScalaWriter(auxsw);
+				auxw.continuationLevel = w.continuationLevel;
+				auxw.duplicateReplacements = w.duplicateReplacements;
+
+				pexp.accept(this, auxw);
 				exps.add(auxsw.toString());
 			}
+			String identifier = getQTypeName(fnc.ql_, false);
+			if (fromCase)
+				caseKey = findMethodReturnType(identifier, "Functions", exps);
+
 			w.emit(identifier + String.format("(%s)", String.join(COMMA_SPACE, exps)));
 			return prog;
 		} catch (IOException e) {
@@ -2624,7 +2988,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	}
 
 	@Override
-	public Prog visit(ESinglConstr cons, JavaWriter w) {
+	public Prog visit(ESinglConstr cons, ScalaWriter w) {
 		try {
 			String type = getQTypeName(cons.qu_, false);
 			final boolean isException = this.exceptionDeclaraions.contains(type);
@@ -2634,7 +2998,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 				w.emit("new " + type + "()");
 			} else {
 				String refinedType = getRefindDataDeclName(resolvedType);
-				w.emit(refinedType);
+				w.emit(refinedType + (refinedType.equals("false") || refinedType.equals("true") ? "" : "()"));
 				if (isData) {
 					w.emit(".INSTANCE");
 				}
@@ -2646,13 +3010,13 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	}
 
 	@Override
-	public Prog visit(EParamConstr cons, JavaWriter w) {
+	public Prog visit(EParamConstr cons, ScalaWriter w) {
 		try {
 			String functionName = getQTypeName(cons.qu_, false);
 			ListPureExp params = cons.listpureexp_;
-			List<String> parameters = getParameters(params);
+			List<String> parameters = getParameters(params, w);
 			String result = String.format("%s(%s)", functionName, String.join(COMMA_SPACE, parameters));
-			w.emit(refineFunctionalPureExpression(result));
+			w.emit(result);
 			return prog;
 		} catch (IOException e) {
 			throw new RuntimeException(e);
@@ -2660,19 +3024,23 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	}
 
 	@Override
-	public Prog visit(ECaseB p, JavaWriter arg) {
-		logNotImplemented("#visit(%s)", p);
-		return prog;
-	}
-
-	@Override
-	public Prog visit(PVar p, JavaWriter w) {
+	public Prog visit(ECaseB p, ScalaWriter w) {
 		try {
-			if (caseMap.containsKey(p.l_)) {
-				w.emit(caseMap.get(p.l_) + "." + p.l_);
-			}
+			StringWriter patsw = new StringWriter();
+			ScalaWriter patw = new ScalaWriter(patsw);
+			patw.continuationLevel = w.continuationLevel;
+			patw.duplicateReplacements = w.duplicateReplacements;
+			p.pattern_.accept(this, patw);
 
-			w.emit(getDuplicate(p.l_));
+			StringWriter stmsw = new StringWriter();
+			ScalaWriter stmw = new ScalaWriter(stmsw);
+			stmw.continuationLevel = w.continuationLevel;
+			stmw.duplicateReplacements = w.duplicateReplacements;
+
+			p.pureexp_.accept(this, stmw);
+
+			w.emitStatement("case %s => %s", patsw.toString(), stmsw.toString());
+			variablesBeforeBlock.clear();
 			return prog;
 		} catch (IOException e) {
 			throw new RuntimeException(e);
@@ -2680,15 +3048,32 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	}
 
 	@Override
-	public Prog visit(PLit p, JavaWriter w) {
+	public Prog visit(PVar p, ScalaWriter w) {
+		try {
+			VarDefinition vd = createVarDefinition(p.l_, patternParamType);
+			variablesBeforeBlock.add(vd);
+			if ((w.continuationLevel > -1 || w.avoidDuplicates)) {
+				w.emit("w_" + awaitCounter + "$" + p.l_);
+			} else
+				w.emit(getDuplicate(p.l_, w));
+			return prog;
+		} catch (IOException e) {
+			throw new RuntimeException(e);
+		}
+	}
+
+	@Override
+	public Prog visit(PLit p, ScalaWriter w) {
 		p.literal_.accept(this, w);
 		return prog;
 	}
 
 	@Override
-	public Prog visit(PSinglConstr p, JavaWriter w) {
+	public Prog visit(PSinglConstr p, ScalaWriter w) {
 		try {
-			w.emit(getRefindDataDeclName(getQTypeName(p.qu_, false)));
+			String resolvedType = javaTypeTranslator.translateFunctionalType(getQTypeName(p.qu_, false));
+			String t = getRefindDataDeclName(resolvedType);
+			w.emit(t + (t.equals("false") || t.equals("true") ? "" : "()"));
 			if (this.dataDeclarations.containsKey(p.qu_)) {
 				w.emit(".INSTANCE");
 			}
@@ -2699,16 +3084,43 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	}
 
 	@Override
-	public Prog visit(PParamConstr p, JavaWriter w) {
+	public Prog visit(PParamConstr p, ScalaWriter w) {
 		try {
+			String name = getRefindDataDeclName(getQTypeName(p.qu_, false));
+			Map<String, List<String>> typeDic = paramConstructs;
+			if (fromCase && caseKey.contains("[")) {
+				System.out.println(caseKey);
+				typeDic = createTypeDictionary(caseKey);
+			}
+
+			// System.out.println(typeDic);
+			// if (!w.checkAwaits && (caseKey.length() > 0))
+			/// System.out.println("============" + caseKey + " " + name +
+			// "=================");
+			String oldCaseKey = caseKey;
 			List<String> parameters = new ArrayList<>();
+			int i = 0;
 			for (Pattern pattern : p.listpattern_) {
 				StringWriter sw = new StringWriter();
-				pattern.accept(this, new JavaWriter(sw));
+				ScalaWriter auxw = new ScalaWriter(sw);
+				auxw.continuationLevel = w.continuationLevel;
+				auxw.duplicateReplacements = w.duplicateReplacements;
+				if (!w.checkAwaits && fromCase && caseKey.length() > 0) {
+					patternParamType = typeDic.get(name).get(i);
+					if (pattern instanceof PParamConstr)
+						caseKey = patternParamType;
+					// System.out.println(paramType);
+				}
+				pattern.accept(this, auxw);
 				parameters.add(sw.toString());
+				patternParamType = "";
+				i++;
 			}
+			caseKey = oldCaseKey;
+			// if (!w.checkAwaits && (caseKey.length() > 0))
+			// System.out.println("=============");
 			String params = String.join(COMMA_SPACE, parameters);
-			w.emit(getRefindDataDeclName(getQTypeName(p.qu_, false)) + "(" + params + ")");
+			w.emit(name + "(" + params + ")");
 			return prog;
 		} catch (IOException e) {
 			throw new RuntimeException(e);
@@ -2716,9 +3128,9 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	}
 
 	@Override
-	public Prog visit(PWildCard p, JavaWriter w) {
+	public Prog visit(PWildCard p, ScalaWriter w) {
 		try {
-			w.emit("any()");
+			w.emit("_");
 			return prog;
 		} catch (IOException e) {
 			throw new RuntimeException(e);
@@ -2726,13 +3138,13 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	}
 
 	@Override
-	public Prog visit(LThisDC p, JavaWriter arg) {
+	public Prog visit(LThisDC p, ScalaWriter arg) {
 		logNotImplemented("#visit(%s)", p);
 		return prog;
 	}
 
 	@Override
-	public Prog visit(NewLocal p, JavaWriter w) {
+	public Prog visit(NewLocal p, ScalaWriter w) {
 		logWarn("ABS `local` is ignored.");
 		New np = new New(p.qu_, p.listpureexp_);
 		visit(np, w);
@@ -2757,45 +3169,64 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	 * @Override public Prog visit(AnnTyp p, JavaWriter arg) {
 	 * logNotImplemented("#visit(%s)", p); return prog; }
 	 */
-	protected void visitFunctions(Module m, JavaWriter w) {
+	protected void visitFunctions(Module m, ScalaWriter w) {
 		try {
-			JavaWriter jw = javaWriterSupplier.apply(FUNCTIONS_CLASS_NAME);
-			jw.emitPackage(packageName);
-			jw.emitStaticImports(DEFAULT_STATIC_IMPORTS);
-			// jw.emitStaticImports(DEFAULT_STATIC_IMPORTS_PATTERNS);
-			jw.emitEmptyLine();
-			jw.emitImports(DEFAULT_IMPORTS);
-			// jw.emitImports(DEFAULT_IMPORTS_PATTERNS);
-			emitPackageLevelImport(jw);
-			jw.emitEmptyLine();
-			beginElementKind(jw, ElementKind.CLASS, FUNCTIONS_CLASS_NAME, DEFAULT_MODIFIERS, null, null, false);
-			jw.emitEmptyLine();
 			for (AnnDecl decl : elements.get(AbsElementType.FUNCTION)) {
-				((AnnDeclaration) decl).decl_.accept(this, jw);
+				((AnnDeclaration) decl).decl_.accept(this, functionsWriter);
 			}
-			jw.endType();
-			close(jw, w);
+			functionsWriter.endType();
+
+			/*
+			 * List<String> pairPar = new ArrayList<>(); pairPar.add("F");
+			 * pairPar.add("first"); pairPar.add("S"); pairPar.add("second");
+			 * 
+			 * beginElementKind(jw, ElementKind.CLASS, "Pair[F,S]",
+			 * DEFAULT_MODIFIERS, null, null, pairPar, false); jw.endType();
+			 * 
+			 * Set<Modifier> mods = new HashSet<>(DEFAULT_MODIFIERS);
+			 * mods.add(Modifier.ABSTRACT);
+			 * 
+			 * beginElementKind(jw, ElementKind.CLASS, "Maybe[T]", mods, null,
+			 * null); jw.endType();
+			 * 
+			 * beginElementKind(jw, ElementKind.OTHER, "Nothing[T]",
+			 * DEFAULT_MODIFIERS, "Maybe[T]", null, new ArrayList<>(), false);
+			 * 
+			 * jw.endType();
+			 * 
+			 * pairPar.clear(); pairPar.add("T"); pairPar.add("member");
+			 * 
+			 * beginElementKind(jw, ElementKind.OTHER, "Just[T]",
+			 * DEFAULT_MODIFIERS, "Maybe[T]", null, pairPar, false);
+			 * 
+			 * jw.endType();
+			 */
+
 		} catch (IOException e) {
 			throw new RuntimeException(e);
 		}
 	}
 
-	protected void visitMain(Mod m, JavaWriter w) {
+	protected void visitMain(Mod m, ScalaWriter w) {
 		try {
-			JavaWriter jw = javaWriterSupplier.apply(MAIN_CLASS_NAME);
+			ScalaWriter jw = (ScalaWriter) javaWriterSupplier.apply(MAIN_CLASS_NAME);
 			jw.emitPackage(packageName);
 			// emitDefaultImports(jw);
+
 			visitImports(m.listimport_, jw);
 			jw.emitEmptyLine();
 
 			final String identifier = MAIN_CLASS_NAME;
 			EnumSet<Modifier> mainModifiers = EnumSet.of(Modifier.PUBLIC, Modifier.STATIC);
-			beginElementKind(jw, ElementKind.CLASS, identifier, DEFAULT_MODIFIERS, null, null, true);
+			beginElementKind(jw, ElementKind.CONSTRUCTOR, identifier, DEFAULT_MODIFIERS, null, null, null, true);
 			classes.push("Main");
 			jw.emitEmptyLine();
 
-			jw.beginConstructor(EnumSet.of(Modifier.PUBLIC), Arrays.asList("String[]", "args"),
-					Collections.singletonList("Exception"));
+			emitImplicitConversions(jw);
+			List<String> javaMainMethodParameters = Arrays.asList("Array[String]", "args");
+
+			jw.beginMethod("Unit", "main", mainModifiers, javaMainMethodParameters, null);
+
 			// jw.emitStatement("Context context =
 			// Configuration.newConfiguration().buildContext()");
 			// emitThisActorRegistration(jw);
@@ -2810,16 +3241,11 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 			jw.emit("", true);
 			jw.emitStatementEnd();
 			// jw.emitStatement("context.stop()");
-			jw.endConstructor();
 
 			jw.emitEmptyLine();
 			// emitToStringMethod(jw);
 
 			jw.emitEmptyLine();
-			List<String> javaMainMethodParameters = Arrays.asList("String[]", "args");
-			jw.beginMethod(VOID_PRIMITIVE_NAME, "main", mainModifiers, javaMainMethodParameters,
-					Collections.singletonList("Exception"));
-			jw.emitStatement("new Main(args)");
 			jw.endMethod();
 
 			jw.endType();
@@ -2830,34 +3256,35 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 		}
 	}
 
-	protected void visitImports(final ListImport imports, JavaWriter w) throws IOException {
+	protected void visitImports(final ListImport imports, ScalaWriter w) throws IOException {
+		emitDefaultImports(w);
+		w.emitStaticImports(this.staticImports);
 		for (Import import1 : imports) {
 			import1.accept(this, w);
 		}
-		emitDefaultImports(w);
-		w.emitStaticImports(this.staticImports);
 		w.emitEmptyLine();
 	}
 
-	protected void emitDefaultImports(JavaWriter w) throws IOException {
-		w.emitStaticImports(DEFAULT_STATIC_IMPORTS);
+	protected void emitDefaultImports(ScalaWriter w) throws IOException {
 		// w.emitStaticImports(DEFAULT_STATIC_IMPORTS_PATTERNS);
-		w.emitStaticImports(this.packageName + "." + FUNCTIONS_CLASS_NAME + ".*");
 		w.emitImports(DEFAULT_IMPORTS);
+		w.emitStaticImports(DEFAULT_STATIC_IMPORTS);
+		w.emitStaticImports(this.packageName + "." + FUNCTIONS_CLASS_NAME + "._");
+
 		// w.emitImports(DEFAULT_IMPORTS_PATTERNS);
 	}
 
-	protected void emitPackageLevelImport(JavaWriter w) throws IOException {
+	protected void emitPackageLevelImport(ScalaWriter w) throws IOException {
 		for (String p : this.packageLevelImports) {
-			w.emitImports(this.packageName + "." + p + ".*");
+			w.emitImports(this.packageName + "." + p + "._");
 		}
 	}
 
 	protected void visitAsyncMethodCall(AsyncMethCall amc, String resultVarType, String resultVarName,
-			final boolean isDefined, JavaWriter w) throws IOException {
-		String calleeId = getCalleeId(amc);
-		List<String> params = getCalleeMethodParams(amc);
-		String methodName = methodName(amc.l_);
+			final boolean isDefined, ScalaWriter w) throws IOException {
+		String calleeId = getCalleeId(amc, w);
+		List<String> params = getCalleeMethodParams(amc, w);
+		String methodName = amc.l_.equals(METHOD_GET) ? "get" : amc.l_;
 
 		String varDefType = findVariableType(resultVarName);
 		String potentialReturnType = resultVarType != null ? resultVarType
@@ -2871,7 +3298,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 		String responseVarName = resultVarName != null ? resultVarName : createMessageResponseVariableName(msgVarName);
 
 		String sendStm = generateMessageInvocationStatement(calleeId, isDefined, resultVarType, msgVarName,
-				responseVarName);
+				responseVarName, w);
 		w.emit(sendStm, true);
 		w.emitStatementEnd();
 		if (!w.isScope && !w.checkAwaits)
@@ -2879,12 +3306,13 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	}
 
 	protected void visitSyncMethodCall_Async(SyncMethCall smc, String resultVarType, String resultVarName,
-			boolean isDefined, JavaWriter w) throws IOException {
+			boolean isDefined, ScalaWriter w) throws IOException {
 
-		String calleeId = getCalleeId(smc);
-		List<String> params = getCalleeMethodParams(smc);
+		// TODO : complete sync->async
+		String calleeId = getCalleeId(smc, w);
+		List<String> params = getCalleeMethodParams(smc, w);
 		String msgVarName = createMessageVariableName(calleeId);
-		String methodName = methodName(smc.l_);
+		String methodName = smc.l_.equals(METHOD_GET) ? "get" : smc.l_;
 		String potentialReturnType = resultVarType != null ? resultVarType
 				: findMethodReturnType(methodName, findVariableType(calleeId), params);
 
@@ -2907,19 +3335,19 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 		if (!(resultVarName == null)) {
 			futureName.append("future_");
 			futureName.append(resultVarName);
-			while (futureName.indexOf(".") > -1)
-				futureName.deleteCharAt(futureName.indexOf("."));
 		}
 
 		StringBuilder extraP = new StringBuilder();
 
 		if (potentialReturnType != null) {
 			parameters.add(futureName.toString() + "_par");
-			extraP.append(futureName.toString() + "_par");
+			extraP.append(futureName.toString() + "_par: ABSFutureTask[" + (resultVarType == null ? "_" : resultVarType)
+					+ "]");
 		}
 
 		if ((w.continuationLevel > -1 || w.avoidDuplicates)) {
-			duplicateReplacements.peek().put(futureName.toString(), "w_" + awaitCounter + "$" + futureName.toString());
+			w.duplicateReplacements.peek().put(futureName.toString(),
+					"w_" + awaitCounter + "$" + futureName.toString());
 
 		}
 
@@ -2936,39 +3364,41 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 		String sendStm;
 		if (!currentMethod.isVoid() && extraP.length() > 0) {
 			sendStm = generateMessageSyncInvocationStatement(calleeId, isDefined, resultVarType,
-					"(" + extraP + ")->" + awaitCall, msgVarName, ((w.avoidDuplicates || w.continuationLevel > -1)
-							? duplicateReplacements.peek().get(futureName.toString()) : futureName.toString()));
+					"(" + extraP + ")=>" + awaitCall, msgVarName, ((w.avoidDuplicates || w.continuationLevel > -1)
+							? w.duplicateReplacements.peek().get(futureName.toString()) : futureName.toString()));
 		} else {
+
 			sendStm = generateMessageSyncInvocationStatement(calleeId, isDefined, resultVarType, msgVarName,
-					"(" + extraP + ")->" + awaitCall, ((w.avoidDuplicates || w.continuationLevel > -1)
-							? duplicateReplacements.peek().get(futureName.toString()) : futureName.toString()));
+					"(" + extraP + ")=>" + awaitCall, ((w.avoidDuplicates || w.continuationLevel > -1)
+							? w.duplicateReplacements.peek().get(futureName.toString()) : futureName.toString()));
 		}
+
 		w.emit(sendStm, true);
 		w.emitStatementEnd();
 
 		if (resultVarName != null && resultVarType != null) {
-			w.emit((isDefined ? "" : resultVarType + " " + " ")
-					+ ((w.avoidDuplicates || w.continuationLevel > -1) ? duplicateReplacements.peek().get(resultVarName)
-							: resultVarName)
-					+ " = "
+			w.emit("var "
 					+ ((w.avoidDuplicates || w.continuationLevel > -1)
-							? duplicateReplacements.peek().get(futureName.toString()) : futureName.toString())
+							? w.duplicateReplacements.peek().get(resultVarName) : resultVarName)
+					+ ": " + (isDefined ? "" : resultVarType + " ") + " " + " = "
+					+ ((w.avoidDuplicates || w.continuationLevel > -1)
+							? w.duplicateReplacements.peek().get(futureName.toString()) : futureName.toString())
 					+ ".get()", true);
+		} else {
+			if (futureName.equals(""))
+				w.emit(futureName + ".get()", true);
 		}
-		// else {
-		// if (futureName.equals(""))
-		// w.emit(futureName + ".get()", true);
-		// }
 		w.emitStatementEnd();
 		if (!w.isScope && !w.checkAwaits)
 			syncPCounter++;
+
 	}
 
 	protected void visitSyncMethodCall_Sync(SyncMethCall smc, String resultVarType, String resultVarName,
-			boolean isDefined, JavaWriter w) throws IOException {
-		String calleeId = getCalleeId(smc);
-		List<String> params = getCalleeMethodParams(smc);
-		String methodName = methodName(smc.l_);
+			boolean isDefined, ScalaWriter w) throws IOException {
+		String calleeId = getCalleeId(smc, w);
+		List<String> params = getCalleeMethodParams(smc, w);
+		String methodName = smc.l_.equals(METHOD_GET) ? "get" : smc.l_;
 		String potentialReturnType = resultVarName != null ? resultVarType
 				: findMethodReturnType(methodName, findVariableType(calleeId), params);
 		if (w.checkAwaits) {
@@ -2995,47 +3425,42 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 		}
 	}
 
-	protected void visitStatementAssignmentExp(Exp exp, String varName, String varType, JavaWriter w)
+	protected void visitStatementAssignmentExp(Exp exp, String varName, String varType, ScalaWriter w)
 			throws IOException {
-		if (exp instanceof ExpP && ((ExpP) exp).pureexp_ instanceof ECase) {
-			StringWriter auxsw = new StringWriter();
-			visitECase((ECase) ((ExpP) exp).pureexp_, varType, new JavaWriter(auxsw));
-			w.emit(String.format("%s %s = %s", varType, varName, auxsw.toString()), true);
+
+		/*
+		 * if ((exp instanceof ExpE) && ((ExpE) exp).effexp_ instanceof Spawns)
+		 * { if (((ExpE) exp).effexp_ instanceof Spawns) { try { Spawns p =
+		 * (Spawns) (((ExpE) exp).effexp_); StringWriter sw = new
+		 * StringWriter(); StringWriter sw2 = new StringWriter(); New np = new
+		 * New(p.t_, p.listpureexp_); visit(np, new JavaWriter(sw));
+		 * p.pureexp_.accept(this, new JavaWriter(sw2)); if (varType == null) {
+		 * w.emitStatement( "%s = (%s) (%s.%s.context.newActor(\"%s\", %s))",
+		 * varName, getTypeName(p.t_), sw2, ACTOR_SERVER_MEMBER, varName, sw); }
+		 * else { w.emitStatement(
+		 * "%s %s = (%s) (%s.%s.context.newActor(\"%s\", %s))", varType,
+		 * varName, getTypeName(p.t_), sw2, ACTOR_SERVER_MEMBER, varName, sw); }
+		 * } catch (IOException e) { throw new RuntimeException(e); } } }
+		 */
+
+		StringWriter auxsw = new StringWriter();
+		ScalaWriter auxw = new ScalaWriter(auxsw);
+		auxw.continuationLevel = w.continuationLevel;
+		auxw.duplicateReplacements = w.duplicateReplacements;
+		exp.accept(this, auxw);
+		varName = getDuplicate(varName, w);
+		if (varType == null) {
+			w.emit(varName + " = " + auxsw.toString(), true);
 		} else {
-			/*
-			 * if ((exp instanceof ExpE) && ((ExpE) exp).effexp_ instanceof
-			 * Spawns) { if (((ExpE) exp).effexp_ instanceof Spawns) { try {
-			 * Spawns p = (Spawns) (((ExpE) exp).effexp_); StringWriter sw = new
-			 * StringWriter(); StringWriter sw2 = new StringWriter(); New np =
-			 * new New(p.t_, p.listpureexp_); visit(np, new JavaWriter(sw));
-			 * p.pureexp_.accept(this, new JavaWriter(sw2)); if (varType ==
-			 * null) { w.emitStatement(
-			 * "%s = (%s) (%s.%s.context.newActor(\"%s\", %s))", varName,
-			 * getTypeName(p.t_), sw2, ACTOR_SERVER_MEMBER, varName, sw); } else
-			 * { w.emitStatement(
-			 * "%s %s = (%s) (%s.%s.context.newActor(\"%s\", %s))", varType,
-			 * varName, getTypeName(p.t_), sw2, ACTOR_SERVER_MEMBER, varName,
-			 * sw); } } catch (IOException e) { throw new RuntimeException(e); }
-			 * } }
-			 */
-
-			StringWriter auxsw = new StringWriter();
-			JavaWriter auxw = new JavaWriter(auxsw);
-			exp.accept(this, auxw);
-			varName = getDuplicate(varName);
-			if (varType == null) {
-				w.emit(varName + " = " + auxsw.toString(), true);
-			} else {
-				w.emit(String.format("%s %s = %s", varType, varName, auxsw.toString()), true);
-			}
-
+			w.emitField(varType, varName, new HashSet<>(), auxsw.toString());
 		}
+
 		w.emitStatementEnd();
 	}
 
-	protected void visitECase(ECase kase, String expectedCaseType, JavaWriter w) {
+	protected void visitECase(ECase kase, String expectedCaseType, ScalaWriter w) {
 		StringWriter auxsw = new StringWriter();
-		kase.pureexp_.accept(this, new JavaWriter(auxsw));
+		kase.pureexp_.accept(this, new ScalaWriter(auxsw));
 		String kaseVar = auxsw.toString();
 		String type = expectedCaseType;
 		String caseVarType = findVariableTypeInScope(kaseVar);
@@ -3056,9 +3481,9 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 			visitECases(kaseVar, type, cases, w);
 	}
 
-	protected void visitSCase(SCase kase, String expectedCaseType, JavaWriter w) {
+	protected void visitSCase(SCase kase, String expectedCaseType, ScalaWriter w) {
 		StringWriter auxsw = new StringWriter();
-		kase.pureexp_.accept(this, new JavaWriter(auxsw));
+		kase.pureexp_.accept(this, new ScalaWriter(auxsw));
 		String kaseVar = auxsw.toString();
 		String type = expectedCaseType;
 		String caseVarType = findVariableTypeInScope(kaseVar);
@@ -3099,7 +3524,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	}
 
 	private void visitECasesJM(String caseVariable, String caseVariableType, List<Entry<Pattern, PureExp>> cases,
-			JavaWriter w) {
+			ScalaWriter w) {
 		try {
 			w.emit(String.format("(%s.get()!=null)? ", caseVariable), true);
 			String optional = findVariableTypeInScope(caseVariable);
@@ -3107,7 +3532,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 			Entry<Pattern, PureExp> e = cases.get(0);
 			Pattern left = e.getKey();
 			StringWriter leftauxsw = new StringWriter();
-			left.accept(this, new JavaWriter(leftauxsw));
+			left.accept(this, new ScalaWriter(leftauxsw));
 			PureExp right = e.getValue();
 			String patt = leftauxsw.toString();
 			int index = patt.indexOf('(');
@@ -3124,7 +3549,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 					caseMap.put(string.trim(), String.format("%s.get().%s", caseVariable, string.trim()));
 			}
 			StringWriter rightauxsw = new StringWriter();
-			right.accept(this, new JavaWriter(rightauxsw));
+			right.accept(this, new ScalaWriter(rightauxsw));
 
 			w.emit(String.format("%s:", rightauxsw.toString()), true);
 			if (vars != null) {
@@ -3135,7 +3560,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 			Entry<Pattern, PureExp> nothing = cases.get(1);
 			PureExp rightNothing = nothing.getValue();
 			StringWriter rightNothingSw = new StringWriter();
-			rightNothing.accept(this, new JavaWriter(rightNothingSw));
+			rightNothing.accept(this, new ScalaWriter(rightNothingSw));
 
 			w.emit(String.format("%s;", rightNothingSw.toString()), true);
 
@@ -3147,7 +3572,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	}
 
 	private void visitSCasesJM(String caseVariable, String caseVariableType, List<Entry<Pattern, AnnStm>> cases,
-			JavaWriter w) {
+			ScalaWriter w) {
 
 		try {
 			w.beginControlFlow("if(%s.get()!=null) ", caseVariable);
@@ -3156,7 +3581,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 			Entry<Pattern, AnnStm> e = cases.get(0);
 			Pattern left = e.getKey();
 			StringWriter leftauxsw = new StringWriter();
-			left.accept(this, new JavaWriter(leftauxsw));
+			left.accept(this, new ScalaWriter(leftauxsw));
 			AnnStm right = e.getValue();
 			String patt = leftauxsw.toString();
 			int index = patt.indexOf('(');
@@ -3176,7 +3601,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 					caseMap.put(string.trim(), String.format("%s.get().%s", caseVariable, string.trim()));
 			}
 			StringWriter rightauxsw = new StringWriter();
-			right.accept(this, new JavaWriter(rightauxsw));
+			right.accept(this, new ScalaWriter(rightauxsw));
 
 			w.emitStatement("%s", rightauxsw.toString());
 			if (vars != null) {
@@ -3190,7 +3615,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 			Entry<Pattern, AnnStm> nothing = cases.get(1);
 			AnnStm rightNothing = nothing.getValue();
 			StringWriter rightNothingSw = new StringWriter();
-			rightNothing.accept(this, new JavaWriter(rightNothingSw));
+			rightNothing.accept(this, new ScalaWriter(rightNothingSw));
 			w.emitStatement("%s", rightNothingSw.toString());
 
 			w.endControlFlow();
@@ -3202,7 +3627,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	}
 
 	private void visitECases(String caseVariable, String caseVariableType, List<Entry<Pattern, PureExp>> cases,
-			JavaWriter w) {
+			ScalaWriter w) {
 		/*
 		 * StringBuilder caseStm = new
 		 * StringBuilder("Matching").append(NEW_LINE); for (Entry<Pattern,
@@ -3246,7 +3671,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 			for (Entry<Pattern, PureExp> e : cases) {
 				Pattern left = e.getKey();
 				StringWriter leftauxsw = new StringWriter();
-				left.accept(this, new JavaWriter(leftauxsw));
+				left.accept(this, new ScalaWriter(leftauxsw));
 				PureExp right = e.getValue();
 				String patt = leftauxsw.toString();
 				int index = patt.indexOf('(');
@@ -3266,7 +3691,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 				w.beginMethod(caseVariableType, CASE, DEFAULT_MODIFIERS, isMultiCons ? value : patt,
 						isMultiCons ? value.toLowerCase() : patt.toLowerCase());
 				StringWriter rightauxsw = new StringWriter();
-				right.accept(this, new JavaWriter(rightauxsw));
+				right.accept(this, new ScalaWriter(rightauxsw));
 
 				w.emitStatement("return %s", rightauxsw.toString());
 				w.endMethod();
@@ -3288,7 +3713,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	}
 
 	private void visitSCases(String caseVariable, String caseVariableType, List<Entry<Pattern, AnnStm>> cases,
-			JavaWriter w) {
+			ScalaWriter w) {
 		/*
 		 * StringBuilder caseStm = new
 		 * StringBuilder("Matching").append(NEW_LINE); for (Entry<Pattern,
@@ -3332,7 +3757,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 			for (Entry<Pattern, AnnStm> e : cases) {
 				Pattern left = e.getKey();
 				StringWriter leftauxsw = new StringWriter();
-				left.accept(this, new JavaWriter(leftauxsw));
+				left.accept(this, new ScalaWriter(leftauxsw));
 				AnnStm right = e.getValue();
 				String patt = leftauxsw.toString();
 				int index = patt.indexOf('(');
@@ -3352,7 +3777,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 				w.beginMethod(caseVariableType, CASE, DEFAULT_MODIFIERS, isMultiCons ? value : patt,
 						isMultiCons ? value.toLowerCase() : patt.toLowerCase());
 				StringWriter rightauxsw = new StringWriter();
-				right.accept(this, new JavaWriter(rightauxsw));
+				right.accept(this, new ScalaWriter(rightauxsw));
 
 				w.emitStatement("%s", rightauxsw.toString());
 				w.endMethod();
@@ -3381,7 +3806,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 		}
 		if (p instanceof PLit) {
 			StringWriter sw = new StringWriter();
-			JavaWriter jw = new JavaWriter(sw);
+			ScalaWriter jw = new ScalaWriter(sw);
 			PLit lit = (PLit) p;
 			lit.accept(this, jw);
 			return String.format("eq(%s)", sw.toString());
@@ -3405,7 +3830,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 				boolean anyPattern = false;
 				for (Pattern paramPattern : ppc.listpattern_) {
 					StringWriter sw = new StringWriter();
-					JavaWriter auxjw = new JavaWriter(sw);
+					ScalaWriter auxjw = new ScalaWriter(sw);
 					paramPattern.accept(this, auxjw);
 					String param = sw.toString();
 					if (param.contains("any()")) {
@@ -3454,7 +3879,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 
 	private void visitSingleConstructorDataDecl(SinglConstrIdent sci, String className, String parent,
 			List<String> classGenericParams, final boolean isParentInterface) throws IOException {
-		JavaWriter cw = javaWriterSupplier.apply(className);
+		ScalaWriter cw = (ScalaWriter) javaWriterSupplier.apply(className);
 		cw.emitPackage(this.packageName);
 		emitDefaultImports(cw);
 		cw.emitEmptyLine();
@@ -3462,10 +3887,10 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 				: String.format("%s<%s>", className, String.join(COMMA_SPACE, classGenericParams));
 		if (parent != null && isParentInterface) {
 			beginElementKind(cw, ElementKind.CLASS, fullClassName, EnumSet.of(Modifier.PUBLIC), null,
-					Collections.singletonList(parent), false);
+					Collections.singletonList(parent), null, false);
 		} else if (parent != null && !isParentInterface) {
 			beginElementKind(cw, ElementKind.CLASS, fullClassName, EnumSet.of(Modifier.PUBLIC), parent,
-					Collections.emptyList(), false);
+					Collections.emptyList(), null, false);
 		}
 		cw.emitEmptyLine();
 		cw.emitField(className, DATA_DECL_INSTANCE_NAME, EnumSet.of(Modifier.PUBLIC, Modifier.STATIC, Modifier.FINAL),
@@ -3500,7 +3925,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 
 	private void visitParametricConstructorDataDecl(ParamConstrIdent pci, String className, String parent,
 			List<String> classGenericParams, final boolean isParentInterface) throws IOException {
-		JavaWriter cw = javaWriterSupplier.apply(className);
+		ScalaWriter cw = (ScalaWriter) javaWriterSupplier.apply(className);
 		cw.emitPackage(this.packageName);
 		emitDefaultImports(cw);
 		cw.emitEmptyLine();
@@ -3510,10 +3935,10 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 				: String.format("%s<%s>", className, String.join(COMMA_SPACE, actualFieldTypes));
 		if (parent != null && isParentInterface) {
 			beginElementKind(cw, ElementKind.CLASS, fullClassName, EnumSet.of(Modifier.PUBLIC), null,
-					Collections.singletonList(parent), false);
+					Collections.singletonList(parent), null, false);
 		} else if (parent != null && !isParentInterface) {
 			beginElementKind(cw, ElementKind.CLASS, fullClassName, EnumSet.of(Modifier.PUBLIC), parent,
-					Collections.emptyList(), false);
+					Collections.emptyList(), null, false);
 		}
 		cw.emitEmptyLine();
 		visitConstrType(pci.listconstrtype_, cw, false);
@@ -3523,7 +3948,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 		cw.close();
 	}
 
-	private List<Entry<String, String>> visitConstrType(ListConstrType ctrs, JavaWriter w,
+	private List<Entry<String, String>> visitConstrType(ListConstrType ctrs, ScalaWriter w,
 			final boolean fieldAccessorMethods) throws IOException {
 		if (ctrs == null || ctrs.isEmpty()) {
 			return Collections.emptyList();
@@ -3591,36 +4016,44 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 		return params;
 	}
 
-	protected List<String> getCalleeMethodParams(AsyncMethCall amc) {
-		return getParameters(amc.listpureexp_);
+	protected List<String> getCalleeMethodParams(AsyncMethCall amc, ScalaWriter w) {
+		return getParameters(amc.listpureexp_, w);
 	}
 
-	protected List<String> getCalleeMethodParams(SyncMethCall smc) {
-		return getParameters(smc.listpureexp_);
+	protected List<String> getCalleeMethodParams(SyncMethCall smc, ScalaWriter w) {
+		return getParameters(smc.listpureexp_, w);
 	}
 
-	protected List<String> getParameters(ListPureExp params) {
+	protected List<String> getParameters(ListPureExp params, ScalaWriter w) {
 		List<String> parameters = new ArrayList<>();
 		for (PureExp par : params) {
 			StringWriter parSW = new StringWriter();
-			JavaWriter parameterWriter = new JavaWriter(parSW);
+			ScalaWriter parameterWriter = new ScalaWriter(parSW);
+			parameterWriter.continuationLevel = w.continuationLevel;
+			parameterWriter.duplicateReplacements = w.duplicateReplacements;
+
 			par.accept(this, parameterWriter);
 			parameters.add(parSW.toString());
 		}
 		return parameters;
 	}
 
-	protected String getCalleeId(AsyncMethCall amc) {
+	protected String getCalleeId(AsyncMethCall amc, ScalaWriter w) {
 		StringWriter auxsw = new StringWriter();
-		JavaWriter auxw = new JavaWriter(auxsw);
+		ScalaWriter auxw = new ScalaWriter(auxsw);
+		auxw.continuationLevel = w.continuationLevel;
+		auxw.duplicateReplacements = w.duplicateReplacements;
+		// System.out.println("amc calee writer "+ auxw.duplicateReplacements);
 		amc.pureexp_.accept(this, auxw);
 		String calleeId = auxsw.toString();
 		return calleeId;
 	}
 
-	protected String getCalleeId(SyncMethCall smc) {
+	protected String getCalleeId(SyncMethCall smc, ScalaWriter w) {
 		StringWriter auxsw = new StringWriter();
-		JavaWriter auxw = new JavaWriter(auxsw);
+		ScalaWriter auxw = new ScalaWriter(auxsw);
+		auxw.continuationLevel = w.continuationLevel;
+		auxw.duplicateReplacements = w.duplicateReplacements;
 		smc.pureexp_.accept(this, auxw);
 		String calleeId = auxsw.toString();
 		return calleeId;
@@ -3642,20 +4075,20 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	 * @return a string representing a Java method invocation statement
 	 */
 
-	protected String generateJavaMethodInvocation(String object, String method, List<String> parameters, JavaWriter w,
+	protected String generateJavaMethodInvocation(String object, String method, List<String> parameters, ScalaWriter w,
 			char c, int counter) {
-		object = getDuplicate(object);
+		object = getDuplicate(object, w);
 
 		List<String> duplicateParameters = new LinkedList<>();
 		for (String string : parameters) {
 			boolean found = false;
 
-			for (HashMap<String, String> hashMap1 : duplicateReplacements) {
+			for (HashMap<String, String> hashMap1 : w.duplicateReplacements) {
 				if (hashMap1.containsKey(string)) {
 					final String stringName = "f_" + c + counter + hashMap1.get(string);
 					duplicateParameters.add(stringName);
 					try {
-						w.emitStatement("%s %s = %s", findVariableTypeInScope(string), stringName,
+						w.emitStatement("var %s : %s = %s", stringName, findVariableTypeInScope(string),
 								hashMap1.get(string));
 					} catch (IOException e) {
 						// TODO Auto-generated catch block
@@ -3671,7 +4104,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 					final String stringName = "f_" + c + counter + string;
 					duplicateParameters.add(stringName);
 					try {
-						w.emitStatement("%s %s = %s", findVariableTypeInScope(string), stringName, string);
+						w.emitStatement("var %s : %s = %s", stringName, findVariableTypeInScope(string), string);
 					} catch (IOException e) {
 						// TODO Auto-generated catch block
 						e.printStackTrace();
@@ -3680,8 +4113,8 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 					final String stringName = "f_" + c + counter + string;
 					duplicateParameters.add(stringName);
 					try {
-						w.emitStatement("%s %s = %s",
-								findVariableTypeInScope(string.substring(string.indexOf("$") + 1)), stringName, string);
+						w.emitStatement("var %s : %s = %s", stringName,
+								findVariableTypeInScope(string.substring(string.indexOf("$") + 1)), string);
 					} catch (IOException e) {
 						// TODO Auto-generated catch block
 						e.printStackTrace();
@@ -3711,7 +4144,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	 */
 	protected String generateMessageStatement(String msgVarName, String returnType, String expression) {
 		String actualReturnType = resolveMessageType(returnType);
-		return String.format("%s %s = () -> %s", actualReturnType, msgVarName, expression);
+		return String.format("var %s : %s = () => %s", msgVarName, actualReturnType, expression);
 	}
 
 	/**
@@ -3731,9 +4164,9 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	 * @return a Java statement string for such a call
 	 */
 	protected String generateMessageInvocationStatement(String target, final boolean isDefined, String msgReturnType,
-			String msgVarName, String responseVarName) {
+			String msgVarName, String responseVarName, ScalaWriter w) {
 
-		responseVarName = getDuplicate(responseVarName);
+		responseVarName = getDuplicate(responseVarName, w);
 
 		final String method = "send";
 		if (responseVarName.endsWith("_response")) {
@@ -3744,7 +4177,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 		}
 		String returnType = msgReturnType == null || isVoid(msgReturnType) ? VOID_WRAPPER_CLASS_NAME
 				: stripGenericResponseType(msgReturnType);
-		return String.format("ABSFutureTask<%s> %s = %s.%s (%s)", returnType, responseVarName, target, method,
+		return String.format("var %s : ABSFutureTask[%s] = %s.%s (%s)", responseVarName, returnType, target, method,
 				msgVarName);
 	}
 
@@ -3764,7 +4197,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 		// }
 		String returnType = msgReturnType == null || isVoid(msgReturnType) ? VOID_WRAPPER_CLASS_NAME
 				: stripGenericResponseType(msgReturnType);
-		return String.format("ABSFutureTask<%s> %s = %s.%s (%s, %s)", returnType, responseVarName, target, method,
+		return String.format("var %s: ABSFutureTask[%s]  = %s.%s (%s, %s)", responseVarName, returnType, target, method,
 				msgVarName, contVarName);
 	}
 
@@ -3776,8 +4209,9 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 			while (qtyp.qu_ instanceof QU_) {
 				sb.append(".");
 				sb.append(((QU_) qtyp).u_);
-				qtyp = (QU_) qtyp.qu_;
+				qtyp = (QU_) qtyp.qu_;				
 			}
+			sb.append(".");
 			sb.append(((U_) qtyp.qu_).u_);
 			if (!isTopLevel)
 				return translate(sb.toString());
@@ -3875,11 +4309,11 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	 * @return
 	 * @throws IOException
 	 */
-	protected JavaWriter emitField(JavaWriter w, String fieldType, String fieldIdentifier, String initialValue,
+	protected ScalaWriter emitField(ScalaWriter w, String fieldType, String fieldIdentifier, String initialValue,
 			final boolean isFinal) throws IOException {
 		EnumSet<Modifier> modifiers = EnumSet.noneOf(Modifier.class);
 
-		fieldIdentifier = getDuplicate(fieldIdentifier);
+		fieldIdentifier = getDuplicate(fieldIdentifier, w);
 
 		if (isFinal) {
 			modifiers.add(Modifier.FINAL);
@@ -3891,9 +4325,9 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 		}
 	}
 
-	protected void beginElementKind(JavaWriter w, ElementKind kind, String identifier, Set<Modifier> modifiers,
+	protected void beginElementKind(ScalaWriter w, ElementKind kind, String identifier, Set<Modifier> modifiers,
 			String classParentType, Collection<String> implementingInterfaces) throws IOException {
-		beginElementKind(w, kind, identifier, modifiers, classParentType, implementingInterfaces, true);
+		beginElementKind(w, kind, identifier, modifiers, classParentType, implementingInterfaces, null, true);
 	}
 
 	/**
@@ -3915,13 +4349,13 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	 *            indicates if the class should "implement"
 	 *            <code>abs.api.Actor</code>
 	 * @throws IOException
-	 *             Exception from {@link JavaWriter}
+	 *             Exception from {@link ScalaWriter}
 	 * @throws IllegalArgumentException
 	 *             if kind other than "class" or "interface" is requested
 	 */
-	protected void beginElementKind(JavaWriter w, ElementKind kind, String identifier, Set<Modifier> modifiers,
-			String classParentType, Collection<String> implementingInterfaces, final boolean isActor)
-			throws IOException {
+	protected void beginElementKind(ScalaWriter w, ElementKind kind, String identifier, Set<Modifier> modifiers,
+			String classParentType, Collection<String> implementingInterfaces, List<String> constructorParameters,
+			final boolean isActor) throws IOException {
 		Set<String> implementsTypes = new HashSet<>();
 		if (implementingInterfaces != null && !implementingInterfaces.isEmpty()) {
 			implementsTypes.addAll(implementingInterfaces);
@@ -3929,22 +4363,27 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 		String kindName = kind.name().toLowerCase();
 		switch (kind) {
 		case CLASS:
-			w.beginType(identifier, kindName, modifiers, classParentType, implementsTypes.toArray(new String[0]));
+			w.beginType(identifier, kindName, modifiers, classParentType, constructorParameters,
+					implementsTypes.toArray(new String[0]));
 			if (isActor) {
 				emitSerialVersionUid(w);
 			}
 			return;
 		case INTERFACE:
 			implementsTypes.add(ABS_API_INTERFACE_CLASS);
-			if (implementsTypes.isEmpty()) {
-				w.beginType(identifier, kindName, modifiers, null, new String[0]);
-			} else {
-				w.beginType(identifier, kindName, modifiers, String.join(COMMA_SPACE, implementsTypes), new String[0]);
-			}
+			w.beginType(identifier, kindName, modifiers, null, implementsTypes.toArray(new String[0]));
 			return;
 		case ENUM:
 			w.beginType(identifier, kindName, modifiers);
 			return;
+		case CONSTRUCTOR:
+			w.beginType(identifier, "object", modifiers, classParentType, implementsTypes.toArray(new String[0]));
+			return;
+		case OTHER:
+			w.beginType(identifier, "case class", modifiers, classParentType, constructorParameters,
+					implementsTypes.toArray(new String[0]));
+			return;
+
 		default:
 			throw new IllegalArgumentException("Unsupported Java element kind: " + kind);
 		}
@@ -3956,14 +4395,14 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	 * @return
 	 * @throws IOException
 	 */
-	protected JavaWriter createJavaWriter(AnnDecl decl, JavaWriter w) throws IOException {
+	protected ScalaWriter createJavaWriter(AnnDecl decl, ScalaWriter w) throws IOException {
 		if (isTopLevel(decl)) {
 
 			String identifier = getTopLevelDeclIdentifier(((AnnDeclaration) decl).decl_);
 			if (packageName.equalsIgnoreCase(identifier) || moduleNames.contains(identifier)) {
 				return w;
 			}
-			JavaWriter jw = javaWriterSupplier.apply(identifier);
+			ScalaWriter jw = (ScalaWriter) javaWriterSupplier.apply(identifier);
 			jw.emitPackage(packageName);
 			return jw;
 		} else {
@@ -3976,7 +4415,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	 * @param parentWriter
 	 * @throws IOException
 	 */
-	protected void close(JavaWriter childWriter, JavaWriter parentWriter) throws IOException {
+	protected void close(ScalaWriter childWriter, ScalaWriter parentWriter) throws IOException {
 		if (childWriter != parentWriter) {
 			childWriter.close();
 		}
@@ -4045,11 +4484,11 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 		return result;
 	}
 
-	protected String getDuplicate(String name) {
-		for (HashMap<String, String> hashMap : duplicateReplacements) {
+	protected String getDuplicate(String name, ScalaWriter w) {
+
+		for (HashMap<String, String> hashMap : w.duplicateReplacements) {
 			if (hashMap.containsKey(name)) {
 				return hashMap.get(name);
-
 			}
 		}
 		return name;
@@ -4064,13 +4503,13 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 		if (type instanceof TPoly) {
 			TPoly tg = (TPoly) type;
 			StringBuilder sQ = new StringBuilder(getQTypeName(tg.qu_, false));
-			sQ.append("<");
+			sQ.append("[");
 			List<String> gTypes = new ArrayList<String>();
 			for (T t : tg.listt_) {
 				gTypes.add(getTypeName(t));
 			}
 			sQ.append(String.join(COMMA_SPACE, gTypes));
-			sQ.append(">");
+			sQ.append("]");
 			return refineVoidType(sQ.toString());
 		}
 		return null;
@@ -4104,6 +4543,90 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 		return findVariableType(varName);
 	}
 
+	private Map<String, String> fillGenericTypes(String givenTypes) {
+		char key = 'A';
+		Map<String, String> genMapping = new HashMap<>();
+		LinkedList<Character> paranthesis = new LinkedList<>();
+		int i = 0;
+		paranthesis.push(givenTypes.charAt(i++));
+		StringBuilder newPar = new StringBuilder();
+		while (i < givenTypes.length()) {
+			char c = givenTypes.charAt(i);
+			if (c == ',') {
+				if (paranthesis.size() == 1) {
+					genMapping.put(String.valueOf(key), newPar.toString());
+					newPar.setLength(0);
+					key++;
+					i++;
+					while (givenTypes.charAt(i) == ' ')
+						i++;
+				} else {
+					newPar.append(c);
+					i++;
+				}
+			} else {
+				if (c == '[') {
+					paranthesis.push(c);
+				}
+				if (c == ']') {
+					paranthesis.pop();
+					if (paranthesis.size() == 0)
+						break;
+				}
+
+				newPar.append(c);
+				i++;
+			}
+
+		}
+		genMapping.put(String.valueOf(key), newPar.toString());
+
+		return genMapping;
+	}
+
+	private String replaceGenType(String genP, Map<String, String> genMap) {
+		if (!genP.contains("["))
+			return genMap.containsKey(genP) ? genMap.get(genP) : genP;
+		StringBuilder replacedString = new StringBuilder(genP.substring(0, genP.indexOf('[')));
+		String[] toTraverse = genP.substring(genP.indexOf('[') + 1, genP.lastIndexOf(']')).split(", ");
+
+		replacedString.append("[");
+		for (String string : toTraverse) {
+			if (string.length() > 0) {
+				replacedString.append(replaceGenType(string, genMap));
+				replacedString.append(',');
+			}
+		}
+		replacedString.deleteCharAt(replacedString.length() - 1);
+		replacedString.append(']');
+
+		return replacedString.toString();
+	}
+
+	private Map<String, List<String>> createTypeDictionary(String actualType) {
+		int index = actualType.indexOf('[');
+		if (index < 0)
+			System.err.println("Not given a generic type");
+		String genericType = actualType.substring(index);
+		String caseType = actualType.substring(0, index);
+		Map<String, List<String>> typeDict = new HashMap<>();
+		Map<String, String> genMap = fillGenericTypes(genericType);
+		for (String keyType : caseTypeConstructs.get(caseType)) {
+			List<String> params = paramConstructs.get(keyType);
+			List<String> newParams = new ArrayList<>();
+			for (String p : params) {
+				if (genMap.containsKey(p))
+					newParams.add(genMap.get(p));
+				else
+					newParams.add(replaceGenType(p, genMap));
+			}
+			typeDict.put(keyType, newParams);
+		}
+
+		return typeDict;
+
+	}
+
 	private String findMethodReturnType(String methodName, String calleeClassType, List<String> actualParamNames) {
 		for (String fqClassName : methods.keySet()) {
 			if (calleeClassType != null && !fqClassName.endsWith(calleeClassType)) {
@@ -4120,7 +4643,6 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	}
 
 	private boolean callHasAwait(String methodName) {
-		// System.out.println(methodName);
 		String key = this.packageName + "." + currentClass() + "." + methodName;
 		if (programMethods.containsKey(key))
 			return programMethods.get(key).containsAwait();
@@ -4301,7 +4823,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	}
 
 	private String stripGenericResponseType(String type) {
-		String regex = "^(ABSFutureTask\\<)(.*)(\\>)$";
+		String regex = "^(ABSFutureTask\\[)(.*)(\\])$";
 		java.util.regex.Pattern p = java.util.regex.Pattern.compile(regex);
 		Matcher m = p.matcher(type);
 		if (m.matches()) {
@@ -4347,7 +4869,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 			if (isVoid(type)) {
 				actualReturnType = "Runnable";
 			} else {
-				actualReturnType = String.format("Callable<%s>", type);
+				actualReturnType = String.format("Callable[%s]", type);
 			}
 		} else {
 			actualReturnType = "Runnable";
@@ -4355,7 +4877,27 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 		return actualReturnType;
 	}
 
-	private void emitThisActorRegistration(JavaWriter w) throws IOException {
+	private void startContinuation(StringBuilder label, ScalaWriter auxw, String returnType, List<String> parameters)
+			throws IOException {
+		// System.out.println(label);
+		auxw.beginMethod(returnType, label.toString(), DEFAULT_MODIFIERS, parameters, null);
+
+		for (String string : auxw.methodParameters.keySet()) {
+
+			String newName = "w_" + awaitCounter + "$" + string;
+			auxw.duplicateReplacements.peekLast().put(string, newName);
+			emitField(auxw, auxw.methodParameters.get(string), newName, string, false);
+		}
+	}
+
+	private void emitImplicitConversions(ScalaWriter w) throws IOException {
+		w.emit("implicit def fun2Call[R](f: () => R) = new Callable[R] { def call : R = f() }\n");
+		w.emit("implicit def funcToRunnable( func : () => Unit ) = new Runnable(){ def run() = func() }\n");
+		w.emit("implicit def funcToCallablewFut[R,V]( f : (ABSFutureTask[V]) => R ) = new CallablewFut[R,V] { def run(v: ABSFutureTask[V]) : R = f(v) }\n");
+		w.emit("implicit def funcToRunnablewFut[V]( f : (ABSFutureTask[V]) => Unit ) = new RunnablewFut[V] { def run(v: ABSFutureTask[V]) : Unit = f(v) }\n");
+	}
+
+	private void emitThisActorRegistration(ScalaWriter w) throws IOException {
 		w.emitStatement("context().newActor(toString(), this)");
 	}
 
@@ -4364,7 +4906,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 	 * compiler. The resolution scope hierarchy starts from java.lang.Object and
 	 * that's why Functional.toString() is not resolved by default order.
 	 */
-	private void emitToStringMethod(JavaWriter w) throws IOException {
+	private void emitToStringMethod(ScalaWriter w) throws IOException {
 		w.emitEmptyLine();
 		w.emitSingleLineComment("To override default Object#toString() competing");
 		w.emitSingleLineComment("with static imports of Functional#toString()");
@@ -4373,11 +4915,11 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 		w.endMethod();
 	}
 
-	private void emitEqualsMethod(String className, List<String> fieldNames, JavaWriter w) throws IOException {
+	private void emitEqualsMethod(String className, List<String> fieldNames, ScalaWriter w) throws IOException {
 		emitEqualsMethod(className, fieldNames, false, w);
 	}
 
-	private void emitEqualsMethod(String className, List<String> fieldNames, final boolean staticFields, JavaWriter w)
+	private void emitEqualsMethod(String className, List<String> fieldNames, final boolean staticFields, ScalaWriter w)
 			throws IOException {
 		w.emitEmptyLine();
 		w.beginMethod("boolean", "equals", EnumSet.of(Modifier.PUBLIC), "Object", "o");
@@ -4411,7 +4953,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 		return s instanceof SIf || s instanceof SIfElse || s instanceof STryCatchFinally || s instanceof SWhile;
 	}
 
-	private void emitDefaultRunMethodExecution(JavaWriter w, String className) throws IOException {
+	private void emitDefaultRunMethodExecution(ScalaWriter w, String className) throws IOException {
 		// Check for 'run' method
 		final String fqClassName = this.packageName + "." + className;
 		final String methodName = "run";
@@ -4430,8 +4972,8 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 				: ((ParamConstrIdent) exConstrIdent).u_;
 	}
 
-	private void emitSerialVersionUid(JavaWriter w) throws IOException {
-		w.emitField("long", "serialVersionUID", EnumSet.of(Modifier.PRIVATE, Modifier.STATIC, Modifier.FINAL), "1L");
+	private void emitSerialVersionUid(ScalaWriter w) throws IOException {
+		w.emitField("java.lang.Long", "serialVersionUID", EnumSet.of(Modifier.PRIVATE, Modifier.FINAL), "1L");
 		w.emitEmptyLine();
 	}
 
@@ -4472,7 +5014,7 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 		}
 		if (p instanceof PLit) {
 			StringWriter sw = new StringWriter();
-			JavaWriter jw = new JavaWriter(sw);
+			ScalaWriter jw = new ScalaWriter(sw);
 			((PLit) p).literal_.accept(this, jw);
 			return sw.toString();
 		}
@@ -4492,15 +5034,9 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 		}
 		if (type instanceof TPoly) {
 			List<String> types = ((TPoly) type).listt_.stream().map(t -> toString(t)).collect(Collectors.toList());
-			return String.format("%s<%s>", getQTypeName(((TPoly) type).qu_, false), String.join(COMMA_SPACE, types));
+			return String.format("%s[%s]", getQTypeName(((TPoly) type).qu_, false), String.join(COMMA_SPACE, types));
 		}
 		throw new IllegalArgumentException(type.toString());
-	}
-
-	private String methodName(String name) {
-		if (name.equals(METHOD_GET))
-			return _GET;
-		return name;
 	}
 
 }

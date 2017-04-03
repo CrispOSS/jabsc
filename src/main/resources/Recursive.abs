@@ -9,34 +9,29 @@ interface Binterface{
 }
 	
 class A() implements Ainterface{
-
+	Int result=0;
+	
 	Int recursive_m(Int i, Int id){
-	   println(id);
-	   println(i);
-		if (i>0){
-			this.recursive_m(i - 1,id);
-			String key="";
-			println("continue ");
-			println(i);
-			println(id);
+	   if (i>0){
+	   		//println("Start "+ toString(id)+ " "+ toString(i));
+			result=this.recursive_m(i - 1,id);
+			println("=========="); 
+			i=i+1;
+			id=id+1;
+				
 		}
 		else{
-			B computation = new B ( );
-			Fut<Int> f = computation ! compute( );
+			//B computation = new B ( );
+			Fut<Int> f = this ! compute( );
+			//println("==========");
 			await f ?;
 		}
-		String key="finish";
-		println(key);
-		println(id);
-		return 0;
+		//println(toString(id)+"**********");
+		return 1;
 	}
 
-}
-	
-class B implements Binterface {
-
 	Int compute( ){
-		Int result = 0;
+		result = result + 1;
 		/*do some work */
 		return result;
 	}
@@ -48,17 +43,15 @@ class B implements Binterface {
 	A master = new A ( );
 	List<Fut<Int>> futures = EmptyList;
 	
-	while(i<5){
+	while(i<1000){
 		Fut<Int> f = master ! recursive_m (5, i);
 		futures = Cons( f, futures );
 		i = i + 1 ;
 	}
-	i=0;
 	while ( size(futures) > 0 ){
 	
 		Fut<Int> f1 = head(futures);
 		futures = tail(futures);
 		Int r = f1.get;
-		i = i + r ;
 	}
 }

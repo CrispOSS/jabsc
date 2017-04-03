@@ -15,12 +15,14 @@ public class CompilerTest {
   private URL uri = getClass().getResource("abs/");
   private Path outputDirectory = Paths.get("./target").resolve("generated");
   private Path tmpDirectory = Paths.get("java.io.tmpdir");
-
+  private static String SOURCE = "scala";
+  
+  
   
   
   @Test
   public void resolveOutputDirectory() throws Exception {
-    Compiler compiler = new Compiler(Paths.get(uri.toURI()), outputDirectory);
+    Compiler compiler = new Compiler(Paths.get(uri.toURI()), outputDirectory, SOURCE);
     Path p1 = compiler.resolveOutputDirectory("a.b.c", tmpDirectory);
     Path p2 = tmpDirectory.resolve("a").resolve("b").resolve("c");
     Assert.assertEquals(p2.toAbsolutePath(), p1.toAbsolutePath());
@@ -30,7 +32,7 @@ public class CompilerTest {
   public void compileTestABSSources() throws Exception {
     Files.createDirectories(outputDirectory);
     Path directory = Paths.get(uri.toURI()).toAbsolutePath().normalize().getParent();
-    Compiler compiler = new Compiler(directory, outputDirectory);
+    Compiler compiler = new Compiler(directory, outputDirectory, SOURCE);
     compiler.compile();
     Assert.assertTrue(Files.list(outputDirectory).count() > 0);
   }

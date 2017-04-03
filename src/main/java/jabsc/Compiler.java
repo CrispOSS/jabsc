@@ -33,6 +33,8 @@ import bnfc.abs.Absyn.Program;
  */
 public class Compiler implements Runnable {
 
+	
+	
   /**
    * Java keywords
    */
@@ -54,7 +56,7 @@ public class Compiler implements Runnable {
   /**
    * .java
    */
-  private static final String JAVA_FILE_EXTENSION = "java";
+  private static String FILE_EXTENSION = "";
 
   /**
    * The version of JABSC Compiler.
@@ -74,19 +76,20 @@ public class Compiler implements Runnable {
   private final Path outputDirectory;
   private boolean debug = false;
 
-  public Compiler(String source, String outputDirectory) {
-    this(createPath(source), createOutputDirectoryPath(outputDirectory, createPath(source)));
+  public Compiler(String source, String outputDirectory, String compilerType) {
+    this(createPath(source), createOutputDirectoryPath(outputDirectory, createPath(source)), compilerType);
   }
 
-  public Compiler(Path source, Path outputDirectory) {
-    this(Collections.singletonList(source), outputDirectory);
+  public Compiler(Path source, Path outputDirectory, String compilerType) {
+    this(Collections.singletonList(source), outputDirectory, compilerType);
   }
 
-  public Compiler(List<Path> sources, Path outputDirectory) {
+  public Compiler(List<Path> sources, Path outputDirectory, String compilerType) {
     this.sources = createSources(sources);
     this.outputDirectory = outputDirectory.normalize().toAbsolutePath();
     validate(this.sources, outputDirectory);
     logger.info("jabsc " + VERSION);
+    FILE_EXTENSION = compilerType;
   }
 
   /**
@@ -147,6 +150,8 @@ public class Compiler implements Runnable {
     final Prog prog = (Prog) program;
     final String packageName = getPackageName(prog);
     final Path sourcePath = createSourcePath(packageName, source, outputDirectory);
+    
+    if(FILE_EXTENSION=="java"){
     final Visitor visitor = new Visitor(packageName, prog,
         new DefaultJavaWriterSupplier(PathResolver.DEFAULT_PATH_RESOLVER, packageName,
             outputDirectory),
@@ -156,6 +161,19 @@ public class Compiler implements Runnable {
       JavaWriter jw = new JavaWriter(writer,false);
       prog.accept(visitor, jw);
       return sourcePath;
+    }
+    }
+    else{
+    	final ScalaVisitor visitor = new ScalaVisitor(packageName, prog,
+    	        new DefaultScalaWriterSupplier(PathResolver.DEFAULT_PATH_RESOLVER, packageName,
+    	            outputDirectory),
+    	        new ScalaTypeTranslator(), outputDirectory);
+    	    Files.createDirectories(sourcePath.getParent());
+    	    try (final Writer writer = createWriter(sourcePath)) {
+    	      ScalaWriter jw = new ScalaWriter(writer,false);
+    	      prog.accept(visitor, jw);
+    	      return sourcePath;
+    }
     }
   }
 
@@ -170,7 +188,7 @@ public class Compiler implements Runnable {
     final int dotIndex = fullFileName.lastIndexOf('.');
     final String fileName = dotIndex == -1 ? fullFileName : fullFileName.substring(0, dotIndex);
     outputDirectory = resolveOutputDirectory(packageName, outputDirectory);
-    return outputDirectory.resolve(fileName + "." + JAVA_FILE_EXTENSION);
+    return outputDirectory.resolve(fileName + "." + FILE_EXTENSION);
   }
 
   /**

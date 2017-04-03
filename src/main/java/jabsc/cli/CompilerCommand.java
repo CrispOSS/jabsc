@@ -27,7 +27,7 @@ public class CompilerCommand implements Runnable {
   @Override
   public void run() {
     try {
-      new Compiler(source, outputDirectory).compile();
+      new Compiler(source, outputDirectory, "scala").compile();
       return;
     } catch (Exception e) {
       logger.severe(

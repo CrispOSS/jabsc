@@ -4,6 +4,7 @@ import static javax.lang.model.element.Modifier.ABSTRACT;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.StringWriter;
 import java.io.Writer;
 import java.lang.annotation.Annotation;
 import java.util.ArrayDeque;
@@ -36,26 +37,25 @@ import com.squareup.javawriter.StringLiteral;
 
 /** A utility class which aids in generating Java source files. */
 class JavaWriter implements Closeable {
-	private static final Pattern TYPE_TRAILER = Pattern.compile("(.*?)(\\.\\.\\.|(?:\\[\\])+)$");
-	private static final Pattern TYPE_PATTERN = Pattern.compile("(?:[\\w$]+\\.)*([\\w\\.*$]+)");
-	private static final int MAX_SINGLE_LINE_ATTRIBUTES = 3;
-	private static final String INDENT = "  ";
+	protected static final Pattern TYPE_TRAILER = Pattern.compile("(.*?)(\\.\\.\\.|(?:\\[\\])+)$");
+	protected static final Pattern TYPE_PATTERN = Pattern.compile("(?:[\\w$]+\\.)*([\\w\\.*$]+)");
+	protected static final int MAX_SINGLE_LINE_ATTRIBUTES = 3;
+	protected static final String INDENT = "  ";
 
 	/** Map fully qualified type names to their short names. */
-	private final Map<String, String> importedTypes = new LinkedHashMap<String, String>();
+	protected final Map<String, String> importedTypes = new LinkedHashMap<String, String>();
 
-	private String packagePrefix;
-	private final Deque<Scope> scopes = new ArrayDeque<Scope>();
-	private final Deque<String> types = new ArrayDeque<String>();
-	private final Writer out;
-	private boolean isCompressingTypes = false;
-	private String indent = INDENT;
-	private boolean isAux = true;
+	protected String packagePrefix;
+	protected final Deque<Scope> scopes = new ArrayDeque<Scope>();
+	protected final Deque<String> types = new ArrayDeque<String>();
+	protected final Writer out;
+	protected boolean isCompressingTypes = false;
+	protected String indent = INDENT;
+	protected boolean isAux = true;
 	public boolean avoidDuplicates = false;
 	public boolean checkAwaits = false;
 	public boolean isScope = false;
 	public int continuationLevel = -5;
-	
 
 	/**
 	 * @param out
@@ -70,12 +70,11 @@ class JavaWriter implements Closeable {
 	public JavaWriter(Writer out) {
 		this.out = out;
 	}
-	
-	public JavaWriter(boolean isAux,Writer out,  boolean checkAwaits) {
+
+	public JavaWriter(boolean isAux, Writer out, boolean checkAwaits) {
 		this(out, isAux);
-		this.checkAwaits=checkAwaits;
+		this.checkAwaits = checkAwaits;
 	}
-		
 
 	public JavaWriter(Writer out, boolean isAux, boolean avoidDuplicates) {
 		this(out, isAux);
@@ -190,7 +189,7 @@ class JavaWriter implements Closeable {
 	 * <java.lang.String>}, compressing it with imports if possible. Type
 	 * compression will only be enabled if {@link #isCompressingTypes} is true.
 	 */
-	private JavaWriter emitCompressedType(String type) throws IOException {
+	protected JavaWriter emitCompressedType(String type) throws IOException {
 		if ((isCompressingTypes) && !(type.equals("Boolean"))) {
 			out.write(compressType(type));
 		} else {
@@ -250,7 +249,7 @@ class JavaWriter implements Closeable {
 		return sb.toString();
 	}
 
-	private static boolean isClassInPackage(String name, String packagePrefix) {
+	protected static boolean isClassInPackage(String name, String packagePrefix) {
 		if (name.startsWith(packagePrefix)) {
 			if (name.indexOf('.', packagePrefix.length()) == -1) {
 				return true;
@@ -270,7 +269,7 @@ class JavaWriter implements Closeable {
 	 * @param compressed
 	 *            simple name of the type
 	 */
-	private boolean isAmbiguous(String compressed) {
+	protected boolean isAmbiguous(String compressed) {
 		return importedTypes.values().contains(compressed);
 	}
 
@@ -359,6 +358,7 @@ class JavaWriter implements Closeable {
 
 	/** Completes the current type declaration. */
 	public JavaWriter endType() throws IOException {
+
 		popScope(Scope.TYPE_DECLARATION, Scope.INTERFACE_DECLARATION);
 		types.pop();
 		indent();
@@ -550,7 +550,7 @@ class JavaWriter implements Closeable {
 		return isLast ? emitLastEnumValue(name) : emitEnumValue(name);
 	}
 
-	private JavaWriter emitLastEnumValue(String name) throws IOException {
+	protected JavaWriter emitLastEnumValue(String name) throws IOException {
 		indent();
 		out.write(name);
 		out.write(";\n");
@@ -682,7 +682,7 @@ class JavaWriter implements Closeable {
 		return this;
 	}
 
-	private boolean containsArray(Collection<?> values) {
+	protected boolean containsArray(Collection<?> values) {
 		for (Object value : values) {
 			if (value instanceof Object[]) {
 				return true;
@@ -695,7 +695,7 @@ class JavaWriter implements Closeable {
 	 * Writes a single annotation value. If the value is an array, each element
 	 * in the array will be written to its own line.
 	 */
-	private JavaWriter emitAnnotationValue(Object value) throws IOException {
+	protected JavaWriter emitAnnotationValue(Object value) throws IOException {
 		if (value instanceof Object[]) {
 			out.write("{");
 			boolean firstValue = true;
@@ -824,6 +824,16 @@ class JavaWriter implements Closeable {
 		return this;
 	}
 
+	public JavaWriter caseControlFLow(String pattern, String content) throws IOException {
+		checkInMethod();
+		indent();
+		scopes.push(Scope.CONTROL_FLOW);
+		out.write(String.format("case %s => { %s }", pattern, content));
+		popScope(Scope.CONTROL_FLOW);
+		indent();
+		return this;
+	}
+
 	/** Completes the current method declaration. */
 	public JavaWriter endMethod() throws IOException {
 		Scope popped = scopes.pop();
@@ -898,7 +908,7 @@ class JavaWriter implements Closeable {
 	}
 
 	/** Emits the modifiers to the writer. */
-	private void emitModifiers(Set<Modifier> modifiers) throws IOException {
+	protected void emitModifiers(Set<Modifier> modifiers) throws IOException {
 		if (modifiers.isEmpty()) {
 			return;
 		}
@@ -911,34 +921,34 @@ class JavaWriter implements Closeable {
 		}
 	}
 
-	private void indent() throws IOException {
+	protected void indent() throws IOException {
 		for (int i = 0, count = scopes.size(); i < count; i++) {
 			out.write(indent);
 		}
 	}
 
-	private void hangingIndent() throws IOException {
+	protected void hangingIndent() throws IOException {
 		for (int i = 0, count = scopes.size() + 2; i < count; i++) {
 			out.write(indent);
 		}
 	}
 
-	private static final EnumSet<Scope> METHOD_SCOPES = EnumSet.of(Scope.NON_ABSTRACT_METHOD, Scope.CONSTRUCTOR,
+	protected static final EnumSet<Scope> METHOD_SCOPES = EnumSet.of(Scope.NON_ABSTRACT_METHOD, Scope.CONSTRUCTOR,
 			Scope.CONTROL_FLOW, Scope.INITIALIZER);
 
-	private void checkInMethod() {
+	protected void checkInMethod() {
 		if (!METHOD_SCOPES.contains(scopes.peekFirst()) && !isAux) {
 			throw new IllegalArgumentException();
 		}
 	}
 
-	private void popScope(Scope... expected) {
+	protected void popScope(Scope... expected) {
 		if (!EnumSet.copyOf(Arrays.asList(expected)).contains(scopes.pop())) {
 			throw new IllegalStateException();
 		}
 	}
 
-	private enum Scope {
+	protected enum Scope {
 		TYPE_DECLARATION, INTERFACE_DECLARATION, ABSTRACT_METHOD, NON_ABSTRACT_METHOD, CONSTRUCTOR, CONTROL_FLOW, ANNOTATION_ATTRIBUTE, ANNOTATION_ARRAY_VALUE, INITIALIZER
 	}
 

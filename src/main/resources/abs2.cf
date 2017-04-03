@@ -1,0 +1,282 @@
+-- COMMENTS
+-----------
+comment "//" ;
+comment "/*" "*/" ;
+
+
+-- LITERALS
+-----------
+LNull.   Literal ::= "null" ;
+LThis.   Literal ::= "this" ;
+LStr.    Literal ::= String ;
+LInt.    Literal ::= Integer ;
+LFloat.  Literal ::= Double ;
+
+-- IDENTIFIER TOKENS
+--------------------
+position token U (upper (letter | digit | '_')*) ;
+position token L (lower (letter | digit | '_')*) ;
+
+
+-- MAYBE-QUALIFIED IDENTIFIERS
+------------------------------
+
+-- upper
+U_. QU ::= U ;
+QU_. QU ::= U "." QU ;
+-- lower
+L_. QL ::= L ;
+QL_. QL ::= U "." QL ;
+-- any
+LA. QA ::= L ;
+UA. QA ::= U ;
+QA_. QA ::= U "." QA;
+
+separator nonempty U "," ; -- for <Typevar1,..>
+separator nonempty QU "," ; -- for list of types/constructors 
+separator nonempty QA "," ; -- for imports/exports
+
+
+-- TYPES
+--------
+TSimple. T ::= QU ;
+TPoly. T    ::= QU "<" [T] ">" ;
+TInfer. T  ::= "_" ;  -- habs-only: for type inference
+separator nonempty T "," ;
+
+
+-- FORMAL PARAMETERS
+--------------------
+FormalParameter. FormalPar ::= T L ;
+separator FormalPar "," ;  -- for list of formal parameters
+
+
+-- ENTRY PROGRAM
+----------------
+entrypoints Program ;
+Prog. Program ::= [Module] ; -- multiple modules inside a single file
+
+
+-- MODULES 
+----------
+Mod. Module ::= "module" QU ";" [Export] [Import] [AnnDecl] MaybeBlock ;
+separator Module "";
+
+
+-- EXPORTS
+----------
+StarExport. Export     ::= "export" "*" ;
+StarFromExport. Export ::= "export" "*" "from" QU ;
+AnyExport. Export      ::= "export" [QA] ;
+AnyFromExport. Export  ::= "export" [QA] "from" QU ; -- note to self: should be unqualified, but for parser issues do the check it at codegen
+terminator Export ";" ;
+
+
+-- IMPORTS
+----------
+StarFromImport. Import ::= IsForeign "*" "from" QU ;
+AnyImport. Import      ::= IsForeign [QA] ;
+AnyFromImport. Import  ::= IsForeign [QA] "from" QU ; -- note to self: should be unqualified, but for parser issues do the check it at codegen
+terminator Import ";" ;
+
+NoForeign. IsForeign  ::= "import" ;
+YesForeign. IsForeign ::= "fimport" ; -- habs-only: is used to FFI to Haskell libraries
+
+
+-- DECLARATIONS 
+---------------
+
+
+-- ADT DECLARATIONS
+-------------------
+DType. Decl      ::= "type" U "=" T ";" ;
+DTypePoly. Decl   ::= "type" U "<" [U] ">" "=" T ";" ;
+DData. Decl      ::= "data" U "=" [ConstrIdent] ";" ;
+DDataPoly. Decl   ::= "data" U "<" [U] ">" "=" [ConstrIdent] ";" ;
+
+separator nonempty ConstrIdent "|" ;
+SinglConstrIdent. ConstrIdent ::= U ;
+ParamConstrIdent. ConstrIdent ::= U "(" [ConstrType] ")" ;
+
+separator ConstrType "," ;
+EmptyConstrType. ConstrType  ::= T ;
+RecordConstrType. ConstrType ::= T L ;
+
+
+-- FUNCTION DECLARATIONS
+------------------------
+DFun.  Decl   ::= "def" T L "(" [FormalPar] ")" "=" FunBody ";" ;
+DFunPoly. Decl ::= "def" T L "<" [U] ">" "(" [FormalPar] ")" "=" FunBody ";" ;
+BuiltinFunBody. FunBody ::= "builtin" ;
+NormalFunBody. FunBody  ::= PureExp ;
+
+-- INTERFACE DECLARATIONS
+-------------------------
+DInterf. Decl  ::= "interface" U "{" [MethSig] "}" ;
+DExtends. Decl ::= "interface" U "extends" [QU] "{" [MethSig] "}" ;
+
+terminator MethSig ";" ;
+MethSignature. MethSig ::= [Ann] T L "(" [FormalPar] ")" ;
+
+
+-- CLASS DECLARATIONS
+---------------------
+DClass. Decl                ::= "class" U "{" [ClassBody] MaybeBlock [ClassBody] "}" ;
+DClassPar. Decl           ::= "class" U "(" [FormalPar] ")" "{" [ClassBody] MaybeBlock [ClassBody]  "}" ;
+DClassImplements. Decl      ::= "class" U "implements" [QU] "{" [ClassBody] MaybeBlock [ClassBody]  "}" ;
+DClassParImplements. Decl ::= "class" U "(" [FormalPar] ")" "implements" [QU]  "{" [ClassBody] MaybeBlock [ClassBody]  "}" ;
+
+separator ClassBody "" ;
+FieldClassBody. ClassBody       ::= T L ";" ;
+FieldAssignClassBody. ClassBody ::= T L "=" PureExp ";" ;
+MethClassBody. ClassBody        ::= T L "(" [FormalPar] ")" "{" [AnnStm] "}" ; -- braces are required
+
+-- STATEMENTS
+--------------
+SSkip.    Stm  ::= "skip" ";" ;
+SSuspend. Stm  ::= "suspend" ";" ;
+SReturn.  Stm  ::= "return" Exp ";" ;
+SAssert.  Stm  ::= "assert" PureExp ";" ;
+SAwait.  Stm   ::= "await" AwaitGuard ";" ;
+
+SAss.    Stm   ::= L "=" Exp ";" ;
+SFieldAss. Stm ::= "this" "." L "=" Exp ";" ;
+SDec.    Stm   ::= T L ";" ;
+SDecAss. Stm   ::= T L "=" Exp ";" ;
+
+SWhile.  Stm   ::= "while" "(" PureExp ")" AnnStm ;
+SIf.     Stm   ::= "if" "(" PureExp ")" Stm ; -- annstm here makes rr conflict
+SIfElse. Stm   ::= "if" "(" PureExp ")" Stm "else" Stm ; -- annstm here makes rr conflict
+
+SCase. Stm     ::= "case" PureExp "{" [SCaseBranch] "}" ;
+SCaseB. SCaseBranch ::= Pattern "=>" AnnStm ;
+separator nonempty SCaseBranch "" ; -- cannot be empty, does not have to be terminated by ";"
+
+SBlock.  Stm   ::= "{" [AnnStm] "}" ;
+
+SExp.    Stm   ::= Exp ";" ; -- standalone expression
+
+
+
+-- AWAIT GUARDS
+---------------
+GFut. AwaitGuard      ::= L "?" ;
+GFutField. AwaitGuard ::= "this" "." L "?" ;
+GExp. AwaitGuard      ::= PureExp ;
+GAnd. AwaitGuard      ::= AwaitGuard "&" AwaitGuard ;
+
+-- EXPRESSIONS
+--------------
+ExpP. Exp ::= PureExp ;
+ExpE. Exp ::= EffExp ;
+
+-- PURE EXPRESSIONS
+-------------------
+separator PureExp "," ;  -- for passing arguments to function/method calls
+EOr.     PureExp         ::= PureExp "||" PureExp1 ; //can't be pattern matched
+EAnd.    PureExp1        ::= PureExp1 "&&" PureExp2 ; //can't be pattern matched
+EEq.     PureExp2        ::= PureExp2 "==" PureExp3 ;//can't be pattern matched
+ENeq.    PureExp2        ::= PureExp2 "!=" PureExp3 ; //can't be pattern matched
+ELt.     PureExp3        ::= PureExp3 "<" PureExp4 ; //can't be pattern matched
+ELe.     PureExp3        ::= PureExp3 "<=" PureExp4 ; //can't be pattern matched
+EGt.     PureExp3        ::= PureExp3 ">" PureExp4 ; //can't be pattern matched
+EGe.     PureExp3        ::= PureExp3 ">=" PureExp4 ; //can't be pattern matched
+EAdd.    PureExp4        ::= PureExp4 "+" PureExp5 ; //can't be pattern matched
+ESub.    PureExp4        ::= PureExp4 "-" PureExp5 ; //can't be pattern matched
+EMul.    PureExp5        ::= PureExp5 "*" PureExp6 ; //can't be pattern matched
+EDiv.    PureExp5        ::= PureExp5 "/" PureExp6 ; //can't be pattern matched
+EMod.    PureExp5        ::= PureExp5 "%" PureExp6 ; //can't be pattern matched
+ELogNeg. PureExp6        ::= "~" PureExp6 ; //can't be pattern matched
+EIntNeg. PureExp6        ::= "-" PureExp6 ; //can't be pattern matched
+EFunCall.    PureExp7    ::= QL "(" [PureExp] ")" ;  //return type of function
+ENaryFunCall. PureExp7   ::= QL "[" [PureExp] "]" ;  //return type of function
+EVar.    PureExp7        ::= L ; // var type
+EField.   PureExp7       ::= "this" "." L ; //field type
+ESinglConstr.   PureExp7 ::= QU ; //can't be pattern matched
+EParamConstr. PureExp7   ::= QU "(" [PureExp] ")" ; //can't be pattern matched
+ELit.    PureExp7        ::= Literal ; //can't be pattern matched
+coercions PureExp 7 ;
+
+ELet. PureExp          ::= "let" "(" FormalPar ")" "=" PureExp "in" PureExp ; //can't be pattern matched
+EIf. PureExp           ::= "if" PureExp "then" PureExp "else" PureExp ; then return type
+
+ECase. PureExp         ::= "case" PureExp "{" [ECaseBranch] "}" ; branch return type
+ECaseB. ECaseBranch ::= Pattern "=>" PureExp ; return type
+terminator nonempty ECaseBranch ";" ;
+
+-- PATTERN MATCHING
+-------------------
+
+separator Pattern "," ;
+PLit. Pattern         ::= Literal ;
+PVar. Pattern         ::= L ;
+PSinglConstr. Pattern ::= QU ;
+PParamConstr. Pattern ::= QU "(" [Pattern] ")" ;
+PWildCard. Pattern    ::= "_" ;
+
+
+-- EFFECTFUL EXPRESSIONS
+------------------------
+New. EffExp               ::= "new" QU "(" [PureExp] ")" ;
+NewLocal. EffExp          ::= "new" "local" QU "(" [PureExp] ")" ;
+SyncMethCall. EffExp      ::= PureExp "." L "(" [PureExp] ")" ;
+ThisSyncMethCall. EffExp  ::= "this" "." L "(" [PureExp] ")" ; -- needed because of ambiguity with PureExp.EThis
+AsyncMethCall. EffExp     ::= PureExp "!" L "(" [PureExp] ")" ;
+AwaitMethCall. EffExp     ::= "await" PureExp "!" L "(" [PureExp] ")" ;
+Get. EffExp               ::= PureExp "." "get" ;
+
+
+-- ANNOTATIONS
+--------------
+Annotation. Ann ::= "[" Ann_ "]";
+separator Ann "" ;
+
+AnnNoType.   Ann_ ::= PureExp  ;
+AnnWithType. Ann_ ::= T ":" PureExp ;
+
+AnnStatement. AnnStm ::= [Ann] Stm;
+separator AnnStm "" ;
+
+AnnDeclaration. AnnDecl ::= [Ann] Decl;
+separator AnnDecl "" ;
+
+-- missing: classbody and type annotations
+-- both yield many rr conflicts
+
+-- EXTENSION, Input/Output
+SPrint. Stm      ::= "print" PureExp ";" ;
+SPrintln. Stm    ::= "println" PureExp ";" ;
+Readln. EffExp     ::= "readln" "(" ")" ";" ;
+
+
+-- EXTENSION, EXCEPTIONS
+------------------------
+DException. Decl ::= "exception" ConstrIdent ";" ;
+SThrow. Stm           ::= "throw" PureExp ";" ;
+STryCatchFinally. Stm ::= "try" AnnStm "catch" "{" [SCaseBranch] "}" MaybeFinally ;
+
+JustFinally. MaybeFinally ::= "finally" AnnStm ;
+NoFinally. MaybeFinally   ::= ;
+
+
+-- EXTENSION, PROMISES
+------------------------
+SGive. Stm ::= PureExp "." "pro_give" "(" PureExp ")" ";" ; -- habs-only
+ProNew. EffExp ::= "pro_new" ; -- habs-only
+ProTry. EffExp ::= PureExp "." "pro_try" ; -- habs-only
+
+-- EXTENSION, DC
+----------------
+LThisDC.  Literal ::= "thisDC" ;
+
+
+-- EXTENSION, REALTIME
+SDuration. Stm ::= "duration" "(" PureExp "," PureExp ")" ";" ;
+GDuration. AwaitGuard ::= "duration" "(" PureExp "," PureExp ")" ;
+Now. EffExp ::= "now" "(" ")" ; -- habs doesn't put it in StdLib, because then it breaks the purity of ABS functions
+
+-- UTILS 
+--------------
+JustBlock. MaybeBlock ::= "{" [AnnStm] "}" ;
+NoBlock.   MaybeBlock ::=  ;
+

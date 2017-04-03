@@ -1,0 +1,36 @@
+module Await;
+def Int maxi() = 10000000;
+interface IA{
+	Unit m1();
+	Unit m2();
+}
+
+class A implements IA {
+	Int i = 0;
+	Bool b = False;
+	Unit m1(){
+		this!m2();
+		while (i<maxi()) {
+			await b == True;
+			i = i + 1;
+			b = False;
+		}
+		println("Done1");
+	}
+
+	Unit m2(){
+		while (i<maxi()) {
+			await b == False;
+			i = i + 1;
+			b = True;
+		}
+		println("Done2");
+		
+	}
+}
+
+{
+	IA a = new A();
+	Fut<Unit> f = a!m1();
+	f.get;
+}

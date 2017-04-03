@@ -11,7 +11,7 @@ import abs.api.cwi.ABSFutureTask;
  * Some ABS types have an equivalent proper Java type. This is function to be
  * able to translate those.
  */
-class JavaTypeTranslator implements Function<String, String> {
+class ScalaTypeTranslator implements Function<String, String> {
 
 	private final Map<String, String> absTypes = new HashMap<>();
 	private final Map<String, String> abstractTypes = new HashMap<>();
@@ -19,7 +19,7 @@ class JavaTypeTranslator implements Function<String, String> {
 	private final Map<String, String> staticTypes = new HashMap<>();
 	private final Map<String, String> remoteNames = new HashMap<>();
 
-	public JavaTypeTranslator() {
+	public ScalaTypeTranslator() {
 		fillABSTypes(absTypes);
 		fillFunctionalTypes(functionalTypes);
 	}
@@ -67,26 +67,15 @@ class JavaTypeTranslator implements Function<String, String> {
 	}
 
 	protected void fillABSTypes(final Map<String, String> types) {
-		types.put("Int", Integer.class.getName());
-		types.put("Rat", Double.class.getName());
-		types.put("Bool", Boolean.class.getName());
-		types.put("ABS.StdLib.Map", Map.class.getName());
-		types.put("Unit", "void");
+		types.put("Rat", "Double");
+		types.put("Bool", "Boolean");
 		types.put("Fut", ABSFutureTask.class.getSimpleName());
-		types.put("Maybe", Optional.class.getSimpleName());
-		types.put("Nothing", "null");
-		types.put("toString", "Functional.toString");
-
+		//types.put("Set", "TreeSet");		
 	}
 
 	protected void fillFunctionalTypes(final Map<String, String> types) {
-		types.put("Nil", "Nil()");
-		types.put("EmptyList", "EmptyList()");
-		types.put("EmptySet", "EmptySet()");
-		types.put("EmptyMap", "EmptyMap()");
 		types.put("True", "true");
 		types.put("False", "false");
-		
 
 	}
 

@@ -1,0 +1,250 @@
+module DataTest;
+
+data SignalState = FAHRT | STOP | SLOW | NOSIG;
+
+type Price = Rat;
+
+data Route = ARoute(Rat departure, Maybe<Destination> city);
+data Goal = AGoal(Rat availableSince, Rat deadline, Maybe<Destination> dest);
+type Belief = Price; // Budget for biddingagent = its belief base
+type BeliefBase = Map<Route, Price>; // bb for auctioneeragent
+type GoalBase = Set<Goal>;
+
+
+// ["JavaExternClass":"nl.prorail.soft.simulation.Destination"]
+interface Destination {
+    String getName();
+    Rat getDrivingTimeFromRtm();
+    Rat getCostToDriveToDestination();
+}
+
+// interface or data type?
+interface BiddingInfo{
+    String getId();
+    Goal getGoal();
+    Price getBudget();
+    Rat getArrivalTime();
+    Rat getDeadline();
+    Unit setPaidPrice(Price price);
+    Price getPaidPrice();
+    AuctioneerInfo asAuctioneer();   // a bidding agent can become an auctioneer (for trains) -- container returns null
+}
+
+interface AuctioneerInfo{
+    Int getNumberOfWinners();
+}
+
+
+
+data Message = 
+  Announce(Agent announceCaller, Route toSell, Price price) | 
+  Bid(Agent bidCaller, Route toBuy, Price bid) |
+  Sold(Agent soldCaller, Route soldItem) |
+  Result(Set<Agent> winners, List<Price> prices, List<Agent> unhappy);
+
+
+// a number that says how much the bidder is interested: if the bidder has time then it bids less
+// RESULT RANGE: (0,1] , 1 most interested    
+
+
+// risk and timeFit must be between 0..1 so that bid stays between min and budget
+// risk is a parameter of every bidderagent given by DSOL
+def Price bidStrategy(Price min, Price budget, Rat timeFit, Rat risk) =
+    if (budget < min) then
+        0
+    else if (timeFit <= 0) then
+        timeFit                // means either not interested or unhappy
+    else
+	min + (budget - min) * timeFit * risk;
+	
+	
+// a number that says how much the bidder is interested: if the bidder has time then it bids less
+// RESULT RANGE: (0,1] , 1 most interested    
+def Rat strictFit(Goal g, Route r) = 
+    case g {
+	AGoal(arrival, deadline, goalDest) => case r {
+	    ARoute(time, dest) =>
+            if (time > deadline) then
+	        -1
+            else if ( (dest == goalDest)  && (arrival <= time)) then
+	        (time - arrival + 1) / (deadline - arrival + 1)   // deadline missed == no point in going anymore
+	    else
+	        0;
+	};
+    };
+
+//else if ((dest == goalDest || (! (isJust(dest))) || (! (isJust(goalDest)))) && (arrival <= time)) then
+interface Agent {
+    Unit message(Message m);
+}
+
+interface AuctionOrganizer {
+    // TODO: create trains and containers agents
+    Unit init(List<BiddingInfo> trains, List<BiddingInfo> containers);
+    // organize two auctions by creating 
+    Unit start(Rat timeSlot, DSOL caller);
+}
+
+class AuctionOrganizerAgent implements AuctionOrganizer {
+    Unit init(List<BiddingInfo> trains, List<BiddingInfo> containers){
+	//Agent t = new BiddingAgent(Pair(Route(900, Nothing), 10));
+    }
+    Unit start(Rat timeSlot, DSOL caller){
+	    // new AuctioneerAgent (for the 1 train)
+
+        // await for the auction results
+
+        // new AuctioneerAgent (for the containers)
+
+        // await
+
+        // send it to DSOL through done
+    }
+}
+
+interface DSOL {
+    Unit done(Rat timeSlot, Destination dest, AuctioneerInfo tr, List<BiddingInfo> winnerContainers, List<BiddingInfo> unhappyTrains, List<BiddingInfo> unhappyContainers);
+}
+
+class BiddingAgent(Belief init_value, Goal init_goal, Rat risk) implements Agent {
+    Belief belief = init_value;
+    Set<Goal> goals = insertElement(EmptySet,init_goal);
+    
+
+    Unit message(Message m) {
+	case m {
+	    Announce(caller, slot, price) =>  {
+		println("Received announce");
+		Price budget = belief;
+		if (goals != EmptySet) {
+			Goal goal = take(goals);   // we have only one goal, we assume for now it's only 1 and same
+			Rat timeFit = strictFit(goal, slot);
+			Price myOffer = bidStrategy(price, budget, timeFit, risk);
+			if (myOffer < 0) {
+			    goals = EmptySet;   // unhappy
+			} else{ if (myOffer > 0) {   // zero bid == not interested
+			    Fut<Unit> f = caller ! message(Bid(this, slot, myOffer));
+			    await f?;  // alternative: return the bid value
+			}}
+		}
+	    }
+	    Sold(caller, slot) => {
+		println("I won the auction for: $slot "); 
+		goals = EmptySet;
+	    }
+	    _ => { println("Unexpected message."); }
+	}
+    }
+}
+
+class AuctioneerAgent(BeliefBase itemValues, Set<Route> init_goals, Set<Agent> bidderList, Int numWinners, Agent organizer) implements Agent {
+   BeliefBase beliefs = itemValues;	// what I think items are worth
+   Set<Route> goals = init_goals;
+   
+   Map<Route, Pair<Agent, Price>> winners = map[];
+   
+   Unit message(Message m) {
+       case m { 
+          Bid(caller, slot, price) =>  {
+              println("Received a bid.");
+              case lookup(winners, slot) {
+		  Just(Pair(topAgent, topPrice)) => {
+              // TODO: keep track of unhappy agents (returned -1) in a list and return it to AuctonOrganizer.done()
+              // TODO: keep a list of winners and their bids (+ 1 spot) because there are multiple winners
+                      if (price > topPrice) {	// if equal we favor the first bid 
+			  winners = put(winners, slot, Pair(caller, price));	// replace with the new top bid
+                      }
+		  }
+		  Nothing => {
+		      Price min = case lookup(beliefs, slot) {
+			  Just(value) =>  value;
+			  Nothing =>  0; 	// if no value is known, we sell it for any price 
+		      };
+		      if (price >= min) {winners = put(winners, slot, Pair(caller, price)); }// first bid
+		  }
+	      }
+	  }
+          _ => { println("Unexpected message."); }
+      }
+   }
+   Unit goal_rule(Route g) {
+       println("Starting an auction.");
+       Maybe<Price> maybe = lookup(beliefs, g);
+       Price p = case maybe {
+	   Just(value) =>  value;
+	   Nothing =>  0; 	// if no value is known, we sell it for any price
+       };
+       println(" inform all bidders");
+       Set<Agent> iBidder = bidderList;
+       List<Fut<Unit>> toBid = Nil;
+       while (hasNext(iBidder)) {
+	   case next(iBidder) {
+               Pair(rest, b) => {
+		   println("Announcing item: ");
+		   iBidder = rest;
+		   Fut<Unit> f = b ! message(Announce(this, g, p));
+		   toBid = Cons(f, toBid);
+               }
+               _ => {println("next is not there?");}
+	   }
+     }
+     println("All informed. Now waiting");
+     // can I await for all futures in one go?
+     while (toBid != Nil) {
+       println("going to await");
+       case toBid {
+         Cons(f, fs) => {
+           await f?;
+           toBid = fs;
+         }
+       }
+     }
+     // TODO: Bids are sent, but maybe not yet processed?
+     println("Now all bids are received ");
+     // TODO: match from winners list winner(i) with bid(winner(i+1))
+     case lookup(winners, g) {
+       Just(Pair(winningAgent, price)) => {
+         if (winningAgent == null) {
+           println("No winner!");
+           // should we reduce the expected price? Anyway, with the current bidding strategy, it has no effect
+         } else {
+           println("Sold for the price of: "+ intToString(price));
+           winningAgent ! message(Sold(this, g));
+           goals = remove(goals, g); // will add again if not sold?
+           // TODO: inform organizer (list of winners and list of unhappy)
+         }
+       }
+       Nothing => { println("What?"); }
+     }
+   }
+   
+  Unit run() {
+    println("Auctioneer started.");
+    while(this.goals != EmptySet) {
+      // in Haskell: mapM(goal_rule, this.goals);
+      // in plain ABS
+      Set<Route> iGoals = this.goals;
+      List<Fut<Unit>> goalFutures = Nil;
+      while (hasNext(iGoals)) {
+        case next(iGoals) {
+          Pair(rest, g) => {
+            iGoals = rest;
+            Fut<Unit> f = this ! goal_rule(g);
+            goalFutures = Cons(f,goalFutures);
+          }
+        }
+      }
+      println("Auctioneer finished the goals!");
+      while (goalFutures != Nil) {
+        case goalFutures {
+          Cons(f, fs) => {
+            await f?;
+            goalFutures = fs;
+          }
+        }
+      }
+    }
+  }
+}
+
+
