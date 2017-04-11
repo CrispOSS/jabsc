@@ -9,6 +9,7 @@ import java.io.Writer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.util.AbstractMap;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -249,7 +250,7 @@ class ScalaVisitor extends AbstractVisitor<Prog, ScalaWriter> {
 
 		List<String> justT = new ArrayList<>();
 		justT.add("A");
-		paramConstructs.put("Just", justT);
+		paramConstructs.put("Some", justT);
 		List<String> consT = new ArrayList<>(justT);
 		consT.add("List[A]");
 		paramConstructs.put("Cons", consT);
@@ -274,8 +275,8 @@ class ScalaVisitor extends AbstractVisitor<Prog, ScalaWriter> {
 		paramConstructs.put("Triple", tripleT);
 
 		List<String> maybe = new ArrayList<>();
-		maybe.add("Just");
-		caseTypeConstructs.put("Maybe", maybe);
+		maybe.add("Some");
+		caseTypeConstructs.put("Option", maybe);
 
 		List<String> cons = new ArrayList<>();
 		cons.add("Cons");
@@ -352,7 +353,7 @@ class ScalaVisitor extends AbstractVisitor<Prog, ScalaWriter> {
 			functionsWriter.emitPackage(packageName);
 			// jw.emitStaticImports(DEFAULT_STATIC_IMPORTS_PATTERNS);
 			functionsWriter.emitEmptyLine();
-			//functionsWriter.emitImports(DEFAULT_IMPORTS);
+			// functionsWriter.emitImports(DEFAULT_IMPORTS);
 			visitImports(m.listimport_, functionsWriter);
 			// jw.emitImports(DEFAULT_IMPORTS_PATTERNS);
 			emitPackageLevelImport(functionsWriter);
@@ -462,18 +463,65 @@ class ScalaVisitor extends AbstractVisitor<Prog, ScalaWriter> {
 
 	@Override
 	public Prog visit(StarFromImport sfi, ScalaWriter w) {
-		
+
 		String type = getQTypeName(sfi.qu_, false);
-		StringBuilder lctype = new StringBuilder();
-	    lctype.append(type.substring(0, 1).toLowerCase());
-	    lctype.append(type.substring(1));
 		try {
-			w.emitImports(lctype + ALL_IMPORTS);
+			w.emitImports(type.toLowerCase() + ALL_IMPORTS);
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
 		// this.staticImports.add(this.packageName + "." + type + ".*");
+		return prog;
+	}
+
+	@Override
+	public Prog visit(AnyExport p, ScalaWriter arg) {
+		logNotSupported("#visit(%s): %s", p, p.listqa_);
+		return prog;
+	}
+
+	@Override
+	public Prog visit(AnyFromExport p, ScalaWriter arg) {
+		logNotSupported("#visit(%s): %s", p, p.listqa_);
+		return prog;
+	}
+
+	@Override
+	public Prog visit(StarExport p, ScalaWriter arg) {
+		logNotSupported("#visit(%s)", p);
+		return prog;
+	}
+
+	@Override
+	public Prog visit(StarFromExport p, ScalaWriter arg) {
+		logNotSupported("#visit(%s): %s", p, p.qu_);
+		return prog;
+	}
+
+	@Override
+	public Prog visit(AnyFromImport p, ScalaWriter w) {
+		String type = getQTypeName(p.qu_, false);
+		for (QA qa : p.listqa_) {
+			String object = getQTypeName(qa, false);
+			try {
+				w.emitImports(type.toLowerCase() + "." + object + ALL_IMPORTS);
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+		}
+
+		return prog;
+	}
+
+	@Override
+	public Prog visit(YesForeign fi, ScalaWriter arg) {
+		return prog;
+	}
+
+	@Override
+	public Prog visit(NoForeign ni, ScalaWriter arg) {
 		return prog;
 	}
 
@@ -729,6 +777,15 @@ class ScalaVisitor extends AbstractVisitor<Prog, ScalaWriter> {
 		TreeSet<VarDefinition> methodScope = new TreeSet<>();
 		variablesInScope.push(methodScope);
 
+		if (!variablesBeforeBlock.isEmpty()) {
+			for (VarDefinition vd : variablesBeforeBlock) {
+				if (!variablesInScope.isEmpty()) {
+					variablesInScope.peek().add(vd);
+				}
+			}
+			variablesBeforeBlock.clear();
+		}
+
 		StringWriter scopesw = new StringWriter();
 		ScalaWriter scopew = new ScalaWriter(scopesw);
 		scopew.isScope = true;
@@ -853,21 +910,12 @@ class ScalaVisitor extends AbstractVisitor<Prog, ScalaWriter> {
 
 					branch.pattern_.accept(this, scopew);
 
-					TreeSet<VarDefinition> blockScope = new TreeSet<>();
-					variablesInScope.push(blockScope);
-
-					if (!variablesBeforeBlock.isEmpty()) {
-						for (VarDefinition vd : variablesBeforeBlock) {
-							if (!variablesInScope.isEmpty()) {
-								variablesInScope.peek().add(vd);
-							}
-						}
-						variablesBeforeBlock.clear();
-					}
+					// TreeSet<VarDefinition> blockScope = new TreeSet<>();
+					// variablesInScope.push(blockScope);
 
 					List<ScalaWriter> innerAwaits1 = continuation(caseBlock.listannstm_, new LinkedList<>(), false);
 
-					variablesInScope.pop();
+					// variablesInScope.pop();
 
 					currentMethodWriters.addAll(innerAwaits1);
 
@@ -1773,7 +1821,9 @@ class ScalaVisitor extends AbstractVisitor<Prog, ScalaWriter> {
 			varType = VOID_PRIMITIVE_NAME.equals(varType) ? Object.class.getSimpleName() : varType;
 			String varName = p.l_;
 			VarDefinition vd = createVarDefinition(varName, varType);
+
 			if ((w.continuationLevel > -1 || w.avoidDuplicates)) {
+				System.out.println(varName + " " + "w_" + awaitCounter + "$" + varName);
 				w.duplicateReplacements.peek().put(varName, "w_" + awaitCounter + "$" + varName);
 			}
 
@@ -2393,45 +2443,6 @@ class ScalaVisitor extends AbstractVisitor<Prog, ScalaWriter> {
 	 * @Override public Prog visit(AnyTyIden p, JavaWriter arg) {
 	 * logNotImplemented("#visit(%s)", p); return prog; }
 	 */
-	@Override
-	public Prog visit(AnyExport p, ScalaWriter arg) {
-		logNotSupported("#visit(%s): %s", p, p.listqa_);
-		return prog;
-	}
-
-	@Override
-	public Prog visit(AnyFromExport p, ScalaWriter arg) {
-		logNotSupported("#visit(%s): %s", p, p.listqa_);
-		return prog;
-	}
-
-	@Override
-	public Prog visit(StarExport p, ScalaWriter arg) {
-		logNotSupported("#visit(%s)", p);
-		return prog;
-	}
-
-	@Override
-	public Prog visit(StarFromExport p, ScalaWriter arg) {
-		logNotSupported("#visit(%s): %s", p, p.qu_);
-		return prog;
-	}
-
-	@Override
-	public Prog visit(AnyFromImport p, ScalaWriter arg) {
-		logNotSupported("#visit(%s): %s", p, p.listqa_);
-		return prog;
-	}
-
-	@Override
-	public Prog visit(YesForeign fi, ScalaWriter arg) {
-		return prog;
-	}
-
-	@Override
-	public Prog visit(NoForeign ni, ScalaWriter arg) {
-		return prog;
-	}
 
 	@Override
 	public Prog visit(TInfer p, ScalaWriter arg) {
@@ -2512,7 +2523,8 @@ class ScalaVisitor extends AbstractVisitor<Prog, ScalaWriter> {
 			w.emitEmptyLine();
 			Set<Modifier> mods = new HashSet<>(DEFAULT_MODIFIERS);
 			mods.add(Modifier.ABSTRACT);
-//			String parentOrder = String.format("%s[%s]", ORDERED_INTERFACE_CLASS, dd.u_);
+			// String parentOrder = String.format("%s[%s]",
+			// ORDERED_INTERFACE_CLASS, dd.u_);
 			beginElementKind(w, ElementKind.CLASS, dd.u_, mods, null, null);
 			w.endType();
 
@@ -2545,7 +2557,8 @@ class ScalaVisitor extends AbstractVisitor<Prog, ScalaWriter> {
 
 						if (pars.length == 2) {
 							parameters.add(pars[1]);
-							functionsWriter.beginMethod(pars[0], pars[1], DEFAULT_MODIFIERS, dd.u_, dd.u_.toLowerCase() + "par");
+							functionsWriter.beginMethod(pars[0], pars[1], DEFAULT_MODIFIERS, dd.u_,
+									dd.u_.toLowerCase() + "par");
 							functionsWriter.beginControlFlow("%s match", dd.u_.toLowerCase() + "par");
 							StringBuilder matchList = new StringBuilder();
 							for (int i = 0; i < pci.listconstrtype_.size(); i++) {
@@ -2591,9 +2604,8 @@ class ScalaVisitor extends AbstractVisitor<Prog, ScalaWriter> {
 
 			Set<Modifier> mods = new HashSet<>(DEFAULT_MODIFIERS);
 			mods.add(Modifier.ABSTRACT);
-			beginElementKind(w, ElementKind.CLASS, String.format("%s%s", dpd.u_, dpd.listu_), mods,
-					null, null);
-			//ORDERED_INTERFACE_CLASS + "[" + dpd.u_ + dpd.listu_ + "]"
+			beginElementKind(w, ElementKind.CLASS, String.format("%s%s", dpd.u_, dpd.listu_), mods, null, null);
+			// ORDERED_INTERFACE_CLASS + "[" + dpd.u_ + dpd.listu_ + "]"
 			w.endType();
 
 			caseTypeConstructs.put(dpd.u_, new ArrayList<>());
@@ -2741,10 +2753,11 @@ class ScalaVisitor extends AbstractVisitor<Prog, ScalaWriter> {
 				 */
 			}
 			Set<Modifier> modifiers = Sets.newHashSet(Modifier.PUBLIC, Modifier.STATIC);
-			/*List<String> generics = new LinkedList<>();
-			for (String modifier : fpd.listu_) {
-				generics.add(modifier + "<:" + ORDERED_INTERFACE_CLASS + "[" + modifier + "]");
-			}*/
+			/*
+			 * List<String> generics = new LinkedList<>(); for (String modifier
+			 * : fpd.listu_) { generics.add(modifier + "<:" +
+			 * ORDERED_INTERFACE_CLASS + "[" + modifier + "]"); }
+			 */
 			w.beginMethod(methodType, methodName + fpd.listu_, modifiers, parameters.toArray(new String[0]));
 			FunBody fbody = fpd.funbody_;
 			if (fbody instanceof BuiltinFunBody) {
@@ -2945,10 +2958,10 @@ class ScalaVisitor extends AbstractVisitor<Prog, ScalaWriter> {
 			String name = getQTypeName(f.ql_, false);
 			if (fromCase)
 				caseKey = findMethodReturnType(name, "Functions", params);
-			w.emit(name);
+			w.emit(name.equals("toString") ? "" : name);
 			w.emit("(");
 			w.emit(String.join(COMMA_SPACE, params));
-			w.emit(")");
+			w.emit(")" + (name.equals("toString") ? ".toString()" : ""));
 			return prog;
 		} catch (IOException e) {
 			throw new RuntimeException(e);
@@ -2998,7 +3011,9 @@ class ScalaVisitor extends AbstractVisitor<Prog, ScalaWriter> {
 				w.emit("new " + type + "()");
 			} else {
 				String refinedType = getRefindDataDeclName(resolvedType);
-				w.emit(refinedType + (refinedType.equals("false") || refinedType.equals("true") ? "" : "()"));
+				String terminator = refinedType.equals("false") || refinedType.equals("true")
+						|| refinedType.equals("None") ? "" : "()";
+				w.emit(refinedType + terminator);
 				if (isData) {
 					w.emit(".INSTANCE");
 				}
@@ -3073,7 +3088,8 @@ class ScalaVisitor extends AbstractVisitor<Prog, ScalaWriter> {
 		try {
 			String resolvedType = javaTypeTranslator.translateFunctionalType(getQTypeName(p.qu_, false));
 			String t = getRefindDataDeclName(resolvedType);
-			w.emit(t + (t.equals("false") || t.equals("true") ? "" : "()"));
+			String terminator = t.equals("false") || t.equals("true") || t.equals("None") ? "" : "()";
+			w.emit(t + terminator);
 			if (this.dataDeclarations.containsKey(p.qu_)) {
 				w.emit(".INSTANCE");
 			}
@@ -3411,12 +3427,14 @@ class ScalaVisitor extends AbstractVisitor<Prog, ScalaWriter> {
 		}
 
 		else {
+			resultVarName = getDuplicate(resultVarName, w);
+
 			String javaMethodCall = String.format("%s.%s(%s)", calleeId, methodName, String.join(COMMA_SPACE, params));
 			if (resultVarName != null) {
 				if (isDefined)
 					w.emit(String.format("%s = %s", resultVarName, javaMethodCall), true);
 				else
-					w.emit(String.format("%s %s = %s", potentialReturnType, resultVarName, javaMethodCall), true);
+					w.emit(String.format("var %s : %s = %s", resultVarName, potentialReturnType, javaMethodCall), true);
 
 			} else {
 				w.emit(javaMethodCall, true);
@@ -4209,7 +4227,7 @@ class ScalaVisitor extends AbstractVisitor<Prog, ScalaWriter> {
 			while (qtyp.qu_ instanceof QU_) {
 				sb.append(".");
 				sb.append(((QU_) qtyp).u_);
-				qtyp = (QU_) qtyp.qu_;				
+				qtyp = (QU_) qtyp.qu_;
 			}
 			sb.append(".");
 			sb.append(((U_) qtyp.qu_).u_);
@@ -4242,6 +4260,7 @@ class ScalaVisitor extends AbstractVisitor<Prog, ScalaWriter> {
 				sb.append(((QL_) qtyp).u_);
 				qtyp = (QL_) qtyp.ql_;
 			}
+			sb.append(".");
 			sb.append(((L_) qtyp.ql_).l_);
 			if (!isTopLevel)
 				return translate(sb.toString());
@@ -4272,10 +4291,13 @@ class ScalaVisitor extends AbstractVisitor<Prog, ScalaWriter> {
 				sb.append(((QA_) qtyp).u_);
 				qtyp = (QA_) qtyp.qa_;
 			}
-			if (qtyp.qa_ instanceof UA)
+			if (qtyp.qa_ instanceof UA) {
+				sb.append(".");
 				sb.append(((UA) qtyp.qa_).u_);
-			else
+			} else {
+				sb.append(".");
 				sb.append(((LA) qtyp.qa_).l_);
+			}
 			if (!isTopLevel)
 				return translate(sb.toString());
 			else

@@ -1,0 +1,154 @@
+module NQueens;
+
+import Functions from Absstdlib;
+import * from Absstdlib;
+/*
+This Savina benchmark searches for k solutions to the N queens problem.
+To search different size checcboards, change the value of "size" in the main block (between 1 and 20)
+
+Solution by Einar Broch Johnsen, 8 April 2017
+*/
+
+// Functions
+// Code to check if a candidate solution is valid
+// boardValid should be called as boardValid(0, list, length(list))
+def Bool boardValid(Int i, List<Int> board, Int lengthList) =
+case board {
+    Nil => True;
+    Cons(h,t) => if (i==lengthList)
+                 then check(h,t,i,i+1,lengthList)
+                 else check(h,t,i,i+1,lengthList) && (boardValid(i+1,t,lengthList));
+};
+
+def Bool check(Int p,List<Int> b, Int i, Int j, Int lengthList) =
+case b {
+    Nil => True;
+    Cons(q,t) =>  if j==lengthList
+                  then not(q==p || q == p - (j - i) || q == p + (j - i)) 
+                  else not(q==p || q == p - (j - i) || q == p + (j - i)) && check(p,t, i, j+1,lengthList);
+    };
+
+// Interfaces
+interface IMaster {
+    Unit sendWork(List<Int> list, Int depth, Int priorities);
+    Unit success();
+}
+
+
+interface IWorker {
+    Unit  nqueensKernelPar(List<Int> list, Int depth, Int priority);
+}
+
+// Classes
+class Master (Int numWorkers, Int priorities, Int solutionsLimit, Int threshold, Int size) implements IMaster {
+  List<IWorker> workers = Nil;
+  Int messageCounter = 0;
+  Int numWorkersTerminated = 0;
+  Int numWorkSent = 0;
+  Int numWorkCompleted = 0;
+  Int resultCounter = 0;
+  List<Int> solutions = Nil;
+  
+  {
+      println("Boardsize = " + toString(size) + ", number of solutions should be " + toString(solutionsLimit));
+      Int i = 0;
+      while (i <= numWorkers) {
+	  IWorker w = new Worker(this,threshold,size);
+	  workers = Cons(w,workers);
+	  i = i+1;
+      }
+      println("All workers created!");
+      this!sendWork(Nil, 0, priorities); // triggers computation
+  }
+
+  Unit success(){
+      resultCounter = resultCounter+1;
+      // println("Found solution nr "+toString(resultCounter));
+      if (resultCounter == solutionsLimit) {
+	  println("Found " + toString(resultCounter) + " solutions");
+	  println("Program successfully completed!");
+      }
+  }
+  
+  Unit sendWork(List<Int> list, Int depth, Int priorities){
+  	  //println("M: Sending work " + toString(list) + " depth "+ toString(depth)+" priority "+ toString(priority));	
+      Fut<Unit> f = nth(workers,messageCounter)!nqueensKernelPar(list,depth,priorities);
+      messageCounter = (messageCounter + 1) % numWorkers;
+      await f? ;
+      numWorkCompleted = numWorkCompleted + 1;
+  }
+}
+
+class Worker(IMaster master, Int threshold, Int size) implements IWorker {
+    Unit nqueensKernelPar(List<Int> list, Int depth, Int priority) {
+	//println("W: Working " + toString(list) + " depth "+ toString(depth)+" priority "+ toString(priority));
+	//println("W: Size "+ toString(size)+ " threshold " + toString(threshold));
+	Int i = 0;
+	if (size != depth) { 
+	    if (depth >= threshold) {
+		this.nqueensKernelSeq(list, depth);
+		} else {
+		    while (i < size) {
+			List<Int> newlist = appendright(list,i);
+			if (boardValid(0, newlist,depth+1)) {
+				//println("W: Send to master "+ toString(newlist) + " depth "+ toString(depth)+" priority "+ toString(priority));
+			    master!sendWork(newlist,depth+1,priority-1); // send new job to Master
+			}
+			i = i+1;
+		    }
+		    //println("Completing in parallel" + toString(i));
+		}
+		} else {
+		    master!success();
+		}
+	    }
+  
+  Unit nqueensKernelSeq(List<Int> list, Int depth) {
+      Int i = 0;
+      if (size != depth) {
+	  while (i < size) {
+	      List<Int> newlist = appendright(list,i);
+	      if (boardValid(0, newlist,depth+1)) {
+		  this.nqueensKernelSeq(newlist, depth+1);
+	      }
+	      i=i+1;
+	  }
+      } else {
+	  master!success();
+      }
+  }
+ 
+    
+
+}
+// Main block:
+{
+    Int numWorkers = 20; // NQueensConfig.NUM_WORKERS
+    Int priorities = 10; // NQueensConfig.PRIORITIES
+    Int size = 15; // size of the chess board
+    Int threshold = 4; // cut-off value for sequential computation in the Workers
+    List<Int> solutions = Nil; // targeted k number of solutions
+    solutions=appendright(solutions, 1);
+	solutions=appendright(solutions, 0);
+	solutions=appendright(solutions, 0);
+	solutions=appendright(solutions, 2);
+	solutions=appendright(solutions, 10); // 5
+	solutions=appendright(solutions, 4);
+	solutions=appendright(solutions, 40);
+	solutions=appendright(solutions, 92);
+	solutions=appendright(solutions, 352);
+	solutions=appendright(solutions, 724); //10
+	solutions=appendright(solutions, 2680);
+	solutions=appendright(solutions, 14200);
+	solutions=appendright(solutions, 73712);
+	solutions=appendright(solutions, 365596);
+	solutions=appendright(solutions, 2279184); // 15
+	solutions=appendright(solutions, 14772512);
+	solutions=appendright(solutions, 95815104);
+	solutions=appendright(solutions, 666090624);
+//	appendright(solutions, 4968057848);
+//	appendright(solutions, 39029188884); // 20
+
+    Int solutionsLimit = nth(solutions,size-1);
+    IMaster master = new Master(numWorkers, priorities, solutionsLimit, threshold, size);
+    }
