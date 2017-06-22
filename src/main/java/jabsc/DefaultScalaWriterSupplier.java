@@ -6,6 +6,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 
 
+
 public class DefaultScalaWriterSupplier implements JavaWriterSupplier {
 
 	private final PathResolver pathResolver;

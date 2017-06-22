@@ -1,0 +1,1065 @@
+
+/* Model: Multocore architecture with multilelvel caches
+  
+
+   Written by: 
+   Nico Bezirgiannis
+   Shiji Bijo
+   Frank de Bour
+   Einar Broch Johnsen
+   Violet Pun
+   Vlad Serbanescu
+   Lizeth Tapia
+*/
+
+
+module Multicore;
+
+/* TODO LIST
+test all instructions (e.g. choice, spawn)
+a better way to have a dynamic than a hardcoded configuration
+improve the select function with different associativity and randomness
+hits AND misses counting
+from ABS/Encore to SST compiler
+analysis & simulation
+use attribute grammars and msc for verification
+*/
+
+//Source lelvel statements
+data Sst = Read(Ref) | Write(Ref) | Commit(Ref) | Spawn(SstList) | Choice(SstList, SstList) | CommitAll
+           | Loop(SstList,Int); // should be positive integer
+
+// represent sequencial composition 	   
+type SstList = List<Sst>;
+
+// return a pair that constains the next statemement to execute as the first element and the rest of the task as a second element
+def Maybe<Pair<Sst,SstList>> decompose(SstList sstl) =
+              case sstl{
+		  Nil => Nothing;
+		  Cons(h,t) => 
+                     case h {
+			 Choice(s1,s2) => case random(2) {
+			     0 => decompose(concatenate(s1,t));
+			     _ => decompose(concatenate(s2,t));};
+			 Loop(s1,1) => decompose(concatenate(s1,t));
+			 Loop(s1,i) => decompose(concatenate(appendright(s1,Loop(s1,i-1)),t));
+			 _ => Just(Pair(h,t));
+		 };};
+
+// Given a cache, this function select a cache line to be evicted/swaped.
+// This current implementation returns tha first element in the map to be evicted/swaped when there is no more space in the cache
+// If there is space it will returns nothing.
+// Note that this is capturing the behaviour of a fully associative cache.		 
+/*def Maybe<Pair<Address, Status>> select(Memory cache, Int cacheSize, Address a) =
+  if cacheSize > size(keys(cache))
+  then Nothing
+  else case cache {
+        InsertAssoc(p,_) => Just(p);
+        // it will not patternmatch
+        // TODO optimization: 1) return 1 inv address randomly 2) return shared address randomly 3) modified randomly
+  };*/
+
+
+def Maybe<Pair<Address, Status>> select(Memory cache, Int cacheSize, Address a) =
+  if cacheSize > size(keys(cache))
+  then Nothing
+  else 
+      if   thereIsStatus(cache,In) then retrieve(cache,In) 
+      else 
+          if thereIsStatus(cache,Sh) then retrieve(cache,Sh) 
+          else  retrieve(cache,Mo);
+
+def Bool thereIsStatus(Memory cache, Status s) = 
+    case cache {
+        InsertAssoc(Pair(_,s),tail) => True;
+	InsertAssoc(Pair(_,_),tail) => thereIsStatus(tail,s);
+	EmptyMap => False;
+    };
+
+def Maybe<Pair<Address, Status>> retrieve(Memory cache,Status s) = 
+    // if  thereIsStatus(cache,s)
+    // then 
+        case cache {
+            InsertAssoc(Pair(a,s),tail) => Just(Pair(a,s));
+	    InsertAssoc(Pair(_,_),tail) => retrieve(tail,s);
+	    EmptyMap => Nothing; }    ; 
+    // else  Nothing;
+
+	
+
+
+type Ref = Pair<Address, Offset>;
+
+type Address = Int;
+type Offset = Int;
+
+def Address addr(Ref r) = fst(r);
+
+// for ache coherence protocol
+data Status = Sh | Mo | In;
+
+
+type Memory = Map<Address,Status>;
+
+
+//***********************INIT FUNCTION ********************
+
+def Memory createMemory(Int min, Int max, Int interval, Memory m) =
+         case (min<=max){
+		  True => createMemory(min, max-interval, interval, insert(m,Pair(max,Sh)));
+		  False => m;
+	      };
+
+//***********************FUNCTIONS FOR ASSERTIONS********************
+def Bool checkAllSharedInMemory(Memory m) =
+	 case m{
+		  EmptyMap => True;
+		  InsertAssoc(Pair(a,s),t) => (s==Sh)  && checkAllSharedInMemory(t);
+	      };
+	 
+def Bool checkEmtpySchedulerQueue(List<SstList> l) = (l == Nil);
+
+
+	      
+//***********************************************************************
+//***********************CLASS FOR CREATING CONFIGURATIONS ********************
+interface IConfig{
+    
+    Unit runConfig(Int nCores, Int nlevel, Int l1Size , Int maxMem,  SstList sst, Bool printresults);
+    SstList createMain1(Int szTask, Int nTasks);
+    SstList createMain2(Int szTask, Int nTasks);
+ }  
+
+class OConfig() implements IConfig{
+
+    IMemory mem(Int max){
+	Memory m = createMemory(1, max, 1, EmptyMap);
+	assert checkAllSharedInMemory(m);
+	IMemory mm = new OMemory(m);  
+        return mm;	
+ }  
+
+    Pair<List<ICache>,ICache>  createCaches(String cName, IBus bus, IMemory mm, Int l1Size, Int level){
+        List<ICache> caches = Nil;
+        Bool last = True;
+        String name = "";
+	ICache prev = null;
+	while (level > 0) {
+            name = cName+"L"+toString(level);
+	    if (last) {
+		ICache l = new Cache(name, bus,mm,Nothing, l1Size*level);
+		caches = appendright(caches,l);
+		prev = l;
+	        last = False;
+            }else{
+		ICache l = new Cache(name, bus,mm,Just(prev), l1Size*level);
+		caches = appendright(caches,l);
+		prev = l;
+            }
+	    level = level - 1;
+	}
+      return Pair(caches, prev);	
+ }  
+
+Unit runConfig(Int nCores, Int nlevel, Int l1Size,  Int maxMem,  SstList sst, Bool printresults){
+    List<ICore> cores = Nil;
+    List<ICache> caches = Nil;
+    List<ICache> cachesL1 = Nil;
+    String name = "";
+    IMemory mm = await this!mem(maxMem);
+    IScheduler s = new  RRScheduler();
+    IBus bus = new OBus(mm);
+    while (nCores > 0) {
+            name = "C"+toString(nCores);
+	    Pair<List<ICache>, ICache> cacheP = await this!createCaches(name, bus,mm, l1Size,3);
+	    ICache l1 = snd(cacheP); 
+            cachesL1 = appendright(cachesL1,l1);
+	    List<ICache> cachesC = fst(cacheP);
+	    ICore c = new Core(name,s,l1);
+	    cores = appendright(cores,c);
+	    caches = concatenate(caches,cachesC);
+	    nCores = nCores-1;
+    }
+    await bus!addCaches(caches);
+    if (printresults) {println(toString(sst));}
+    await s!putTask(sst);
+
+    await duration(2,2);
+    Memory m = await mm!getMemory();
+    List< SstList> q = await s!getQueue();
+    assert checkAllSharedInMemory(m);
+    assert  checkEmtpySchedulerQueue(q);
+
+   if (printresults) {
+       Int sz = length(cachesL1);
+       while(sz>0){
+	   ICache l = head(cachesL1);
+	   cachesL1 = tail(cachesL1);
+	   await l!printCache();
+	   sz = sz-1;
+       } 
+   }
+
+}
+
+SstList createMain1(Int szTask, Int nTasks){
+    SstList sst = Nil;
+    Int rCounter = 1;
+    Bool read = True;
+    while(nTasks>0){
+	SstList tsst = Nil;
+	Int szt = szTask;
+	read = True;
+	while(szt>0){
+	    if (read){
+		tsst =  appendright(tsst,Read(Pair(rCounter,1)));
+		read = False;
+            }
+	    else{
+		tsst =  appendright(tsst,Write(Pair(rCounter,1)));
+		read = True;
+            }
+	    szt= szt-1;
+            rCounter = rCounter+1;
+        }
+	sst =  appendright(sst,Spawn(tsst));
+	nTasks = nTasks -1;
+    } 
+    return sst;
+}
+
+
+SstList createMain2(Int szTask, Int nTasks){
+    SstList sst = Nil;
+    Int rCounter = 1;
+    Bool read = True;
+    Int interleave =  truncate(szTask/4);
+    while(nTasks>0){
+	SstList tsst = Nil;
+	Int szt = szTask;
+	read = True;
+	while(szt>0){
+	    if (read){
+		tsst =  appendright(tsst,Read(Pair(rCounter,1)));
+		read = False;
+            }
+	    else{
+		tsst =  appendright(tsst,Write(Pair(rCounter,1)));
+		read = True;
+            }
+	    szt= szt-1;
+            rCounter = rCounter+1;
+        }
+	sst =  appendright(sst,Spawn(tsst));
+	rCounter = rCounter -interleave;
+	nTasks = nTasks -1;
+    } 
+    return sst;
+}
+
+
+
+}
+
+
+//***********************IMPLEMENTATION OF MAIN MEMORY ********************************	 
+interface IMemory {
+ Unit fetch(Address b);
+ Unit flush(Address b);
+ Unit printMemory();
+ Unit receiveRdX(Address b);
+ Status getStatus(Address a);
+ Memory getMemory();
+}
+
+class OMemory(Memory mainMemory) implements IMemory{
+    Unit printMemory() {
+	println("Main Memory: "+toString(mainMemory));
+    }
+
+    // a fetch succeed if the memory status is shared, otherwise it suspend.
+    // If it is not shared, is becuase other cache has it in modified. When the cache send the request to fetch, it has also send a signal <<Rd>>
+    // to the other caches, as a consequence it will eventully be flusehd and this method will finish its execution
+    Unit fetch(Address b) {
+	//println("Fetching MM" + toString(b));	
+	Maybe<Status> s = lookup(mainMemory,b);
+	case s {
+	    Nothing => println("Segmentation fault:" + toString(b));
+	    Just(s_) => {if (s_ == In) {
+	            //println("Memory status of " + toString(b) + " is " + toString(fromJust(s)));
+    	            await (lookupDefault(mainMemory,b,In) == Sh);
+		    //println("Memory status of " + toString(b) + " is " + toString(fromJust(s)));		    
+		   } } 
+	     }
+	//println("Fetch MM of " + toString(b) + " finished");
+    }
+
+    // a flush updates the status of a memory address to <<Sh>>
+    Unit flush(Address b) {
+	//println("Flussing MM " + toString(b));
+	case lookup(mainMemory,b) {
+	    Nothing => println("Segmentation fault:" + toString(b));
+	    _ => {mainMemory = put(mainMemory, b,Sh);
+	         // println("Memory status of " + toString(b) + " is " + toString(Sh));
+                 }
+	      }
+	 //println("Flush MM of " + toString(b) + " finished");
+     }
+
+     //  This signal that a cache has modified the content of this address, therefore the data stored in main memory is not longer up-to-date
+     // This is also a kind of lock that guarantee that only up-to-date data can be fetched
+    Unit receiveRdX(Address a) {
+	case lookup(mainMemory,a) {
+      	    Just(Sh) => { 
+      	    	mainMemory = put(mainMemory,a,In);
+      	    }    // TODO check modified case
+		    _ => { 
+		    println("ERROR: we are trying to invalidate something that is already invalid");
+		    }
+		}
+	    }
+	    
+    Status getStatus(Address a) {
+	return lookupDefault(mainMemory,a,In);
+    }
+
+     Memory getMemory(){ return mainMemory; }
+}
+
+
+
+//***********************************************************************
+   
+
+//***********************IMPLEMENTATION OF A GLOBAL SCHEDULER ********************************
+
+
+interface IScheduler {
+ SstList getTask();
+ Unit putTask(SstList t);
+ List<SstList> getQueue();
+}
+
+// this is an implementation if a round robin shceduler
+class RRScheduler implements IScheduler {
+ List<SstList> q = Nil;
+ SstList result = Nil;
+ 
+ SstList getTask() {
+     await q != Nil;
+     result = appendright(head(q),CommitAll);
+     q = tail(q);
+     return result;
+		    	
+ }
+ Unit putTask(SstList newTask) {
+  q = appendright(q,newTask);
+ }
+
+ List<SstList> getQueue(){return q;}
+}
+
+
+
+//***********************************************************************
+   
+
+//***********************IMPLEMENTATION OF A CORE ********************************
+
+interface ICore {}
+
+class Core(String name, IScheduler sched, ICache l1) implements ICore {
+
+    SstList currentTask = Nil;
+ {
+ 	
+   // TODO: not CommitAll in the beginning;
+ }
+    
+// this run method is recurisve and will execute one by one the statments in the cuerrent task 
+ Unit run() {
+
+     Maybe<Pair<Sst,SstList>> t = decompose(currentTask);
+     case t {
+	 Nothing => {currentTask = await sched!getTask();
+	             //println("Core " + toString(name) + " is executing " + toString(currentTask) );
+                    }
+	 Just(p) =>
+	    case fst(p) {
+      		CommitAll => { await l1!commitAll();
+		               //println(toString(fst(p)) + " in core " + toString(name));
+		               currentTask = snd(p);
+	    	          }
+             Read(r) => { await l1 ! read(r);
+			     //println(toString(fst(p))+ " in core " + toString(name));
+			     currentTask = snd(p); }
+	     Write(r) => { await l1 ! write(r);
+			    //println(toString(fst(p)) + " in core " + toString(name));    
+			    currentTask = snd(p); }
+	     Spawn(sst) => { sched!putTask(sst) ;
+		            //println(toString(fst(p)) + " in core " + toString(name));
+		            currentTask = snd(p); }
+	     Commit(r) => { l1 ! commit(r) ;
+			    //println(toString(fst(p)) + " in core " + toString(name));	
+			    currentTask = snd(p); } 	    
+	   }
+	}		
+
+      this ! run();
+     }
+
+ }
+
+
+ 
+//***********************************************************************
+   
+
+//***********************IMPLEMENTATION OF A CACHE ********************************
+ 
+ interface ICache {
+ // from a core to a cache
+ Unit read(Ref r);
+ Unit write(Ref r);
+ Unit commit(Ref r);
+ Unit commitAll();
+
+ // from a cache level to a cache level
+ Status fetch(Address a_in, Maybe<Pair<Address,Status>> m_out);
+ Unit flush(Address b);
+ Unit flushAll();
+
+ // from bus to cache
+ Unit receiveRd(Address b);
+ Unit receiveRdX(Address b);
+ Unit printCache();
+}
+
+
+
+ class Cache(String name, IBus bus, IMemory mainMemory, Maybe<ICache> nextLevel, Int maxSize) implements ICache {
+     // TODO: if Left means we are first/middle
+     // if Right then it means we are LLC   
+     Memory cacheMemory = EmptyMap;
+     //List<Dst> q = Nil;
+
+     Unit printCache() {
+	 println(name + ": " + toString(cacheMemory));
+         case nextLevel {
+	     Nothing => await mainMemory!printMemory();
+	     Just(lNext) => await lNext!printCache();
+         }
+     }
+			  
+
+	 // this is called by the core to the FLC
+         // this method send a signal to the buss which in turn will forward it to the rest of caches. 
+         // a <<Rd>> signal is sent to request a flush in case another cache has a modified version of the requiered cache line with address <<addr(r)>>  
+        Unit read(Ref r) {
+                 
+	    case lookup(cacheMemory,addr(r)) {
+	    	     	Just(Sh) => skip;
+			Just(Mo) => skip;
+                        // if it is not found in the local cache, it is either fetched from the next level cache or from main memory 
+			_ => {cacheMemory = removeKey(cacheMemory,addr(r)); // should work if it exists or not
+			    case nextLevel {
+    			    // if it is fetched from the next level cache, it might require swaping if the cache memory is full
+			    Just(nextCache) => { 
+					
+					Maybe<Pair<Address,Status>> mselected = select(cacheMemory, maxSize, addr(r));
+					Status s = await nextCache!fetch(addr(r),mselected);
+					case mselected {
+					    Nothing => skip;
+					    Just(Pair(swaped_a,_)) => cacheMemory = removeKey(cacheMemory,swaped_a);
+					}
+					cacheMemory = put(cacheMemory, addr(r),s);
+			     }
+                             // if it is fetched from the main memory, it might require eviction if the cache memory is full
+			     _ => { await bus!sendRd(this, addr(r)); 
+				   if (size(keys(cacheMemory)) < maxSize) {
+					await mainMemory!fetch(addr(r));
+				    }
+				    else {
+					 // if the cache line to be evicted is modified, then we need to flush it before eviction
+				   	 case fromJust(select(cacheMemory, maxSize, addr(r))) {
+						     	          Pair(evicted_a,Mo) => 
+                                                                                      { await mainMemory!flush(evicted_a);
+						     	                               cacheMemory = removeKey(cacheMemory,evicted_a);}
+                                                                                       
+						                  Pair(evicted_a,_) => 
+                                                                                       cacheMemory = removeKey(cacheMemory,evicted_a);
+                                                                                       
+                                         }
+				         await mainMemory ! fetch(addr(r));
+				     }
+				     // if the call from the main memory succedd, then we can add the cache line in shared status in the cache memory
+			            cacheMemory = put(cacheMemory,addr(r),Sh);
+				  }}
+		      }
+		  }
+	      
+      	      	 
+	     }
+	 
+
+	 // This is called by the core to the FLC
+         // this method send 2 signals to the buss which in turn will forward it to the rest of caches. 
+         // a <<Rd>> signal is sent to request a flush in case another cache has a modified version of the requiered cache line with address <<addr(r)>>  
+         // after the <<Fetch>> has been executed (in the run method) a <<RdX>> is sent
+         // a <<RdX>> signal is sent to request all the other caches to invalidate their local copy. If it does not succedd, it means that other cache still has a modified copy, therefore we need to restart the call  
+	 Unit write(Ref r) {
+	     case lookup(cacheMemory,addr(r)) {
+      		 Just(Mo) => skip;
+		 Just(Sh) => {
+	    	     Bool b = await bus!sendRdX(this, addr(r));
+		     if (b) {	 
+			 cacheMemory = put(cacheMemory,addr(r),Mo);
+		     }
+		     else {
+			 await this!write(r);
+		     }
+		  }
+		     // q = appendright(q,Fetch(addr(r)));
+                     // cacheMemory = removeKey(cacheMemory,addr(r));
+
+		 _ => {cacheMemory = removeKey(cacheMemory,addr(r)); // should work if it exists or not
+			    case nextLevel {
+    			    // if it is fetched from the next level cache, it might require swaping if the cache memory is full
+			    Just(nextCache) => { 
+					
+					Maybe<Pair<Address,Status>> mselected = select(cacheMemory, maxSize, addr(r));
+					Status s = await nextCache!fetch(addr(r),mselected);
+					case mselected {
+					    Nothing => skip;
+					    Just(Pair(swaped_a,_)) => cacheMemory = removeKey(cacheMemory,swaped_a);
+					}
+					cacheMemory = put(cacheMemory, addr(r),s);
+			     }
+                             // if it is fetched from the main memory, it might require eviction if the cache memory is full
+			     _ => { await bus!sendRd(this, addr(r)); 
+				   if (size(keys(cacheMemory)) < maxSize) {
+					await mainMemory!fetch(addr(r));
+				    }
+				    else 
+				    {
+					 // if the cache line to be evicted is modified, then we need to flush it before eviction
+				   	 case fromJust(select(cacheMemory, maxSize, addr(r))) {
+						     	          Pair(evicted_a,Mo) => 
+                                                                                      { await mainMemory!flush(evicted_a);
+						     	                               cacheMemory = removeKey(cacheMemory,evicted_a);}
+                                                                                       
+						                  Pair(evicted_a,_) => 
+                                                                                       cacheMemory = removeKey(cacheMemory,evicted_a);
+                                                                                       
+                                                                }
+				         await mainMemory ! fetch(addr(r));
+				     }
+				     // if the call from the main memory succedd, then we can add the cache line in shared status in the cache memory
+			            cacheMemory = put(cacheMemory,addr(r),Sh);
+				  }
+			      }
+			      Bool b = await bus ! sendRdX(this, addr(r));
+			      if (b) {
+	      			      cacheMemory = put(cacheMemory,addr(r),Mo);
+				  }
+			      else {
+				      await this!write(r);
+				  }
+			        
+		
+		      }
+
+		  }
+		  	     
+	      }
+
+
+	    // from core to cache
+	    Unit commit(Ref r) {
+		//q = appendright(q,Flush(addr(r)));
+               await this!flush(addr(r));
+ 
+	      }
+	    // from core to cache
+	    Unit commitAll() {
+		//q = Cons(FlushAll,q);
+		await this!flushAll();
+
+	    }
+	    
+	    // from cache to cache
+            // it fetches a cache line from one level down. It may include a swap of cache lines in case the calling cache is full
+            // <<a_in>> is the address to be fetched, <<m_out> is the cache line to be swaped (it will be stored in the callee cache)
+	    Status fetch(Address a_in, Maybe<Pair<Address,Status>> m_out) {
+    		case lookup(cacheMemory,a_in) {
+		   Just(Mo) => skip;
+                   Just(Sh) => skip;
+		   _ => {cacheMemory = removeKey(cacheMemory,a_in); // should work if it exists or not
+			    case nextLevel {
+    			    // if it is fetched from the next level cache, it might require swaping if the cache memory is full
+			    Just(nextCache) => { 
+					
+					Maybe<Pair<Address,Status>> mselected = select(cacheMemory, maxSize, a_in);
+					Status s = await nextCache!fetch(a_in,mselected);
+					case mselected {
+					    Nothing => skip;
+					    Just(Pair(swaped_a,_)) => cacheMemory = removeKey(cacheMemory,swaped_a);
+					}
+					cacheMemory = put(cacheMemory, a_in,s);
+			     }
+                             // if it is fetched from the main memory, it might require eviction if the cache memory is full
+			     _ => { await bus!sendRd(this, a_in); 
+				   if (size(keys(cacheMemory)) < maxSize) {
+					await mainMemory!fetch(a_in);
+				    }
+				    else {
+					 // if the cache line to be evicted is modified, then we need to flush it before eviction
+				   	 case fromJust(select(cacheMemory, maxSize, a_in)) {
+						     	          Pair(evicted_a,Mo) => 
+                                                                                      { await mainMemory!flush(evicted_a);
+						     	                               cacheMemory = removeKey(cacheMemory,evicted_a);}
+                                                                                       
+						                  Pair(evicted_a,_) => 
+                                                                                       cacheMemory = removeKey(cacheMemory,evicted_a);
+                                                                                       
+                                         }
+				         await mainMemory ! fetch(a_in);
+				     }
+				     // if the call from the main memory succedd, then we can add the cache line in shared status in the cache memory
+			            cacheMemory = put(cacheMemory,a_in,Sh);
+				  }}
+		      }
+		  }
+
+                    // at this point, the cache line with address <<a_in>> is in the local cache
+                    // next step is to perform a swap if it is needed
+		  case m_out {  
+		      Nothing => skip;
+		      Just(Pair(a,s)) => cacheMemory = put(cacheMemory, a, s);			    
+		  }
+		  // since we are implementing a multicore with exclusive caches, a cache line can not be in different levels, 
+		  // therefore we need to remove it from the callee cache
+		  Status s_ = lookupDefault(cacheMemory, a_in, In);
+		  cacheMemory = removeKey(cacheMemory,a_in);
+		  return s_;
+	    }
+
+           // from cache to cache 
+           // append a <<Flush>> instruction in the <<q>> queue
+	    Unit flush(Address a) {
+               // q = Cons(Flush(a),q);
+               case lookup(cacheMemory,a) {
+               // if it is found in the cache and is modified, then it flushes directly to the main memory (independent of the level)
+	       Just(Mo) => {
+		   await mainMemory!flush(a);
+		   cacheMemory = put(cacheMemory,a,Sh);
+		   //println("Address " + toString(a) + " has been flushed from "+ name);
+		   }
+                 // if it is not found on the cache, it forwards the flush to the next level. 
+                 //This is because we are implementing a cache exclusive multilevel architecture
+		 Nothing => case nextLevel {
+			  	     	  Just(nextCache) => {
+			  	     	  	nextCache!flush(a);
+			  	     	  }
+				      _ => { skip; }}
+				      
+		 _ => skip; // invalid or share, we do not have to propagate	      
+		  
+			}
+	    }
+
+	    Unit flushAll() {
+		//q = Cons(FlushAll,q);
+		Set<Address> k_= keys(cacheMemory);
+                Address a_ = 0;
+                while (k_ != EmptySet){
+		    a_ = take(k_);
+		    if (lookupDefault(cacheMemory,a_,In) == Mo) this!flush(a_);
+                    k_ = remove(k_,a_);
+               }
+               if (nextLevel != Nothing) {
+		   ICache c_ = fromJust(nextLevel); 
+		   c_!flushAll();
+	       }
+	    }
+
+	    Unit receiveRd(Address a) {
+		case lookup(cacheMemory,a) {
+      		    Just(Mo) => await this!flush(a);//q = Cons(Flush(a),q);
+		    _ => skip;
+		}
+	    }
+  
+
+	    Unit receiveRdX(Address a) {
+		//println("Starting executing receiveRdX of address" + toString(a));
+		case lookup(cacheMemory,a) {
+      		    Just(Sh) =>{ cacheMemory = put(cacheMemory,a,In);  }  // TODO check modified case
+		    Just(Mo) =>{ println("ERROR (in address " + toString(a) +"): cache coherence protocol is not working correctly");}
+		    _ => {skip;}
+		}
+		//println(toString(cacheMemory));
+	    }
+ 
+ 
+	}
+
+
+//***********************************************************************
+   
+
+//***********************IMPLEMENTATION OF THE BUS ********************************
+
+	interface IBus {
+	    Unit addCaches(List<ICache> caches_);
+	    Unit sendRd(ICache sender, Address b);
+	    Bool sendRdX(ICache sender, Address b);
+	    
+	}
+	class OBus(IMemory mainMemory) implements IBus {
+	    List<ICache> caches = Nil;
+	    Unit addCaches(List<ICache> caches_) {
+	    	this.caches = caches_;
+	//	println(toString(this.caches));
+	    }
+	    Unit sendRd(ICache sender, Address b) {
+		//println("Start broadcasting Rd messages");
+	    	List<ICache> caches_ = this.caches;
+		List<Fut<Unit>> replies = Nil;
+		while(caches_ != Nil) {
+		 ICache cache_ = head(caches_);
+		 if (cache_ != sender) {
+		//    println("Rd to " + toString(cache_));
+		    Fut<Unit> reply = cache_ ! receiveRd(b);  
+		    replies = Cons(reply,replies);		
+		}
+		caches_=tail(caches_);
+		 } 
+	    	 while(replies != Nil) {
+		  Fut<Unit> reply = head(replies);
+		  await reply?;
+		 // println("Reply Rd received");
+		  replies = tail(replies);	 
+		 }
+		 // all caches responded
+	    }
+	    Bool sendRdX(ICache sender, Address b) {
+		Fut<Status> f = mainMemory ! getStatus(b);
+		Status s = f.get;
+		Bool r = False;
+		if (s != In) {
+		    //println("Start broadcasting RdX messages");
+	    	    List<ICache> caches_ = this.caches;
+		    Fut<Unit> replyMainMemory =  mainMemory ! receiveRdX(b);
+		    replyMainMemory.get;
+		    List<Fut<Unit>> replies = Nil;
+		    while(caches_ != Nil) {
+			ICache cache_ = head(caches_);
+			if (cache_ != sender) {
+			    //  println("RdX to " + toString(cache_));
+			    Fut<Unit> reply = cache_ ! receiveRdX(b);  
+			    replies = Cons(reply,replies);		
+			}
+			caches_=tail(caches_);
+		    } 
+	    	    while(replies != Nil) {
+			Fut<Unit> reply = head(replies);
+			await reply?;
+			// println("Reply RdX received");
+			replies = tail(replies);	 
+		    }
+		    // all caches responded
+		    r = True;
+	        }
+		return r;
+	     }
+	 }
+
+	 
+
+//***********************************************************************
+   
+
+
+
+//***********************MAIN BLOCK ********************************
+	 
+{
+
+
+    //***********************CONFIGURATION 0 ********************************
+
+
+  /*  Int nTasks = 3;
+    Int sizeTasks = 10;
+    Int nCores = 2;
+    Int nLevels = 3;
+    Int l1Size = 2;
+    Bool printresults = True;*/
+
+   // number of cores
+    Int nCores = 200;
+
+    //number of tasks 
+    Int nTasks = 500;
+
+    println("Cores: "+toString(nCores) +", Tasks: "+toString(nTasks));
+
+    // size of eache tasks
+    Int sizeTasks = 10;
+    // number of caches per core
+    Int nLevels =2;
+    // size of the l1 cache.
+    //In this case the size of the cache is multiplied by the level,
+    // e.g., if l1 = 10 then l2 = 20 and l3 = 30
+    Int l1Size = 10;
+    // if true then print all the caches and the main memory, if false do not print.
+    Bool printresults = False;
+
+    // size of the memory
+    Int memo = nTasks*sizeTasks+10; 
+
+    // this is an object that creates configurations and tasks
+    IConfig config = new OConfig();
+    
+    // this method creates a main block with nTasks of sizeTasks
+    // by interleving between a read and a write
+    // here we are generating one access read/write per memory block
+    // all the generated tasks do not share any block during exectution.
+   // SstList sst = await config!createMain1(sizeTasks, nTasks);
+
+    // this method creates a main block with nTasks of sizeTasks
+    // by interleving between a read and a write
+    // here we are generating one access read/write per memory block
+    // each task shares with the next task 1/4 of its blocks 
+    SstList sst = await config!createMain2(sizeTasks, nTasks);
+
+    // this method generates the whole configuration
+    await config!runConfig(nCores, nLevels, l1Size, memo,  sst, printresults);
+    
+    //***********************************************************************
+    
+    
+    //***********************CONFIGURATION 1 ********************************
+  /*  Memory m = map(list[Pair(1,Sh),Pair(2,Sh),Pair(3,Sh),Pair(4,Sh),Pair(5,Sh),Pair(6,Sh),Pair(7,Sh),Pair(8,Sh)]);
+    assert checkAllSharedInMemory(m);
+    IMemory mm = new OMemory(m);   
+    IScheduler s = new  RRScheduler();
+    IBus bus = new OBus(mm);
+    
+    // HARDCODED IBus bus, IMemory mainMemory, Maybe<ICache> nextLevel, Int maxSize
+    ICache l3 = new Cache("L3C1", bus,mm,Nothing, 4);
+    ICache l2 = new Cache("L2C1", bus,mm,Just(l3), 2);
+    ICache l1 = new Cache("L1C1", bus,mm,Just(l2), 1);
+
+    ICore c = new Core("C1",s,l1);
+ 
+    await bus!addCaches(list[l3,l2,l1]);
+    //SstList sst = list[Read(Pair(1,2))];
+    //SstList sst = list[Write(Pair(1,2))];
+    // SstList sst = list[Loop(list[Read(Pair(2,3)),Write(Pair(3,4))],4)];
+    SstList sst1 = list[Choice(list[Read(Pair(6,7))],list[Write(Pair(7,8))]),Write(Pair(4,5)),Read(Pair(5,6))];
+    SstList sst2 = list[Loop(list[Read(Pair(2,3)),Write(Pair(3,4))],4),Read(Pair(1,2))];
+     SstList sst =concatenate(sst1,sst2);
+ 
+    //SstList sst = list[Read(Pair(2,1)),Read(Pair(1,2))];
+    println(toString(sst));
+    await s!putTask(sst);
+
+    await duration(2,2);
+    m = mm.getMemory();
+    List< SstList> q = s.getQueue();
+    assert checkAllSharedInMemory(m);
+    assert  checkEmtpySchedulerQueue(q);
+    println("CPU1");
+    await l1!printCache(); */
+    
+    //***********************************************************************
+   
+
+    //***********************CONFIGURATION 2 ********************************
+  /*  Memory m = map(list[Pair(1,Sh),Pair(2,Sh)]);
+    IMemory mm = new OMemory(m);   
+    IScheduler s = new  RRScheduler();
+    IBus bus = new OBus(mm);
+    
+    // HARDCODED IBus bus, IMemory mainMemory, Maybe<ICache> nextLevel, Int maxSize
+    ICache l3c1 = new Cache("L3C1",bus,mm,Nothing, 4);
+    ICache l2c1 = new Cache("L2C1",bus,mm,Just(l3c1), 2);
+    ICache l1c1 = new Cache("L1C1",bus,mm,Just(l2c1), 1);
+
+    ICore c1 = new Core("C1",s,l1c1);
+
+    ICache l3c2 = new Cache("L3C2",bus,mm,Nothing, 4);
+    ICache l2c2 = new Cache("L2C2",bus,mm,Just(l3c2), 2);
+    ICache l1c2 = new Cache("L1C2",bus,mm,Just(l2c2), 1);
+
+    ICore c2 = new Core("C2",s,l1c2);
+ 
+    await bus!addCaches(list[l3c1,l2c1,l1c1,l3c2,l2c2,l1c2]);
+    SstList sst2 = list[Read(Pair(2,1)),Read(Pair(1,2))];
+    //SstList sst2 = list[Write(Pair(1,2))];
+    SstList sst1 = list[Write(Pair(1,2))];
+    println(toString(sst1));
+    println(toString(sst2));
+    await s!putTask(sst1);
+    await s!putTask(sst2); 
+
+    await duration(1,1);
+    println("CPU1");
+    await l1c1!printCache();
+    println("CPU2");
+    await l1c2!printCache(); */
+
+
+    
+    //***********************************************************************
+
+    //***********************CONFIGURATION 3 ********************************
+    
+    /*Memory m = map(list[Pair(1,Sh),Pair(2,Sh)]);
+    IMemory mm = new OMemory(m);   
+    IScheduler s = new  RRScheduler();
+    IBus bus = new OBus(mm);
+    
+    // HARDCODED IBus bus, IMemory mainMemory, Maybe<ICache> nextLevel, Int maxSize
+    ICache l1c1 = new Cache("L1C1",bus,mm,Nothing, 10);
+
+    ICore c1 = new Core("C1",s,l1c1);
+
+    ICache l1c2 = new Cache("L1C2",bus,mm,Nothing, 10);
+
+    ICore c2 = new Core("C2",s,l1c2);
+ 
+    await bus!addCaches(list[l1c1,l1c2]);
+    //SstList sst2 = list[Read(Pair(2,1)),Read(Pair(1,2))];
+    SstList sst2 = list[Write(Pair(1,2))];
+    SstList sst1 = list[Write(Pair(1,2))];
+    println(toString(sst1));
+    println(toString(sst2));
+    await s!putTask(sst1);
+    await s!putTask(sst2); 
+
+    await duration(1,1);
+    println("CPU1");
+    await l1c1!printCache();
+    println("CPU2");
+    await l1c2!printCache();*/
+    
+
+   //***********************************************************************
+
+    //***********************CONFIGURATION 4 ********************************
+    
+  /*  Memory m = map(list[Pair(1,Sh),Pair(2,Sh)]);
+    IMemory mm = new OMemory(m);   
+    IScheduler s = new  RRScheduler();
+    IBus bus = new OBus(mm);
+    
+    // HARDCODED IBus bus, IMemory mainMemory, Maybe<ICache> nextLevel, Int maxSize
+     
+    ICache l3c1 = new Cache("L3C1",bus,mm,Nothing, 4);
+    ICache l2c1 = new Cache("L2C1",bus,mm,Just(l3c1), 2);
+    ICache l1c1 = new Cache("L1C1",bus,mm,Just(l2c1), 1);
+
+    ICore c1 = new Core("C1",s,l1c1);
+
+    ICache l3c2 = new Cache("L3C2",bus,mm,Nothing, 4);
+    ICache l2c2 = new Cache("L2C2",bus,mm,Just(l3c2), 2);
+    ICache l1c2 = new Cache("L1C2",bus,mm,Just(l2c2), 1);  
+
+    ICore c2 = new Core("C2",s,l1c2);
+
+    ICache l3c3 = new Cache("L3C3",bus,mm,Nothing, 4);
+    ICache l2c3 = new Cache("L2C3",bus,mm,Just(l3c3), 2);
+    ICache l1c3 = new Cache("L1C3",bus,mm,Just(l2c3), 1);  
+
+    ICore c3 = new Core("C3",s,l1c3);
+ 
+    await bus!addCaches(list[l3c1,l2c1,l1c1,l3c2,l2c2,l1c2,l3c3,l2c3,l1c3]);
+    //SstList sst2 = list[Read(Pair(2,1)),Read(Pair(1,2))];
+    SstList sst = list[Write(Pair(1,2)), Write(Pair(2,2))];
+    await s!putTask(sst);
+    await s!putTask(sst); 
+    await s!putTask(sst); 
+  
+    
+    await duration(1,1);
+    println("CPU1");
+    await l1c1!printCache();
+    println("CPU2");
+    await l1c2!printCache();
+    println("CPU3");
+    await l1c3!printCache();*/
+    
+   //***********************************************************************
+
+   //*********************** CONFIGURATION 5 ********************************
+  /*  Memory m = map(list[Pair(1,Sh),Pair(2,Sh),Pair(3,Sh),Pair(4,Sh),Pair(5,Sh),Pair(6,Sh),Pair(7,Sh),Pair(8,Sh)]);
+    assert checkAllSharedInMemory(m);
+    IMemory mm = new OMemory(m);   
+    IScheduler s = new  RRScheduler();
+    IBus bus = new OBus(mm);
+    
+    // HARDCODED IBus bus, IMemory mainMemory, Maybe<ICache> nextLevel, Int maxSize
+    ICache l3 = new Cache("L3C1", bus,mm,Nothing, 4);
+    ICache l2 = new Cache("L2C1", bus,mm,Just(l3), 2);
+    ICache l1 = new Cache("L1C1", bus,mm,Just(l2), 1);
+
+    ICore c = new Core("C1",s,l1);
+ 
+    await bus!addCaches(list[l3,l2,l1]);
+    //SstList sst = list[Read(Pair(1,2))];
+    //SstList sst = list[Write(Pair(1,2))];
+    // SstList sst = list[Loop(list[Read(Pair(2,3)),Write(Pair(3,4))],4)];
+    SstList sst1 = list[Choice(list[Read(Pair(6,7))],list[Write(Pair(7,8))]),Write(Pair(4,5)),Read(Pair(5,6))];
+    SstList sst2 = list[Loop(list[Read(Pair(2,3)),Write(Pair(3,4))],4),Read(Pair(1,2)),Spawn(list[Loop(list[Read(Pair(7,3)),Write(Pair(3,4))],2),Read(Pair(6,2))]),Write(Pair(3,4))];
+     SstList sst =concatenate(sst1,sst2);
+ 
+    //SstList sst = list[Read(Pair(2,1)),Read(Pair(1,2))];
+    println(toString(sst));
+    await s!putTask(sst);
+
+    await duration(2,2);
+    m = mm.getMemory();
+    List< SstList> q = s.getQueue();
+    assert checkAllSharedInMemory(m);
+    assert  checkEmtpySchedulerQueue(q);
+    println("CPU1");
+    await l1!printCache(); */
+    
+    //***********************************************************************
+   
+
+   //***********************************************************************
+    
+    /*println("Testing the buss");
+    await bus!sendRd(l3, 4);
+    await bus!sendRdX(l2, 4);
+    println("Finish testing the buss");*/
+
+    
+
+    /*println("Testing the main memory");
+    mm!fetch(3);
+    mm!flush(2);
+    mm!fetch(2);
+    mm!fetch(1); */
+
+    
+
+    // test of the decompose function;
+ /*   SstList sst = list[Loop(list[Read(Pair(2,3)),Write(Pair(3,4))],4)];
+    println("Initial task " + toString(sst));
+   
+    Maybe<Pair<Sst,SstList>> d = decompose(sst);
+    println(toString(d));
+
+	while (snd(fromJust(d))!=Nil) {
+	 d = decompose(snd(fromJust(d)));
+        println(toString(d));
+	    }*/
+  
+
+    
+}

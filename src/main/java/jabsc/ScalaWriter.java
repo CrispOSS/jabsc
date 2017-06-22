@@ -241,10 +241,10 @@ class ScalaWriter extends JavaWriter {
 			if (parameters.size() == 0) {
 				out.write("()");
 			} else {
-				out.write(String.format("(%s: %s", parameters.get(1), parameters.get(0)));
+				out.write(String.format("(var %s : %s", parameters.get(1), parameters.get(0)));
 
 				for (int i = 2; i < parameters.size(); i += 2) {
-					out.write(String.format(",%s: %s", parameters.get(i + 1), parameters.get(i)));
+					out.write(String.format(",var %s : %s", parameters.get(i + 1), parameters.get(i)));
 				}
 
 				out.write(")");
@@ -302,7 +302,7 @@ class ScalaWriter extends JavaWriter {
 		}
 
 		if (initialValue != null) {
-			out.write(" =");
+			out.write(" = ");
 			if (!initialValue.startsWith("\n")) {
 				out.write(" ");
 			}
@@ -377,14 +377,14 @@ class ScalaWriter extends JavaWriter {
 		}
 		out.write("(");
 		if (parameters != null && !parameters.isEmpty()) {
-			out.write(String.format(" %s: %s", parameters.get(1), parameters.get(0)));
+			out.write(String.format(" %s : %s", parameters.get(1), parameters.get(0)));
 
 			if (continuationLevel >= -1) {
 				methodParameters.put(parameters.get(1), parameters.get(0));
 			}
 
 			for (int i = 2; i < parameters.size(); i += 2) {
-				out.write(String.format(",  %s: %s", parameters.get(i + 1), parameters.get(i)));
+				out.write(String.format(",  %s : %s", parameters.get(i + 1), parameters.get(i)));
 				if (continuationLevel >= -1) {
 					methodParameters.put(parameters.get(i + 1), parameters.get(i));
 				}

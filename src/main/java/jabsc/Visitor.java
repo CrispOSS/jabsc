@@ -1370,9 +1370,9 @@ class Visitor extends AbstractVisitor<Prog, JavaWriter> {
 		String methodCall = generateJavaMethodInvocation("this", label.toString(), parameters, w, 'w', awaitCounter);
 		try {
 			if (currentMethod.isVoid())
-				w.emitStatement("await(Guard.convert(%s),%s)", auxsw.toString(), "()=>" + methodCall);
+				w.emitStatement("await(Guard.convert(%s),%s)", auxsw.toString(), "()->" + methodCall);
 			else
-				w.emitStatement("await(%s, Guard.convert(%s))", "()=>" + methodCall, auxsw.toString());
+				w.emitStatement("await(%s, Guard.convert(%s))", "()->" + methodCall, auxsw.toString());
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();

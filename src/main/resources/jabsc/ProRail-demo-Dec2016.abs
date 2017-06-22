@@ -1,7 +1,7 @@
 module AuctionDemo;
 
 import * from Absstdlib;
-import * from Absstdlib.Functions;
+import Functions from Absstdlib;
 
 type Price = Rat;
 
@@ -9,7 +9,7 @@ data Route = ARoute(Rat departure, Maybe<Destination> city)| NoRoute;
 data Goal = AGoal(Rat availableSince, Rat deadline, Maybe<Destination> dest)| NoGoal;
 data Destination = ADestination(String name, Rat driveTime, Rat costToD)| NoDest;
 data Train = ATrain(Int space, Rat startAvailable, Rat endAvailable, Rat budget, Rat riskFactor);
-data Container = AContainer(Destination endPoint, Rat startAvailable, Rat deadline, Rat budget, Rat riskFactor);
+data Container = AContainer(Destination endPoint, Rat startAve, Rat dead, Rat b, Rat rf);
 type Belief = Price; // Budget for biddingagent = its belief base
 type BeliefBase = Map<Route, Price>; // bb for auctioneeragent
 //type GoalBase = List<Goal>;
@@ -86,7 +86,7 @@ class AuctionOrganizerAgent (List<Train> trains, List<Container> containers) imp
     List<Agent> trainAgents = Nil;
 	List<Agent> containerAgents = Nil;
     Int round = 0;
-    Rat timeSlot = 0.0;
+    Rat timeSlot = 0;
     
     {
 		Int i = 0;
@@ -97,7 +97,7 @@ class AuctionOrganizerAgent (List<Train> trains, List<Container> containers) imp
 				ATrain(s, sa, ea, b, r) => {
 					Goal g= AGoal(sa,ea, Nothing);
 					Agent ba = new BiddingAgent(b, g, r);
-					appendright(this.trainAgents, ba);
+					this.trainAgents=Cons(ba, this.trainAgents);
 				}
 			}
 			i = i+1;
@@ -110,7 +110,7 @@ class AuctionOrganizerAgent (List<Train> trains, List<Container> containers) imp
 				AContainer(dest, sa, d, b, r) => {
 					Goal g= AGoal(sa,d, Just(dest));
 					Agent ba = new BiddingAgent(b, g, r);
-					appendright(this.containerAgents, ba);
+					this.containerAgents=Cons(ba,this.containerAgents);
 				}
 			}
 			i = i+1;
@@ -124,9 +124,9 @@ class AuctionOrganizerAgent (List<Train> trains, List<Container> containers) imp
 	    this.timeSlot = timeSlot;
 	    Route freeRoute = ARoute(timeSlot, Nothing);
 	    List<Route> goals = Nil;
-	    appendright(goals, freeRoute);
+	    goals=Cons(freeRoute, goals);
 	    Map<Route, Price> beliefBase = EmptyMap;
-	    put(beliefBase, freeRoute, 0.0);
+	    beliefBase=put(beliefBase, freeRoute, 0);
 	    Agent trainAuc = new AuctioneerAgent(beliefBase, goals, this.trainAgents, 1, this);
 	    // await for the auction results
 
@@ -158,11 +158,11 @@ class AuctionOrganizerAgent (List<Train> trains, List<Container> containers) imp
 	 		println (p);
 	 		Route freeRoute = ARoute(this.timeSlot, Nothing);
 	    	List<Route> goals = Nil;
-	    	appendright(goals, freeRoute);
+	    	goals=Cons(freeRoute, goals);
 	    	Map<Route, Price> beliefBase = EmptyMap;
-	    	put(beliefBase, freeRoute, 0.0);
+	    	beliefBase=put(beliefBase, freeRoute, 0);
 	    	Agent trainAuc = new AuctioneerAgent(beliefBase, goals, this.containerAgents, 30, this);
-	    	
+	    	this.round = 2;
 	 	}
 	 }
     
@@ -179,27 +179,70 @@ interface DSOL {
 // TODO: each biddingagent has to have a comparable unique identifier for reproducibility
 class BiddingAgent(Belief belief, Goal init_goal, Rat risk) implements Agent {
     List<Goal> goals = Nil;
+    Rat l=0;
+    Rat st = 0;
     {
-     	appendright(this.goals,init_goal);
+     	
+     	goals=Cons(init_goal,this.goals);
 	}
     Unit message(Message m) {
 		case m {
 		    Announce(caller, slot, price) =>  {
-				println("B: Received announce");
+		    	Int i =0;
+		    	//List<Container> containers = Nil;
+		    	while (i < 3000000) {
+				i=i+1;
+			// for (k = 0; k < 1001; k++)
+				st=st+1;
+				l=st*i/l;
+
+		}
+				/*    Destination duisburg  = ADestination("Duisburg", 4, 4000);
+					Destination munich  = ADestination("Munich", 16, 16000);
+				    Destination dest = NoDest; 
+				    if (random(10) > 7){ 
+				    	dest=duisburg;
+				    } 
+				    else{
+				     dest= munich;
+				     }
+				    Rat startTime  = 0;
+				    if (random(10) > 7){
+				    	startTime=1;
+				    }
+				    else {
+						startTime=3;				    
+				    }
+					Rat riskFactor  = random(10);
+					riskFactor = riskFactor/100;
+					Rat budget = 100 * random(10) + 100;
+					if(dest == munich){
+						budget = budget*4;
+						}
+					Rat latest = case dest {
+										ADestination(_,y,_) =>
+											startTime + 4 + y;
+									};
+					Container c = AContainer(dest, startTime, latest, budget, riskFactor);
+					//containers=appendright(containers, c);	*/
+					//noContainers = noContainers + 1;
+				
+		    	
+				//println("B: Received announce");
 				Price budget = belief;
 				if (length(goals)>0) {
 					Goal goal = nth(goals, 0);   // we have only one goal, we assume for now it's only 1 and same
 					Rat timeFit = strictFit(goal, slot);
 					Price myOffer = bidStrategy(price, budget, timeFit, risk);
-					println("B: Sending myBid ");
-					println(myOffer);
+					//println("B: Sending myBid ");
+					//println(myOffer);
 					if (myOffer < 0) {
 					    goals = Nil;   // unhappy
 					} 
 					else{ 
 						if (myOffer >= 0) {   // zero bid == not interested
-						    println("B: Sending myBid ");
-							println(myOffer);
+						    //println("B: Sending myBid ");
+							//println(myOffer);
 						    Message bidOffer = Bid(this, slot, myOffer);
 						    Fut<Unit> f = caller ! message(bidOffer);
 						    await f?;  // alternative: return the bid value
@@ -229,8 +272,8 @@ class AuctioneerAgent(BeliefBase itemValues, List<Route> init_goals, List<Agent>
    Unit message(Message m) {
        case m { 
           Bid(caller, slot, price) =>  {
-              println("AA: Received a bid.");
-              println(price);
+              //println("AA: Received a bid.");
+              //println(price);
               Maybe<Pair<Agent, Price>> mValue = lookup(winners, slot);
               case mValue {
 	              Just(APair(topAgent, topPrice)) => {
@@ -282,7 +325,7 @@ class AuctioneerAgent(BeliefBase itemValues, List<Route> init_goals, List<Agent>
 			Fut<Unit> f = nth(toBid, i);
 			await f?;
 			i = i+1;
-			println(i);
+			//println(i);
 	   }
      
      
@@ -303,6 +346,11 @@ class AuctioneerAgent(BeliefBase itemValues, List<Route> init_goals, List<Agent>
            winningAgent ! message(argm);
            this.goals = without(this.goals, g); // will add again if not sold?
            // TODO: inform organizer (list of winners and list of unhappy)
+           List<Agent> lw = Cons(winningAgent, Nil);
+           List<Price> lp = Cons(price, Nil);
+           List<Agent> lu = Nil;
+           Message argr  = Result(lw, lp, lu);
+           organizer ! message(argr);
          }}
        }
        Nothing => { println("What?"); }
@@ -345,11 +393,12 @@ class AuctioneerAgent(BeliefBase itemValues, List<Route> init_goals, List<Agent>
 	
 	while(noTrains>0){
 		Int startTime  = random(3);
-		Rat riskFactor  = random();
-		Rat budget = 100000 * random() + 1000;
+		Rat riskFactor  = random(10);
+		riskFactor = riskFactor/100;
+		Rat budget = 10000 * random(10) + 1000;
 		Int endTime = startTime + 4;
 		Train tr = ATrain(30, startTime, endTime, budget, riskFactor);
-		appendright(trains, tr);	
+		trains= Cons(tr,trains);	
 		noTrains = noTrains -1;
 	}
 	
@@ -358,8 +407,9 @@ class AuctioneerAgent(BeliefBase itemValues, List<Route> init_goals, List<Agent>
 	while(noContainers>0){
 	    Destination dest = if random(10) > 7 then duisburg else munich;
 	    Rat startTime  = if random(10) > 7 then 1 else 3;
-		Rat riskFactor  = random();
-		Rat budget = 1000 * random() + 100;
+		Rat riskFactor  = random(10);
+		riskFactor = riskFactor/100;
+		Rat budget = 100 * random(10) + 100;
 		if(dest == munich)
 			budget = budget*4;
 		Rat latest = case dest {
@@ -367,7 +417,7 @@ class AuctioneerAgent(BeliefBase itemValues, List<Route> init_goals, List<Agent>
 								startTime + 4 + y;
 						};
 		Container c = AContainer(dest, startTime, latest, budget, riskFactor);
-		appendright(containers, c);	
+		containers=Cons(c, containers);	
 		noContainers = noContainers - 1;
 	}  
 	

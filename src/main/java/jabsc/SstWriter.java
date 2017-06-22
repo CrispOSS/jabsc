@@ -70,6 +70,13 @@ public class SstWriter implements Closeable {
 		out.write(String.format("Commit(Pair(Real(%i), %i), %i)", ref, offset));
 		return this;
 	}
+
+	public void emitPackage(String packageName) throws IOException {
+		out.write("module " + packageName + ";\n\n");
+	}
 	
-	
+	public void emitTypeDecl(String type, String name, String value) throws IOException{
+		out.write(String.format("%s %s= %s", type, name, value));
+	}
+
 }

@@ -123,9 +123,9 @@ class Worker(IMaster master, Int threshold, Int size) implements IWorker {
 }
 // Main block:
 {
-    Int numWorkers = 20; // NQueensConfig.NUM_WORKERS
+    Int numWorkers = 1; // NQueensConfig.NUM_WORKERS
     Int priorities = 10; // NQueensConfig.PRIORITIES
-    Int size = 15; // size of the chess board
+    Int size = 10; // size of the chess board
     Int threshold = 4; // cut-off value for sequential computation in the Workers
     List<Int> solutions = Nil; // targeted k number of solutions
     solutions=appendright(solutions, 1);

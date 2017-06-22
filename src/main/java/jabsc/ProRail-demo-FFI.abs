@@ -95,8 +95,8 @@ interface AuctionOrganizer extends Agent {
 }
 
 class AuctionOrganizerAgent (List<Train> trains, List<Container> containers) implements AuctionOrganizer {
-    List<Agent> trainAgents;
-	List<Agent> containerAgents;
+    List<Agent> trainAgents = null;
+	List<Agent> containerAgents = null;
     Int round = 0;
     Rat timeSlot = 0;
     
@@ -163,18 +163,19 @@ class AuctionOrganizerAgent (List<Train> trains, List<Container> containers) imp
 	 Unit round1(List<Agent> winners, List<Price> prices, List<Agent> unhappy){
 	     Int l = winners.size();
 	     if(l == 0){
-	 	 println("No Train available");	
+	 	 	println("No Train available");	
 	     }
 	     else{
-	 	 Price p = prices.geT(0);
-	 	 println("Winner is paying");
-	 	 println (p);
-	 	 Route freeRoute = ARoute(this.timeSlot, None);
+		 	 Price p = prices.geT(0);
+		 	 println("Winner is paying");
+		 	 println (p);
+		 	 Route freeRoute = ARoute(this.timeSlot, None);
 	    	 List<Route> goals = new LinkedList();
 	    	 goals.add(freeRoute);
 	    	 Map<Route, Price> beliefBase = new HashMap();
 	         beliefBase.put(freeRoute, 0);
 	    	 Agent trainAuc = new AuctioneerAgent(beliefBase, goals, this.containerAgents, 30, this);
+	    	 this.round=2;
 	     }
 	 }
 }
@@ -188,7 +189,7 @@ interface DSOL {
 
 // TODO: each biddingagent has to have a comparable unique identifier for reproducibility
 class BiddingAgent(Belief belief, Goal init_goal, Rat risk) implements Agent {
-    List<Goal> goals;
+    List<Goal> goals= null;
     {
 	goals = new LinkedList();
 	this.goals.add(init_goal);
@@ -232,7 +233,7 @@ class AuctioneerAgent(BeliefBase itemValues, List<Route> init_goals, List<Agent>
    BeliefBase beliefs = itemValues;	// what I think items are worth
    List<Route> goals = init_goals;
    
-   Map<Route, Entry<Agent, Price>> winners;
+   Map<Route, Entry<Agent, Price>> winners = null;
    
    {
        winners = new HashMap(); 
@@ -315,6 +316,13 @@ class AuctioneerAgent(BeliefBase itemValues, List<Route> init_goals, List<Agent>
 		   winningAgent ! message(argm);
 		   this.goals.remove(g); // will add again if not sold?
 		   // TODO: inform organizer (list of winners and list of unhappy)
+		   List<Agent> lw = new LinkedList();
+		   lw.add(winningAgent);
+           List<Price> lp = new LinkedList();
+		   lp.add(price);
+           List<Agent> lu = null;
+           Message argr  = Result(lw, lp, lu);
+           organizer ! message(argr);
 	       }
 	   }
 	   else{

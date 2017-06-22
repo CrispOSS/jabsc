@@ -11,6 +11,7 @@ import org.junit.Test;
 
 
 public class CompilerTest {
+	
 
   private URL uri = getClass().getResource("abs/");
   private Path outputDirectory = Paths.get("./target").resolve("generated");
@@ -28,6 +29,7 @@ public class CompilerTest {
     Assert.assertEquals(p2.toAbsolutePath(), p1.toAbsolutePath());
   }
 
+  
   @Test
   public void compileTestABSSources() throws Exception {
     Files.createDirectories(outputDirectory);
@@ -36,5 +38,8 @@ public class CompilerTest {
     compiler.compile();
     Assert.assertTrue(Files.list(outputDirectory).count() > 0);
   }
+  
+  
+  
 
 }

@@ -1,0 +1,874 @@
+module Multicore;
+
+import * from Absstdlib;
+import Functions from Absstdlib;
+
+data Sst = Read(Ref)| Write(Ref)| Commit(Ref)| Spawn(SstList)| Choice(SstList , SstList)| CommitAll| Loop(SstList, Int);
+
+type SstList = List<Sst>;
+
+def Maybe<Pair<Sst, SstList>> decompose(SstList sstl) = 
+  case sstl {
+    Nil => Nothing;
+    Cons( h, t ) => case h {
+      Choice( s1, s2 ) => if (random(2) == 0) then 
+      			decompose(concatenate(s1, t))
+             else 
+             	decompose(concatenate(s2, t));
+      
+      Loop( s1, 1 ) => decompose(concatenate(s1, t));
+      Loop( s1, i ) => decompose(concatenate(appendright(s1, Loop( s1, ( i - 1 ) )), t));
+      _ => Just( APair( h, t ) );
+      };
+    };
+
+def Maybe<Pair<Address, Status>> select(Memory cache, Int cacheSize, Address a) = 
+  if ( cacheSize > size(keys(cache)) ) then Nothing else if thereIsStatus(cache, In) then retrieve(cache, In) else if thereIsStatus(cache, Sh) then retrieve(cache, Sh) else retrieve(cache, Mo);
+
+def Bool thereIsStatus(Memory cache, Status s) = 
+  case cache {
+    InsertAssoc( APair( _, s ), tail ) => True;
+    InsertAssoc( APair( _, _ ), tail ) => thereIsStatus(tail, s);
+    EmptyMap => False;
+  };
+
+def Maybe<Pair<Address, Status>> retrieve(Memory cache, Status s) = 
+  case cache {
+    InsertAssoc( APair( a, s ), tail ) => Just( APair( a, s ) );
+    InsertAssoc( APair( _, _ ), tail ) => retrieve(tail, s);
+    EmptyMap => Nothing;
+  };
+
+type Ref = Pair<Address, Offset>;
+
+type Address = Int;
+
+type Offset = Int;
+
+def Address addr(Ref r) = 
+  fst(r);
+
+data Status = Sh| Mo| In;
+
+type Memory = Map<Address, Status>;
+
+def Memory createMemory(Int min, Int max, Int interval, Memory m) = 
+  if ( min <= max ) then 
+     	createMemory(min, ( max - interval ), interval, insert(m, APair( max, Sh )))
+  else
+  	  m;
+ 
+
+def Bool checkAllSharedInMemory(Memory m) = 
+  case m {
+    EmptyMap => True;
+    InsertAssoc( APair( a, s ), t ) => ( ( s == Sh ) && checkAllSharedInMemory(t) );
+  };
+
+def Bool checkEmtpySchedulerQueue(List<SstList> l) = 
+  ( l == Nil );
+
+interface IConfig {
+  Unit runConfig(Int nCores, Int nlevel, Int l1Size, Int maxMem, SstList sst, Bool printresults);
+  SstList createMain1(Int szTask, Int nTasks);
+  SstList createMain2(Int szTask, Int nTasks);}
+
+class OConfig implements IConfig {
+  
+  
+  IMemory mem(Int max){
+    Memory m = createMemory(1, max, 1, EmptyMap);
+    assert checkAllSharedInMemory(m);
+    IMemory mm = new OMemory(m);
+    return mm;
+  }
+  Pair<List<ICache>, ICache> createCaches(String cName, IBus bus, IMemory mm, Int l1Size, Int level){
+    Int tlevel = level;
+    List<ICache> caches = Nil;
+    Bool last = True;
+    String name = "";
+    ICache prev = null;
+    while (( tlevel > 0 )) {
+      name = ( ( cName + "L" ) + toString(tlevel) );
+      if ( last ){
+        ICache l = new Cache(name, bus, mm, Nothing, ( l1Size * tlevel ));
+        caches = appendright(caches, l);
+        prev = l;
+        last = False;
+      } else {
+        ICache l = new Cache(name, bus, mm, Just( prev ), ( l1Size * tlevel ));
+        caches = appendright(caches, l);
+        prev = l;
+      }
+      tlevel = ( tlevel - 1 );
+    }
+    return APair( caches, prev );
+  }
+  Unit runConfig(Int nCores, Int nlevel, Int l1Size, Int maxMem, SstList sst, Bool printresults){
+    Int tcores = nCores;
+    List<ICore> cores = Nil;
+    List<ICache> caches = Nil;
+    List<ICache> cachesL1 = Nil;
+    String name = "";
+    Fut<IMemory> tmp1698746141 = this!mem(maxMem);
+    await tmp1698746141?;
+    IMemory mm = tmp1698746141.get;
+    IScheduler s = new RRScheduler();
+    IBus bus = new OBus(mm);
+    while (( tcores > 0 )) {
+      name = ( "C" + toString(tcores) );
+      Fut<Pair<List<ICache>, ICache>> tmp937366737 = this!createCaches(name, bus, mm, l1Size, 3);
+      await tmp937366737?;
+      Pair<List<ICache>, ICache> cacheP = tmp937366737.get;
+      ICache l1 = snd(cacheP);
+      cachesL1 = appendright(cachesL1, l1);
+      List<ICache> cachesC = fst(cacheP);
+      ICore c = new Core(name, s, l1);
+      cores = appendright(cores, c);
+      caches = concatenate(caches, cachesC);
+      tcores = ( tcores - 1 );
+    }
+ 
+    println("CONF: created caches ");
+    Fut<Unit> tmp159190022 = bus!addCaches(caches);
+    await tmp159190022?;
+    tmp159190022.get;
+    if ( printresults ){
+      println(toString(sst));
+    }
+    Fut<Unit> tmp1982216126 = s!putTask(sst);
+    await tmp1982216126?;
+    tmp1982216126.get;
+    //await duration(2, 2);
+    Fut<Unit> tmp19816126 = s!done();
+    await tmp19816126?;
+    tmp19816126.get;
+    
+    println("CONF: S is done");
+    
+    Fut<Map<Int, Status>> tmp1446301940 = mm!getMemory();
+    await tmp1446301940?;
+    Memory m = tmp1446301940.get;
+    Fut<List<List<Sst>>> tmp1888952688 = s!getQueue();
+    await tmp1888952688?;
+    List<SstList> q = tmp1888952688.get;
+    assert checkAllSharedInMemory(m);
+    assert checkEmtpySchedulerQueue(q);
+    if ( printresults ){
+      Int sz = length(cachesL1);
+      while (( sz > 0 )) {
+        ICache l = head(cachesL1);
+        cachesL1 = tail(cachesL1);
+        Fut<Unit> tmp271341439 = l!printCache();
+        await tmp271341439?;
+        tmp271341439.get;
+        sz = ( sz - 1 );
+      }
+    }
+  }
+  SstList createMain1(Int szTask, Int nTasks){
+    Int ttasks =nTasks;
+    SstList sst = Nil;
+    Int rCounter = 1;
+    Bool read = True;
+    while (( ttasks > 0 )) {
+      SstList tsst = Nil;
+      Int szt = szTask;
+      read = True;
+      while (( szt > 0 )) {
+        if ( read ){
+          tsst = appendright(tsst, Read( APair( rCounter, 1 ) ));
+          read = False;
+        } else {
+          tsst = appendright(tsst, Write( APair( rCounter, 1 ) ));
+          read = True;
+        }
+        szt = ( szt - 1 );
+        rCounter = ( rCounter + 1 );
+      }
+      sst = appendright(sst, Spawn( tsst ));
+      ttasks = ( ttasks - 1 );
+    }
+    return sst;
+  }
+  SstList createMain2(Int szTask, Int nTasks){
+    Int ttasks = nTasks;
+    SstList sst = Nil;
+    Int rCounter = 1;
+    Bool read = True;
+    Int interleave = truncate(( szTask / 4 ));
+    while (( ttasks > 0 )) {
+      SstList tsst = Nil;
+      Int szt = szTask;
+      read = True;
+      while (( szt > 0 )) {
+        if ( read ){
+          tsst = appendright(tsst, Read( APair( rCounter, 1 ) ));
+          read = False;
+        } else {
+          tsst = appendright(tsst, Write( APair( rCounter, 1 ) ));
+          read = True;
+        }
+        szt = ( szt - 1 );
+        rCounter = ( rCounter + 1 );
+      }
+      sst = appendright(sst, Spawn( tsst ));
+      rCounter = ( rCounter - interleave );
+      ttasks = ( ttasks - 1 );
+    }
+    return sst;
+  }
+  }
+
+interface IMemory {
+  Unit fetch(Address b);
+  Unit flush(Address b);
+  Unit printMemory();
+  Unit receiveRdX(Address b);
+  Status getStatus(Address a);
+  Memory getMemory();}
+
+class OMemory(Memory mainMemory) implements IMemory {
+  
+  
+  Unit printMemory(){
+    println(( "Main Memory: A BIG memory "));
+  }
+  Unit fetch(Address b){
+    Maybe<Status> s = lookup(this.mainMemory, b);
+    //printMemory();
+    case s {
+      Nothing => {
+        println(( "Segmentation fault:" + toString(b) ));
+      }
+      Just( s_ ) => {
+        if ( ( s_ == In ) ){
+          await ( lookupDefault(this.mainMemory, b, In) == Sh );
+        }
+      }
+/*      _ => {
+        throw PatternMatchFailException;
+      }
+*/
+    }
+    //print("Main Memory: Fetch completes");
+  }
+  Unit flush(Address b){
+    Maybe<Status> s = lookup(this.mainMemory, b);
+    case s {
+      Nothing => {
+        println(( "Segmentation fault:" + toString(b) ));
+      }
+      _ => {
+        this.mainMemory = put(this.mainMemory, b, Sh);
+      }
+/*      _ => {
+        throw PatternMatchFailException;
+      }
+ */
+    }
+
+  }
+  Unit receiveRdX(Address a){
+    Maybe<Status> s = lookup(this.mainMemory, a);
+    case s{
+      Just( Sh ) => {
+        this.mainMemory = put(this.mainMemory, a, In);
+      }
+      _ => {
+        println("ERROR: we are trying to invalidate something that is already invalid");
+      }
+/*      _ => {
+        throw PatternMatchFailException;
+      }
+*/
+    }
+    
+  }
+  Status getStatus(Address a){
+    return lookupDefault(this.mainMemory, a, In);
+  }
+  Memory getMemory(){
+    return this.mainMemory;
+  }
+  }
+
+interface IScheduler {
+ List<Sst> getTask();
+ Unit putTask(List<Sst> t);
+ List<List<Sst>> getQueue();
+ Unit done();
+}
+
+// this is an implementation if a round robin shceduler
+class RRScheduler implements IScheduler {
+ List<List<Sst>> q = Nil;
+ List<Sst> result = Nil;
+ Int counter = 50;
+
+ Unit done() {
+    await counter==0 && this.q==Nil;
+ }
+
+ List<Sst> getTask() {
+     counter=counter-1;
+     //println("SCHED: "+toString(this.q)+ " "+ toString(this.counter));
+     
+     await this.q != Nil;
+     counter=counter+1;
+     result = appendright(head(this.q),CommitAll);
+     this.q = tail(this.q);
+     return result;
+          
+ }
+ Unit putTask(List<Sst> newTask) {
+  this.q = appendright(this.q,newTask);
+ }
+
+ List<List<Sst>> getQueue(){return q;}
+}
+
+
+interface ICore {
+  }
+
+class Core(String name, IScheduler sched, ICache l1) implements ICore {
+  SstList currentTask = Nil;
+  {
+  this!run();
+  }
+  Unit run(){
+    Maybe<Pair<Sst, SstList>> t = decompose(this.currentTask);
+    case t {
+      Nothing => {
+        Fut<List<Sst>> tmp246168102 = this.sched!getTask();
+        await tmp246168102?;
+        this.currentTask = tmp246168102.get;
+        //println("Core "+ name + " "+ toString(this.currentTask));
+      }
+      Just( p ) => {
+          Sst fp = fst(p);
+	  //println("Core "+ name + " instruction: "+ toString(fp));
+        case fp {
+          CommitAll => {
+            Fut<Unit> tmp337777621 = this.l1!commitAll();
+            await tmp337777621?;
+            tmp337777621.get;
+            this.currentTask = snd(p);
+           //println("Core "+ name + " out of comall "+ toString(this.currentTask) + " "+ toString(fp));
+          }
+          Read( r ) => {
+            Fut<Unit> tmp1991075605 = this.l1!read(r);
+            await tmp1991075605?;
+            tmp1991075605.get;
+            this.currentTask = snd(p);
+            //println("Core "+ name + " out of write "+toString(this.currentTask) + " "+ toString(fp));
+          }
+          Write( r ) => {
+            Fut<Unit> tmp1111173986 = this.l1!write(r);
+            await tmp1111173986?;
+            tmp1111173986.get;
+            this.currentTask = snd(p);
+           // println("Core "+ name + " out of write "+ toString(this.currentTask)+ " "+ toString(fp));
+          }
+          Spawn( sst ) => {
+            this.sched!putTask(sst);
+            this.currentTask = snd(p);
+          }
+          Commit( r ) => {
+            this.l1!commit(r);
+            this.currentTask = snd(p);
+          }
+ /*         _ => {
+            throw PatternMatchFailException;
+          }
+ */
+        }
+      }
+ /*     _ => {
+        throw PatternMatchFailException;
+      }*/
+    }
+    this!run();
+  }
+  }
+
+interface ICache {
+  Unit read(Ref r);
+  Unit write(Ref r);
+  Unit commit(Ref r);
+  Unit commitAll();
+  Status fetch(Address a_in, Maybe<Pair<Address, Status>> m_out);
+  Unit flush(Address b);
+  Unit flushAll();
+  Unit receiveRd(Address b);
+  Unit receiveRdX(Address b);
+  Unit printCache();}
+
+class Cache(String name, IBus bus, IMemory mainMemory, Maybe<ICache> nextLevel, Int maxSize) implements ICache {
+  Memory cacheMemory = EmptyMap;
+  
+  Unit printCache(){
+    println(( ( this.name + ": " ) + toString(this.cacheMemory) ));
+    case this.nextLevel {
+      Nothing => {
+        Fut<Unit> tmp828312047 = this.mainMemory!printMemory();
+        await tmp828312047?;
+        tmp828312047.get;
+      }
+      Just( lNext ) => {
+        Fut<Unit> tmp214929887 = lNext!printCache();
+        await tmp214929887?;
+        tmp214929887.get;
+      }
+  /*    _ => {
+        throw PatternMatchFailException;
+      }*/
+    }
+  }
+  Unit read(Ref r){
+    Maybe<Status> st = lookup(this.cacheMemory, addr(r));
+    //println(( ( this.name + ": "+toString(size(keys(this.cacheMemory)))+" read address " ) + toString(addr(r)) +" status "+ toString(st) ));
+    case st {
+      Just( Sh ) => {
+        skip;
+      }
+      Just( Mo ) => {
+        skip;
+      }
+      _ => {
+        this.cacheMemory = removeKey(this.cacheMemory, addr(r));
+        case this.nextLevel {
+          Just( nextCache ) => {
+            Maybe<Pair<Address, Status>> mselected = select(this.cacheMemory, this.maxSize, addr(r));
+            Fut<Status> tmp1977508673 = nextCache!fetch(addr(r), mselected);
+            await tmp1977508673?;
+            Status s = tmp1977508673.get;
+            case mselected {
+              Nothing => {
+                skip;
+              }
+              Just( APair( swaped_a, _ ) ) => {
+                this.cacheMemory = removeKey(this.cacheMemory, swaped_a);
+              }
+ /*             _ => {
+                throw PatternMatchFailException;
+              }*/
+            }
+            this.cacheMemory = put(this.cacheMemory, addr(r), s);
+          }
+          _ => {
+            Fut<Unit> tmp995381766 = this.bus!sendRd(this, addr(r));
+            await tmp995381766?;
+            tmp995381766.get;
+            if ( ( size(keys(this.cacheMemory)) < this.maxSize ) ){
+              Fut<Unit> tmp643328884 = this.mainMemory!fetch(addr(r));
+              await tmp643328884?;
+              tmp643328884.get;
+            } else {
+              Pair<Address, Status> fj = fromJust(select(this.cacheMemory, this.maxSize, addr(r)));
+              case fj {
+                APair( evicted_a, Mo ) => {
+                  Fut<Unit> tmp1962586186 = this.mainMemory!flush(evicted_a);
+                  await tmp1962586186?;
+                  tmp1962586186.get;
+                  this.cacheMemory = removeKey(this.cacheMemory, evicted_a);
+                }
+                APair( evicted_a, _ ) => {
+                  this.cacheMemory = removeKey(this.cacheMemory, evicted_a);
+                }
+   /*             _ => {
+                  throw PatternMatchFailException;
+                }*/
+              }
+              Fut<Unit> tmp387201851 = this.mainMemory!fetch(addr(r));
+              await tmp387201851?;
+              tmp387201851.get;
+            }
+            this.cacheMemory = put(this.cacheMemory, addr(r), Sh);
+          }
+ /*         _ => {
+            throw PatternMatchFailException;
+          }*/
+        }
+      }
+ /*     _ => {
+        throw PatternMatchFailException;
+      }*/
+    }
+    st = lookup(this.cacheMemory, addr(r));
+    //println(( ( this.name + ": to read " ) + toString(addr(r)) +" "+ toString(st) ));
+  }
+  Unit write(Ref r){
+    
+    Maybe<Status> sl = lookup(this.cacheMemory, addr(r));
+    //println(( ( this.name + ": " + toString(size(keys(this.cacheMemory))) + " write address" ) + toString(addr(r)) +" status"+ toString(sl) ));
+    case sl {
+      Just( Mo ) => {
+        skip;
+      }
+      Just( Sh ) => {
+        Fut<Bool> tmp767764251 = this.bus!sendRdX(this, addr(r));
+        await tmp767764251?;
+        Bool b = tmp767764251.get;
+        if ( b ){
+          this.cacheMemory = put(this.cacheMemory, addr(r), Mo);
+        } else {
+          Fut<Unit> tmp1184974266 = this!write(r);
+          await tmp1184974266?;
+          tmp1184974266.get;
+        }
+      }
+      _ => {
+        this.cacheMemory = removeKey(this.cacheMemory, addr(r));
+        case this.nextLevel {
+          Just( nextCache ) => {
+            Maybe<Pair<Address, Status>> mselected = select(this.cacheMemory, this.maxSize, addr(r));
+            Fut<Status> tmp1648278215 = nextCache!fetch(addr(r), mselected);
+            await tmp1648278215?;
+            Status s = tmp1648278215.get;
+            case mselected {
+              Nothing => {
+                skip;
+              }
+              Just( APair( swaped_a, _ ) ) => {
+                this.cacheMemory = removeKey(this.cacheMemory, swaped_a);
+              }
+        /*      _ => {
+                throw PatternMatchFailException;
+              }*/
+            }
+            this.cacheMemory = put(this.cacheMemory, addr(r), s);
+          }
+          _ => {
+            Fut<Unit> tmp2040548959 = this.bus!sendRd(this, addr(r));
+            await tmp2040548959?;
+            tmp2040548959.get;
+            if ( ( size(keys(this.cacheMemory)) < this.maxSize ) ){
+              Fut<Unit> tmp1966787205 = this.mainMemory!fetch(addr(r));
+              await tmp1966787205?;
+              tmp1966787205.get;
+            } else {
+            	Pair<Address, Status> fj = fromJust(select(this.cacheMemory, this.maxSize, addr(r)));
+              case fj {
+                APair( evicted_a, Mo ) => {
+                  Fut<Unit> tmp1037242711 = this.mainMemory!flush(evicted_a);
+                  await tmp1037242711?;
+                  tmp1037242711.get;
+                  this.cacheMemory = removeKey(this.cacheMemory, evicted_a);
+                }
+                APair( evicted_a, _ ) => {
+                  this.cacheMemory = removeKey(this.cacheMemory, evicted_a);
+                }
+          /*      _ => {
+                  throw PatternMatchFailException;
+                }*/
+              }
+              Fut<Unit> tmp146638536 = this.mainMemory!fetch(addr(r));
+              await tmp146638536?;
+              tmp146638536.get;
+            }
+            this.cacheMemory = put(this.cacheMemory, addr(r), Sh);
+          }
+      /*    _ => {
+            throw PatternMatchFailException;
+          }*/
+        }
+        Fut<Bool> tmp104367332 = this.bus!sendRdX(this, addr(r));
+        await tmp104367332?;
+        Bool b = tmp104367332.get;
+        if ( b ){
+          this.cacheMemory = put(this.cacheMemory, addr(r), Mo);
+        } else {
+          Fut<Unit> tmp689213488 = this!write(r);
+          await tmp689213488?;
+          tmp689213488.get;
+        }
+      }
+ /*     _ => {
+        throw PatternMatchFailException;
+      }*/
+    }
+    sl = lookup(this.cacheMemory, addr(r));
+    //println(( ( this.name + ": to write " ) + toString(addr(r)) +" "+ toString(sl) ));
+  }
+  Unit commit(Ref r){
+    Fut<Unit> tmp1559434619 = this!flush(addr(r));
+    await tmp1559434619?;
+    tmp1559434619.get;
+  }
+  Unit commitAll(){
+   //println ( this.name + ": commitAll " + toString(size(keys(this.cacheMemory))));
+   Fut<Unit> tmp1510535132 = this!flushAll();
+    await tmp1510535132?;
+    tmp1510535132.get;
+     //println ( this.name + ": commitAll returns ");
+  }
+  Status fetch(Address a_in, Maybe<Pair<Address, Status>> m_out){
+  	Maybe<Status> sl =  lookup(this.cacheMemory, a_in);
+  	//println(( ( this.name + ": " + toString(size(keys(this.cacheMemory))) + " fetch address ") + toString(a_in) +" status "+ toString(sl) +" to evict: "+ toString(m_out) ));
+    case sl {
+      Just( Mo ) => {
+        skip;
+      }
+      Just( Sh ) => {
+        skip;
+      }
+      _ => {
+        this.cacheMemory = removeKey(this.cacheMemory, a_in);
+        case this.nextLevel {
+          Just( nextCache ) => {
+	    
+            Maybe<Pair<Address, Status>> mselected = select(this.cacheMemory, this.maxSize, a_in);
+            Fut<Status> tmp185939155 = nextCache!fetch(a_in, mselected);
+            await tmp185939155?;
+            Status s = tmp185939155.get;
+	    //println(( ( this.name + ": from next cache we get address " ) + toString(a_in) +" "+ toString(s) ));
+            case mselected {
+              Nothing => {
+                skip;
+              }
+              Just( APair( swaped_a, _ ) ) => {
+                this.cacheMemory = removeKey(this.cacheMemory, swaped_a);
+              }
+  /*            _ => {
+                throw PatternMatchFailException;
+              }*/
+            }
+            this.cacheMemory = put(this.cacheMemory, a_in, s);
+          }
+          _ => {
+            Fut<Unit> tmp1217434045 = this.bus!sendRd(this, a_in);
+            await tmp1217434045?;
+            tmp1217434045.get;
+            if ( ( size(keys(this.cacheMemory)) < this.maxSize ) ){
+              Fut<Unit> tmp220689785 = this.mainMemory!fetch(a_in);
+              await tmp220689785?;
+              tmp220689785.get;
+            } else {
+              Pair<Address, Status> fj =fromJust(select(this.cacheMemory, this.maxSize, a_in));
+              case fj {
+                APair( evicted_a, Mo ) => {
+                  Fut<Unit> tmp751259764 = this.mainMemory!flush(evicted_a);
+                  await tmp751259764?;
+                  tmp751259764.get;
+                  this.cacheMemory = removeKey(this.cacheMemory, evicted_a);
+                }
+                APair( evicted_a, _ ) => {
+                  this.cacheMemory = removeKey(this.cacheMemory, evicted_a);
+                }
+         /*       _ => {
+                  throw PatternMatchFailException;
+                }*/
+              }
+              Fut<Unit> tmp787156891 = this.mainMemory!fetch(a_in);
+              await tmp787156891?;
+              tmp787156891.get;
+          }
+	 // println(( ( this.name + ": from mainmem we get address " ) + toString(a_in)));
+            
+            this.cacheMemory = put(this.cacheMemory, a_in, Sh);
+          }
+      /*    _ => {
+            throw PatternMatchFailException;
+          }*/
+        }
+      }
+    /*  _ => {
+        throw PatternMatchFailException;
+      }*/
+    }
+    case m_out {
+      Nothing => {
+        skip;
+      }
+      Just( APair( a, s ) ) => {
+        this.cacheMemory = put(this.cacheMemory, a, s);
+      }
+    /*  _ => {
+        throw PatternMatchFailException;
+      }*/
+    }
+    Status s_ = lookupDefault(this.cacheMemory, a_in, In);
+    this.cacheMemory = removeKey(this.cacheMemory, a_in);
+    return s_;
+  }
+  Unit flush(Address a){
+  	Maybe<Status> sl = lookup(this.cacheMemory, a);
+    case sl {
+      Just( Mo ) => {
+        Fut<Unit> tmp1792711692 = this.mainMemory!flush(a);
+        await tmp1792711692?;
+        tmp1792711692.get;
+        this.cacheMemory = put(this.cacheMemory, a, Sh);
+      }
+      Nothing => {
+        case this.nextLevel {
+          Just( nextCache ) => {
+            nextCache!flush(a);
+          }
+          _ => {
+            skip;
+          }
+        /*  _ => {
+            throw PatternMatchFailException;
+          }*/
+        }
+      }
+      _ => {
+        skip;
+      }
+   /*   _ => {
+        throw PatternMatchFailException;
+      }*/
+    }
+  }
+  Unit flushAll(){
+    //println ( this.name + ": flusAll " + toString(size(keys(this.cacheMemory))));      
+    Set<Address> k_ = keys(this.cacheMemory);
+    Address a_ = 0;
+    while (( k_ != EmptySet )) {
+      a_ = take(k_);
+      if ( ( lookupDefault(this.cacheMemory, a_, In) == Mo ) ){
+        this!flush(a_);
+      }
+      k_ = remove(k_, a_);
+    }
+    if ( ( this.nextLevel != Nothing ) ){
+	//println ( this.name + ": flush next " );
+      ICache c_ = fromJust(this.nextLevel);
+      c_!flushAll();
+  }
+  //println ( this.name + ": flusAll returns ");
+  }
+  Unit receiveRd(Address a){
+      Maybe<Status> sl = lookup(this.cacheMemory, a);
+     // println(( ( this.name + ": to flush address ") + toString(a) +" status "+ toString(sl)));
+    case sl {
+      Just( Mo ) => {
+        Fut<Unit> tmp1894338251 = this!flush(a);
+        await tmp1894338251?;
+        tmp1894338251.get;
+      }
+      _ => {
+          skip;
+	  
+      }
+    /*  _ => {
+        throw PatternMatchFailException;
+      }*/
+    }
+  }
+  Unit receiveRdX(Address a){
+    Maybe<Status> sl = lookup(this.cacheMemory, a);
+    case sl {
+      Just( Sh ) => {
+        this.cacheMemory = put(this.cacheMemory, a, In);
+      }
+      Just( Mo ) => {
+        //println(( ( "ERROR (in address " + toString(a) ) + "): cache coherence protocol is not working correctly" ));
+      }
+      _ => {
+        skip;
+      }
+   /*   _ => {
+        throw PatternMatchFailException;
+      }*/
+    }
+  }
+  }
+
+interface IBus {
+  Unit addCaches(List<ICache> caches_);
+  Unit sendRd(ICache sender, Address b);
+  Bool sendRdX(ICache sender, Address b);}
+
+class OBus(IMemory mainMemory) implements IBus {
+  List<ICache> caches = Nil;
+  
+  Unit addCaches(List<ICache> caches_){
+    this.caches = caches_;
+  }
+  Unit sendRd(ICache sender, Address b){
+    List<ICache> caches_ = this.caches;
+    List<Fut<Unit>> replies = Nil;
+    while (( caches_ != Nil )) {
+      ICache cache_ = head(caches_);
+      if ( ( cache_ != sender ) ){
+        Fut<Unit> reply = cache_!receiveRd(b);
+        replies = Cons( reply, replies );
+      }
+      caches_ = tail(caches_);
+    }
+    while (( replies != Nil )) {
+      Fut<Unit> reply = head(replies);
+      await reply?;
+      replies = tail(replies);
+    }
+  }
+  Bool sendRdX(ICache sender, Address b){
+    Fut<Status> f = this.mainMemory!getStatus(b);
+    Status s = f.get;
+    Bool r = False;
+    if ( ( s != In ) ){
+      List<ICache> caches_ = this.caches;
+      Fut<Unit> replyMainMemory = this.mainMemory!receiveRdX(b);
+      replyMainMemory.get;
+      List<Fut<Unit>> replies = Nil;
+      while (( caches_ != Nil )) {
+        ICache cache_ = head(caches_);
+        if ( ( cache_ != sender ) ){
+          Fut<Unit> reply = cache_!receiveRdX(b);
+          replies = Cons( reply, replies );
+        }
+        caches_ = tail(caches_);
+      }
+      while (( replies != Nil )) {
+        Fut<Unit> reply = head(replies);
+        await reply?;
+        replies = tail(replies);
+      }
+      r = True;
+    }
+    return r;
+  }
+  }
+
+
+{
+  Int nCores = 50;
+  Int nTasks = 500;
+  println(( ( ( "Cores: " + toString(nCores) ) + ", Tasks: " ) + toString(nTasks) ));
+  Int sizeTasks = 10;
+  Int nLevels = 2;
+  Int l1Size = 10;
+  Bool printresults = False;
+  Int memo = ( ( nTasks * sizeTasks ) + 10 );
+  IConfig config = new OConfig();
+  Fut<List<Sst>> tmp643552582 = config!createMain2(sizeTasks, nTasks);
+  SstList sst = tmp643552582.get;
+  Fut<Unit> tmp856047451 = config!runConfig(nCores, nLevels, l1Size, memo, sst, printresults);
+  tmp856047451.get;
+}
+module ABS.SmartDeploy;
+
+export *;
+
+import * from Absstdlib;
+import Functions from Absstdlib;
+
+data DeployParamSpecification = Req| AList(Int)| Default(String)| User| OptList(String);
+
+data DeployScenarioElement = MaxUse(Int)| Cost(String, Int)| Param(String, DeployParamSpecification)| Name(String);
+
+type Deploy = List<DeployScenarioElement>;
+
+type SmartDeploy = String;
+
+type SmartDeployCloudProvider = String;
+
+interface SmartDeployInterface {
+  }
+
+
+

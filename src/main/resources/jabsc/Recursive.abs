@@ -15,9 +15,15 @@ class A() implements Ainterface{
 	
 	Int recursive_m(Int i, Int id){
 	   if (i>0){
+	   		Int r = 0;
+	   		r=this.recursive_m(i - 1,id);
+	   		//r=this!recursive_m(i-1,id);
 	   		//println("Start "+ toString(id)+ " "+ toString(i));
-	   		
-			this.result = this.recursive_m(i - 1,id);	
+	   		//this.result=this.recursive_m(i - 1,id);
+			//println(toString(i)+" "+ toString(id)+" =========="); 
+			//i=i+1;
+			//id=id+1;
+				
 		}
 		else{
 			//B computation = new B ( );
@@ -25,7 +31,7 @@ class A() implements Ainterface{
 			//println("==========");
 			await f ?;
 		}
-		//println(toString(id)+"**********");
+		//println(toString(id)+" **********");
 		return 1;
 	}
 
@@ -39,15 +45,15 @@ class A() implements Ainterface{
 	
 { // Main block:
 	Int i = 0;
-	Ainterface master = new A ( );
+	A master = new A ( );
 	List<Fut<Int>> futures = Nil;
 	
-while(i<20000){		
-Fut<Int> f = master ! recursive_m (5, i);
+	while(i<5){
+		Fut<Int> f = master ! recursive_m (5, i);
 		futures = Cons( f, futures );
 		i = i + 1 ;
 	}
-	while ( futures != Nil ){
+	while ( size(futures) > 0 ){
 	
 		Fut<Int> f1 = head(futures);
 		futures = tail(futures);
